@@ -3,8 +3,9 @@ import { createClient } from "@/domains/auth/supabase/server";
 import { getCurrentUser } from "@/domains/auth/session";
 import { shuffled } from "@/domains/quiz/shuffle";
 import type { Attempt } from "@/domains/shared/types";
+import { difficultyLabel, trapLabel } from "@/domains/shared/labels";
 
-type QMeta = { id: string; unit_id: string | null; set_id: string; tags: string[] };
+type QMeta = { id: string; unit_id: string | null; set_id: string; tags: string[]; topic: string | null; difficulty: string | null; trap_types: string[] };
 type Mark = { question_id: string; kind: string; at: string };
 
 export type GroupStat = { key: string; label: string; total: number; correct: number; accuracy: number };
@@ -30,6 +31,10 @@ export type WeakSummary = {
   wrongIds: string[];
   confusedIds: string[];
   byUnit: GroupStat[];
+  byTopic: GroupStat[];
+  byDifficulty: GroupStat[];
+  /** 함정 유형별: 그 함정이 있는 문항을 틀린 비율 */
+  byTrap: GroupStat[];
   bySet: GroupStat[];
   byTag: GroupStat[];
   totalAttempts: number;
@@ -42,7 +47,7 @@ async function loadProgress(subjectId: string) {
   if (!user) return null;
   const db = await createClient();
   const [{ data: qs }, { data: units }, { data: sets }] = await Promise.all([
-    db.from("questions").select("id, unit_id, set_id, tags").eq("subject_id", subjectId),
+    db.from("questions").select("id, unit_id, set_id, tags, topic, difficulty, trap_types").eq("subject_id", subjectId),
     db.from("units").select("id, title, no").eq("subject_id", subjectId),
     db.from("question_sets").select("id, title").eq("subject_id", subjectId),
   ]);
@@ -144,6 +149,9 @@ export async function getWeakSummary(subjectId: string): Promise<WeakSummary | n
     wrongIds: items.filter((i) => i.reasons.includes("wrong")).map((i) => i.questionId),
     confusedIds: items.filter((i) => i.reasons.includes("confused")).map((i) => i.questionId),
     byUnit: agg((m) => [m.unit_id ?? "__none__"], (k) => unitTitle.get(k) ?? "단원 미지정"),
+    byTopic: agg((m) => (m.topic ? [m.topic] : []), (k) => k),
+    byDifficulty: agg((m) => (m.difficulty ? [m.difficulty] : []), (k) => difficultyLabel(k) ?? k),
+    byTrap: agg((m) => m.trap_types, (k) => trapLabel(k)),
     bySet: agg((m) => [m.set_id], (k) => setTitle.get(k) ?? "세트"),
     byTag: agg((m) => m.tags, (k) => `#${k}`),
     totalAttempts: graded.length,

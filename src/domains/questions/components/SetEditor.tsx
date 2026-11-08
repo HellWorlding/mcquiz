@@ -6,6 +6,7 @@ import type { QuestionSet, QuestionWithChoices, Unit } from "@/domains/shared/ty
 import { flattenTree, type TreeNode } from "@/domains/shared/tree";
 import { deleteQuestionAction, deleteSetAction, updateChoiceAction, updateQuestionAction } from "@/domains/questions/admin-actions";
 import { LOW_CONFIDENCE } from "@/domains/import/types";
+import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 
 export function SetEditor({ set, questions, unitTree }: { set: QuestionSet; questions: QuestionWithChoices[]; unitTree: TreeNode<Unit>[] }) {
   const router = useRouter();
@@ -36,7 +37,9 @@ export function SetEditor({ set, questions, unitTree }: { set: QuestionSet; ques
                 </button>
               </div>
             </div>
+            <QuestionBadges q={q} />
             <EditableText value={q.prompt} className="font-semibold" onSave={(v) => run(() => updateQuestionAction({ id: q.id, prompt: v }))} />
+            <SourceQuote q={q} />
             <ul className="flex flex-col gap-1">
               {q.choices.map((c) => (
                 <li key={c.id} className="flex items-start gap-2">

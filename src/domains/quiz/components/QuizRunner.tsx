@@ -6,6 +6,7 @@ import { hashString, shuffled } from "@/domains/quiz/shuffle";
 import { recordAttemptAction, saveProgressAction, setConfusedAction, type SessionAnswer } from "@/domains/quiz/actions";
 import type { ResumeState } from "@/domains/quiz/resolve";
 import { saveQuestionAction } from "@/domains/progress/actions";
+import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 import { AddToCollection } from "./AddToCollection";
 
 type Props = {
@@ -240,13 +241,15 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, back
               )}
               {correctChoice?.explanation && <p className="mt-3 whitespace-pre-wrap text-base">{correctChoice.explanation}</p>}
               {q.explanation && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-background p-3 text-base">{q.explanation}</p>}
+              <SourceQuote q={q} className="mt-3" />
               {q.hint && <p className="mt-3 text-sm text-muted">힌트: {q.hint}</p>}
             </>
           )}
         </div>
       ) : (
         <div className="card">
-          <p className="whitespace-pre-wrap text-xl font-semibold leading-relaxed">{q.prompt}</p>
+          <QuestionBadges q={q} showTraps={false} />
+          <p className="mt-1 whitespace-pre-wrap text-xl font-semibold leading-relaxed">{q.prompt}</p>
           {q.needs_review && <p className="mt-2 text-sm text-warn">정답이 지정되지 않은 문항입니다. 선택은 기록되지만 채점되지 않습니다.</p>}
           <ul className="mt-4 flex flex-col gap-2">
             {order.map((c, i) => {
@@ -288,6 +291,8 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, back
                   <p className="whitespace-pre-wrap text-base">{q.explanation}</p>
                 </div>
               )}
+              <SourceQuote q={q} />
+              {q.trap_types.length > 0 && <QuestionBadges q={{ ...q, difficulty: null, topic: null }} />}
               {q.choices.some((c) => c.explanation) && (
                 <button className="btn-ghost btn-sm self-start" onClick={() => setShowAll(!showAll)}>
                   {showAll ? "선지별 해설 접기" : "선지별 해설 모두 보기"}
@@ -383,6 +388,10 @@ function ResultList({
               {correct && <p className="mt-1 text-sm text-ok">정답: {correct.text}</p>}
               {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{correct.explanation}</p>}
               {q.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{q.explanation}</p>}
+              <SourceQuote q={q} className="mt-1" />
+              <div className="mt-1">
+                <QuestionBadges q={q} />
+              </div>
             </li>
           );
         })}

@@ -6,6 +6,7 @@ import type { QuestionWithChoices, Subject } from "@/domains/shared/types";
 import type { GroupStat, SavedItem, WeakSummary } from "@/domains/progress/queries";
 import { dismissQuestionAction } from "@/domains/progress/actions";
 import { AddToCollection } from "@/domains/quiz/components/AddToCollection";
+import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 
 type Filter = "all" | "wrong" | "confused" | "saved";
 
@@ -81,6 +82,9 @@ export function WeakView({ subject, summary, questions }: { subject: Subject; su
       {tab === "stats" && (
         <div className="flex flex-col gap-4">
           <StatTable title="단원별" rows={summary.byUnit} />
+          <StatTable title="세부 주제별" rows={summary.byTopic} />
+          <StatTable title="난이도별" rows={summary.byDifficulty} />
+          <StatTable title="함정 유형별 (틀린 문항의 함정)" rows={summary.byTrap} />
           <StatTable title="세트별" rows={summary.bySet} />
           <StatTable title="태그별" rows={summary.byTag} />
         </div>
@@ -141,6 +145,10 @@ function SavedList({ subjectId, items, byId }: { subjectId: string; items: Saved
               {correct && <p className="mt-1 text-sm text-ok">정답: {correct.text}</p>}
               {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{correct.explanation}</p>}
               {q.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{q.explanation}</p>}
+              <SourceQuote q={q} className="mt-1" />
+              <div className="mt-1">
+                <QuestionBadges q={q} />
+              </div>
             </li>
           );
         })}

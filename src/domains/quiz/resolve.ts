@@ -4,6 +4,8 @@ import { buildWeakMix, getSavedIds } from "@/domains/progress/queries";
 import { hashString, shuffled } from "./shuffle";
 import type { QuestionWithChoices } from "@/domains/shared/types";
 import { createClient } from "@/domains/auth/supabase/server";
+import { getReadClient } from "@/domains/subjects/queries";
+import { difficultyLabel } from "@/domains/shared/labels";
 import { getCurrentUser } from "@/domains/auth/session";
 import type { SessionAnswer } from "./actions";
 
@@ -18,6 +20,7 @@ export type QuizParams = {
   offset?: string; // 순서대로일 때 시작 위치 (0부터)
   ids?: string; // 쉼표 구분 (다시 풀기)
   session?: string; // 이어서 풀기
+  difficulty?: string; // easy|medium|hard|very_hard
 };
 
 export type ResumeState = { id: string; position: number; answers: Record<string, SessionAnswer> };
@@ -79,6 +82,17 @@ export async function resolveQuiz(p: QuizParams): Promise<ResolvedQuiz> {
   } else if (p.subject) {
     ids = await listQuestionIds({ kind: "subject", subjectId: p.subject });
     title = "전체";
+  }
+
+  if (p.difficulty && ids.length) {
+    const { db } = await getReadClient();
+    const keep = new Set<string>();
+    for (let i = 0; i < ids.length; i += 500) {
+      const { data } = await db.from("questions").select("id").in("id", ids.slice(i, i + 500)).eq("difficulty", p.difficulty);
+      for (const r of data ?? []) keep.add(r.id);
+    }
+    ids = ids.filter((id) => keep.has(id));
+    title += ` · 난이도 ${difficultyLabel(p.difficulty) ?? p.difficulty}`;
   }
 
   const total = ids.length;

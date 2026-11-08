@@ -195,14 +195,14 @@ isOneToOne: false
                   ]
                 },"questions": {
                   Row: {
-                    "choice_count": number,"correct_choice": number | null,"created_at": string,"explanation": string | null,"hint": string | null,"id": string,"needs_review": boolean,"ord": number,"points": number | null,"prompt": string,"set_id": string,"subject_id": string,"tags": (string)[],"unit_confidence": number | null,"unit_id": string | null
+                    "choice_count": number,"correct_choice": number | null,"created_at": string,"difficulty": string | null,"explanation": string | null,"hint": string | null,"id": string,"needs_review": boolean,"ord": number,"points": number | null,"prompt": string,"set_id": string,"source_quote": string | null,"subject_id": string,"tags": (string)[],"topic": string | null,"trap_types": (string)[],"unit_confidence": number | null,"unit_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "choice_count"?: number,"correct_choice"?: number | null,"created_at"?: string,"explanation"?: string | null,"hint"?: string | null,"id"?: string,"needs_review"?: boolean,"ord"?: number,"points"?: number | null,"prompt": string,"set_id": string,"subject_id": string,"tags"?: (string)[],"unit_confidence"?: number | null,"unit_id"?: string | null
+                    "choice_count"?: number,"correct_choice"?: number | null,"created_at"?: string,"difficulty"?: string | null,"explanation"?: string | null,"hint"?: string | null,"id"?: string,"needs_review"?: boolean,"ord"?: number,"points"?: number | null,"prompt": string,"set_id": string,"source_quote"?: string | null,"subject_id": string,"tags"?: (string)[],"topic"?: string | null,"trap_types"?: (string)[],"unit_confidence"?: number | null,"unit_id"?: string | null
                   }
                   Update: {
-                    "choice_count"?: number,"correct_choice"?: number | null,"created_at"?: string,"explanation"?: string | null,"hint"?: string | null,"id"?: string,"needs_review"?: boolean,"ord"?: number,"points"?: number | null,"prompt"?: string,"set_id"?: string,"subject_id"?: string,"tags"?: (string)[],"unit_confidence"?: number | null,"unit_id"?: string | null
+                    "choice_count"?: number,"correct_choice"?: number | null,"created_at"?: string,"difficulty"?: string | null,"explanation"?: string | null,"hint"?: string | null,"id"?: string,"needs_review"?: boolean,"ord"?: number,"points"?: number | null,"prompt"?: string,"set_id"?: string,"source_quote"?: string | null,"subject_id"?: string,"tags"?: (string)[],"topic"?: string | null,"trap_types"?: (string)[],"unit_confidence"?: number | null,"unit_id"?: string | null
                   }
                   Relationships: [
                     {

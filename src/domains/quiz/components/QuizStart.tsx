@@ -7,6 +7,7 @@ import { subtreeIds, type TreeNode } from "@/domains/shared/tree";
 import { createCollectionAction, deleteCollectionAction } from "@/domains/subjects/collection-actions";
 import { deleteSessionAction } from "@/domains/quiz/actions";
 import type { UnfinishedSession } from "@/domains/quiz/sessions";
+import { DIFFICULTIES, DIFFICULTY_LABELS } from "@/domains/shared/labels";
 
 type Props = {
   subject: Subject;
@@ -30,6 +31,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
   const [count, setCount] = useState<(typeof COUNTS)[number]>("20");
   const [order, setOrder] = useState<"seq" | "random">("seq");
   const [offset, setOffset] = useState(0);
+  const [difficulty, setDifficulty] = useState<string>("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set(units.map((u) => u.id)));
 
   // 단원별 누적 문항 수 (하위 포함)
@@ -86,6 +88,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
   const start = () => {
     const p = new URLSearchParams({ subject: subject.id, count, order });
     if (order === "seq" && count !== "all") p.set("offset", String(offset));
+    if (difficulty) p.set("difficulty", difficulty);
     // 상위가 선택된 하위는 빼고 보낸다 (서버가 하위를 다시 펼친다)
     const roots = allUnits.filter((u) => selected.has(u.id) && !(u.parent_id && selected.has(u.parent_id)));
     if (roots.length) p.set("units", roots.map((u) => u.id).join(","));
@@ -248,6 +251,20 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
                   className={`flex-1 rounded-xl border py-2 font-semibold ${order === k ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
                 >
                   {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="label">난이도</div>
+            <div className="flex flex-wrap gap-2">
+              {["", ...DIFFICULTIES].map((d) => (
+                <button
+                  key={d || "all"}
+                  onClick={() => setDifficulty(d)}
+                  className={`rounded-full border px-3 py-1 text-sm ${difficulty === d ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+                >
+                  {d ? DIFFICULTY_LABELS[d] : "전체"}
                 </button>
               ))}
             </div>

@@ -14,6 +14,13 @@ export type ParsedQuestion = {
   explanation: string | null;
   hint: string | null;
   tags: string[];
+  /** 세부 주제 (단원보다 세밀) */
+  topic: string | null;
+  difficulty: "easy" | "medium" | "hard" | "very_hard" | null;
+  /** 오답 선지에 쓴 함정 유형 코드 */
+  trapTypes: string[];
+  /** 정답 근거가 된 원문 문장 */
+  sourceQuote: string | null;
   /** 원문에 표시된 단원 번호 (예: [26강] → 26) */
   unitHint: number | null;
   points: number | null;
@@ -44,6 +51,10 @@ export function emptyQuestion(no: number | null = null): ParsedQuestion {
     explanation: null,
     hint: null,
     tags: [],
+    topic: null,
+    difficulty: null,
+    trapTypes: [],
+    sourceQuote: null,
     unitHint: null,
     points: null,
     warnings: [],

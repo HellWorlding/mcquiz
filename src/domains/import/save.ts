@@ -40,6 +40,10 @@ export async function saveQuestionSet(
     hint: q.hint,
     tags: q.tags,
     points: q.points,
+    topic: q.topic,
+    difficulty: q.difficulty,
+    trap_types: q.trapTypes,
+    source_quote: q.sourceQuote,
     needs_review: q.correct === null,
   }));
   const { data: inserted, error: qErr } = await db.from("questions").insert(rows).select("id, ord");

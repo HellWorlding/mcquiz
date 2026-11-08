@@ -6,6 +6,7 @@ import { flattenTree, type TreeNode } from "@/domains/shared/tree";
 import { previewImportAction, saveImportAction, type PreviewResult } from "@/domains/import/actions";
 import type { PreviewQuestion } from "@/domains/import/types";
 import { LOW_CONFIDENCE } from "@/domains/import/types";
+import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 
 type Props = { subjects: Subject[]; currentSubjectId: string; unitTree: TreeNode<Unit>[] };
 
@@ -181,7 +182,9 @@ function QuestionCard({
           제외
         </button>
       </div>
+      <QuestionBadges q={{ difficulty: q.difficulty, topic: q.topic, trap_types: q.trapTypes, source_quote: q.sourceQuote }} />
       <textarea className="input font-semibold" value={q.prompt} onChange={(e) => onChange({ prompt: e.target.value })} rows={2} />
+      <SourceQuote q={{ difficulty: q.difficulty, topic: q.topic, trap_types: q.trapTypes, source_quote: q.sourceQuote }} />
       <ul className="flex flex-col gap-2">
         {q.choices.map((c, i) => (
           <li key={i} className="flex flex-col gap-1">

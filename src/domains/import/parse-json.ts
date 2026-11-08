@@ -26,7 +26,16 @@ const questionSchema = z.object({
   lecture_no: z.number().int().nullable().optional(),
   unit_no: z.number().int().nullable().optional(),
   unit: z.union([z.number().int(), z.string()]).nullable().optional(),
+  topic: z.string().nullable().optional(),
+  difficulty: z.string().nullable().optional(),
+  trap_types: z.array(z.string()).nullable().optional(),
+  source_quote: z.string().nullable().optional(),
 });
+
+const DIFFICULTIES = new Set(["easy", "medium", "hard", "very_hard"]);
+const DIFFICULTY_ALIASES: Record<string, "easy" | "medium" | "hard" | "very_hard"> = {
+  하: "easy", 쉬움: "easy", 중: "medium", 보통: "medium", 상: "hard", 어려움: "hard", 최상: "very_hard", 매우어려움: "very_hard",
+};
 
 const fileSchema = z.union([
   z.array(questionSchema),
@@ -72,6 +81,12 @@ export function parseJsonQuestions(text: string): ParseResult {
     q.hint = item.hint?.trim() || q.hint;
     q.tags = item.tags ?? [];
     q.points = item.points ?? null;
+    q.topic = item.topic?.trim() || null;
+    const d = item.difficulty?.trim().toLowerCase();
+    q.difficulty = d ? (DIFFICULTIES.has(d) ? (d as typeof q.difficulty) : (DIFFICULTY_ALIASES[d] ?? null)) : null;
+    if (d && q.difficulty === null) q.warnings.push(`난이도 "${item.difficulty}" 를 알 수 없어 비웠습니다 (easy/medium/hard/very_hard).`);
+    q.trapTypes = (item.trap_types ?? []).map((t) => t.trim()).filter(Boolean);
+    q.sourceQuote = item.source_quote?.trim() || null;
     const unitRaw = item.lecture_no ?? item.unit_no ?? (typeof item.unit === "number" ? item.unit : null) ?? fileUnit;
     q.unitHint = unitRaw ?? null;
     if (typeof item.unit === "string") {

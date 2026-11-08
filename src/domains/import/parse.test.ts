@@ -163,6 +163,11 @@ describe("JSON", () => {
           correct_choice: 2,
           explanation: "전체 해설",
           lecture_no: 26,
+          topic: "직권면직",
+          difficulty: "very_hard",
+          points: 2,
+          trap_types: ["concept_swap"],
+          source_quote: "근거 문장",
           choices: [
             { ord: 1, text: "가", explanation: null },
             { ord: 2, text: "나", explanation: "정답" },
@@ -177,6 +182,11 @@ describe("JSON", () => {
     expect(r.questions[0].unitHint).toBe(26);
     expect(r.questions[0].choices[1].explanation).toBe("정답");
     expect(r.questions[0].explanation).toBe("전체 해설");
+    expect(r.questions[0].topic).toBe("직권면직");
+    expect(r.questions[0].difficulty).toBe("very_hard");
+    expect(r.questions[0].points).toBe(2);
+    expect(r.questions[0].trapTypes).toEqual(["concept_swap"]);
+    expect(r.questions[0].sourceQuote).toBe("근거 문장");
   });
 });
 
