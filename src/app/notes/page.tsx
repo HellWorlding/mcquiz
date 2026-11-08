@@ -49,6 +49,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
               <div key={n.questionId} className="flex flex-col gap-2 border-t border-border pt-3 first:border-t-0 first:pt-0">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-semibold">
+                    <span className="mr-1 text-accent">{n.noLabel}</span>
                     {n.topic && <span className="badge mr-1 bg-background text-muted">{n.topic}</span>}
                     {n.prompt}
                   </p>

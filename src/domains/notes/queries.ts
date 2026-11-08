@@ -27,6 +27,8 @@ export type NoteItem = {
   subjectId: string;
   unitId: string | null;
   unitLabel: string;
+  /** "1강 7번" */
+  noLabel: string;
   topic: string | null;
   correctText: string | null;
   correctExplanation: string | null;
@@ -48,14 +50,14 @@ export async function listMyNotes(subjectId: string | null): Promise<NoteItem[]>
   if (!notes?.length) return [];
   const ids = notes.map((n) => n.question_id);
   const qs: {
-    id: string; prompt: string; subject_id: string; unit_id: string | null; topic: string | null; correct_choice: number | null;
+    id: string; prompt: string; subject_id: string; unit_id: string | null; topic: string | null; correct_choice: number | null; ord: number;
     explanation: string | null; source_quote: string | null; source_page: number | null;
     choices: { ord: number; text: string; explanation: string | null }[];
   }[] = [];
   for (let i = 0; i < ids.length; i += 200) {
     const { data } = await db
       .from("questions")
-      .select("id, prompt, subject_id, unit_id, topic, correct_choice, explanation, source_quote, source_page, choices(ord, text, explanation)")
+      .select("id, prompt, subject_id, unit_id, topic, correct_choice, ord, explanation, source_quote, source_page, choices(ord, text, explanation)")
       .in("id", ids.slice(i, i + 200));
     qs.push(...(data ?? []));
   }
@@ -79,7 +81,8 @@ export async function listMyNotes(subjectId: string | null): Promise<NoteItem[]>
         prompt: q.prompt,
         subjectId: q.subject_id,
         unitId: q.unit_id,
-        unitLabel: u ? (u.no !== null ? `${u.no}. ${u.title}` : u.title) : "단원 없음",
+        unitLabel: u ? (u.no !== null ? `${u.no}강 ${u.title}` : u.title) : "단원 없음",
+        noLabel: u && u.no !== null ? `${u.no}강 ${q.ord}번` : `${q.ord}번`,
         topic: q.topic,
         correctText: q.choices.find((c) => c.ord === q.correct_choice)?.text ?? null,
         correctExplanation: q.choices.find((c) => c.ord === q.correct_choice)?.explanation ?? null,
@@ -90,7 +93,7 @@ export async function listMyNotes(subjectId: string | null): Promise<NoteItem[]>
       };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
-    .sort((a, b) => a._sort - b._sort || (b.updatedAt > a.updatedAt ? 1 : -1))
+    .sort((a, b) => a._sort - b._sort || a.noLabel.localeCompare(b.noLabel, "ko", { numeric: true }))
     .map((x) => {
       const { _sort, ...rest } = x;
       void _sort;

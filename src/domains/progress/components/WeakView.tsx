@@ -3,7 +3,7 @@ import { cleanExplanation } from "@/domains/shared/labels";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { QuestionWithChoices, Subject } from "@/domains/shared/types";
+import type { QuestionWithChoices, Subject, Unit } from "@/domains/shared/types";
 import type { GroupStat, SavedItem, WeakSummary } from "@/domains/progress/queries";
 import { dismissQuestionAction } from "@/domains/progress/actions";
 import { AddToCollection } from "@/domains/quiz/components/AddToCollection";
@@ -12,11 +12,39 @@ import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
 
 type Filter = "all" | "wrong" | "confused" | "saved";
 
-export function WeakView({ subject, summary, questions }: { subject: Subject; summary: WeakSummary; questions: QuestionWithChoices[] }) {
+/** 단원 라벨: "1강 학교 경영" */
+export function unitLabelOf(units: Unit[], unitId: string | null): { key: string; label: string; sort: number } {
+  const u = units.find((x) => x.id === unitId);
+  if (!u) return { key: "__none__", label: "단원 미지정", sort: 99999 };
+  return { key: u.id, label: u.no !== null ? `${u.no}강 ${u.title}` : u.title, sort: u.no ?? u.sort };
+}
+
+/** 문항 번호 라벨: "1강 7번" */
+export function questionNoLabel(units: Unit[], q: { unit_id: string | null; ord: number }): string {
+  const u = units.find((x) => x.id === q.unit_id);
+  return u && u.no !== null ? `${u.no}강 ${q.ord}번` : `${q.ord}번`;
+}
+
+export function WeakView({ subject, summary, questions, units }: { subject: Subject; summary: WeakSummary; questions: QuestionWithChoices[]; units: Unit[] }) {
   const [tab, setTab] = useState<"list" | "stats">("list");
   const [filter, setFilter] = useState<Filter>("all");
+  const [unitFilter, setUnitFilter] = useState<string | null>(null); // null = 전체
   const byId = new Map(questions.map((q) => [q.id, q]));
-  const items = summary.items.filter((it) => filter === "all" || it.reasons.includes(filter)).filter((it) => byId.has(it.questionId));
+  const byReason = summary.items.filter((it) => filter === "all" || it.reasons.includes(filter)).filter((it) => byId.has(it.questionId));
+  // 단원별 묶음 (단원 순 → 문항 번호 순)
+  const groups = new Map<string, { label: string; sort: number; items: SavedItem[] }>();
+  for (const it of byReason) {
+    const q = byId.get(it.questionId)!;
+    const u = unitLabelOf(units, q.unit_id);
+    const g = groups.get(u.key) ?? { label: u.label, sort: u.sort, items: [] };
+    g.items.push(it);
+    groups.set(u.key, g);
+  }
+  const groupList = [...groups.entries()]
+    .map(([key, g]) => ({ key, ...g, items: [...g.items].sort((a, b) => byId.get(a.questionId)!.ord - byId.get(b.questionId)!.ord) }))
+    .sort((a, b) => a.sort - b.sort);
+  const visibleGroups = unitFilter ? groupList.filter((g) => g.key === unitFilter) : groupList;
+  const items = visibleGroups.flatMap((g) => g.items);
   const counts = {
     all: summary.items.length,
     wrong: summary.items.filter((i) => i.reasons.includes("wrong")).length,
@@ -78,7 +106,26 @@ export function WeakView({ subject, summary, questions }: { subject: Subject; su
               </button>
             ))}
           </div>
-          <SavedList subjectId={subject.id} items={items} byId={byId} />
+          {groupList.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setUnitFilter(null)}
+                className={`rounded-full border px-3 py-1 text-sm ${unitFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+              >
+                전체 보기 {byReason.length}
+              </button>
+              {groupList.map((g) => (
+                <button
+                  key={g.key}
+                  onClick={() => setUnitFilter(g.key)}
+                  className={`rounded-full border px-3 py-1 text-sm ${unitFilter === g.key ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+                >
+                  {g.label} {g.items.length}
+                </button>
+              ))}
+            </div>
+          )}
+          <SavedList subjectId={subject.id} items={items} groups={visibleGroups} byId={byId} units={units} />
         </>
       )}
       {tab === "stats" && (
@@ -95,7 +142,19 @@ export function WeakView({ subject, summary, questions }: { subject: Subject; su
   );
 }
 
-function SavedList({ subjectId, items, byId }: { subjectId: string; items: SavedItem[]; byId: Map<string, QuestionWithChoices> }) {
+function SavedList({
+  subjectId,
+  items,
+  groups,
+  byId,
+  units,
+}: {
+  subjectId: string;
+  items: SavedItem[];
+  groups: { key: string; label: string; items: SavedItem[] }[];
+  byId: Map<string, QuestionWithChoices>;
+  units: Unit[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [removing, setRemoving] = useState<string | null>(null);
@@ -122,15 +181,23 @@ function SavedList({ subjectId, items, byId }: { subjectId: string; items: Saved
           </Link>
         </div>
       </div>
-      <ol className="flex flex-col gap-3">
-        {items.map((it, i) => {
+      <div className="flex flex-col gap-5">
+        {groups.map((g) => (
+          <section key={g.key}>
+            <h3 className="mb-2 flex items-center gap-2 border-b border-border pb-1 font-bold">
+              {g.label}
+              <span className="text-sm font-normal text-muted">{g.items.length}문항</span>
+            </h3>
+            <ol className="flex flex-col gap-3">
+        {g.items.map((it) => {
           const q = byId.get(it.questionId)!;
           const correct = q.choices.find((c) => c.ord === q.correct_choice);
           return (
             <li key={q.id} className="border-t border-border pt-3 first:border-t-0 first:pt-0">
               <div className="flex items-start justify-between gap-2">
                 <p className="font-semibold">
-                  {i + 1}. {q.prompt}
+                  <span className="mr-1 text-accent">{questionNoLabel(units, q)}</span>
+                  {q.prompt}
                 </p>
                 <button className="btn-ghost btn-sm shrink-0 text-bad" disabled={pending && removing === q.id} onClick={() => remove(q.id)}>
                   {removing === q.id ? "빼는 중…" : "빼기"}
@@ -157,7 +224,10 @@ function SavedList({ subjectId, items, byId }: { subjectId: string; items: Saved
             </li>
           );
         })}
-      </ol>
+            </ol>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
