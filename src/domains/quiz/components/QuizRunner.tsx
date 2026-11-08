@@ -9,6 +9,7 @@ import { saveQuestionAction } from "@/domains/progress/actions";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
 import { cleanExplanation } from "@/domains/shared/labels";
+import { NoteBox } from "@/domains/notes/components/NoteBox";
 
 const pts = (q: QuestionWithChoices) => (q.points && q.points > 0 ? q.points : 1);
 import { AddToCollection } from "./AddToCollection";
@@ -24,6 +25,8 @@ type Props = {
   seed: number;
   /** 이어서 풀기 */
   resume: ResumeState | null;
+  /** 내 메모 (question_id → content) */
+  notes?: Record<string, string>;
 };
 
 type Answer = {
@@ -38,7 +41,7 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
   return shuffled(q.choices, hashString(q.id) ^ salt);
 }
 
-export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAdmin = false, backHref, seed, resume }: Props) {
+export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAdmin = false, backHref, seed, resume, notes = {} }: Props) {
   const [questions, setQuestions] = useState(initial);
   const [idx, setIdx] = useState(resume?.position ?? 0);
   const [answers, setAnswers] = useState<Record<string, Answer>>(() => {
@@ -70,6 +73,11 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         if (r.ok && r.data && !sessionRef.current) {
           sessionRef.current = r.data;
           setSessionId(r.data);
+          try {
+            window.history.replaceState(window.history.state, "", `/quiz?session=${r.data}`);
+          } catch {
+            // 주소 교체 실패는 무시
+          }
         }
       };
       saving.current = (saving.current ?? Promise.resolve()).then(run, run);
@@ -324,6 +332,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
               <SourceQuote q={q} />
               {q.trap_types.length > 0 && <QuestionBadges q={{ ...q, difficulty: null, topic: null, points: null }} />}
               {!isGuest && <EvidencePanel questionId={q.id} subjectId={subjectId} isAdmin={isAdmin} />}
+              {!isGuest && <NoteBox key={q.id} questionId={q.id} initial={notes[q.id] ?? ""} compact />}
             </div>
           )}
         </div>

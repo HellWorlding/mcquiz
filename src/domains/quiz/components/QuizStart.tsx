@@ -108,8 +108,8 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{subject.name}</h1>
         <div className="flex gap-1">
-          <Link href={`/chat?subject=${subject.id}`} className="btn-ghost btn-sm">
-            AI에게 묻기
+          <Link href={`/chat?subject=${subject.id}`} target="_blank" rel="noopener" className="btn-ghost btn-sm">
+            AI에게 묻기 ↗
           </Link>
           <Link href={`/weak?subject=${subject.id}`} className="btn-ghost btn-sm">
             저장된 문제

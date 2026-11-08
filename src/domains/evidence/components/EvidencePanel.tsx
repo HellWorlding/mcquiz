@@ -27,8 +27,8 @@ export function EvidencePanel({ questionId, subjectId, isAdmin = false }: { ques
           </button>
         )}
         {subjectId && (
-          <Link href={`/chat?subject=${subjectId}&question=${questionId}`} className="btn-ghost btn-sm">
-            AI에게 묻기
+          <Link href={`/chat?subject=${subjectId}&question=${questionId}`} target="_blank" rel="noopener" className="btn-ghost btn-sm">
+            AI에게 묻기 ↗
           </Link>
         )}
       </div>

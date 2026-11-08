@@ -19,6 +19,9 @@ export async function Nav() {
               <Link href="/weak" className="btn-ghost btn-sm">
                 저장함
               </Link>
+              <Link href="/notes" className="btn-ghost btn-sm">
+                필기
+              </Link>
               {user.isAdmin && (
                 <Link href="/admin" className="btn-ghost btn-sm">
                   관리

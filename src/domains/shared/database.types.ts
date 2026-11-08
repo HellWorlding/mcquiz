@@ -167,6 +167,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"question_notes": {
+                  Row: {
+                    "content": string,"created_at": string,"question_id": string,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "content": string,"created_at"?: string,"question_id": string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "content"?: string,"created_at"?: string,"question_id"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "question_notes_question_id_fkey"
+      columns: ["question_id"]
+isOneToOne: false
+      referencedRelation: "questions"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "question_notes_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"question_sets": {
                   Row: {
                     "created_at": string,"created_by": string | null,"id": string,"source_filename": string | null,"subject_id": string,"title": string

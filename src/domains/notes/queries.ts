@@ -1,0 +1,84 @@
+import "server-only";
+import { createClient } from "@/domains/auth/supabase/server";
+import { getCurrentUser } from "@/domains/auth/session";
+
+/** 주어진 문항들의 내 메모 (question_id → content) */
+export async function getNotesFor(questionIds: string[]): Promise<Record<string, string>> {
+  const user = await getCurrentUser();
+  if (!user || questionIds.length === 0) return {};
+  const db = await createClient();
+  const out: Record<string, string> = {};
+  for (let i = 0; i < questionIds.length; i += 200) {
+    const { data } = await db
+      .from("question_notes")
+      .select("question_id, content")
+      .eq("user_id", user.id)
+      .in("question_id", questionIds.slice(i, i + 200));
+    for (const r of data ?? []) out[r.question_id] = r.content;
+  }
+  return out;
+}
+
+export type NoteItem = {
+  questionId: string;
+  content: string;
+  updatedAt: string;
+  prompt: string;
+  subjectId: string;
+  unitId: string | null;
+  unitLabel: string;
+  topic: string | null;
+  correctText: string | null;
+};
+
+/** 내 메모 전체 (주제로 거르기 가능). 단원 순 → 최근 수정 순 */
+export async function listMyNotes(subjectId: string | null): Promise<NoteItem[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const db = await createClient();
+  const { data: notes } = await db
+    .from("question_notes")
+    .select("question_id, content, updated_at")
+    .eq("user_id", user.id)
+    .order("updated_at", { ascending: false });
+  if (!notes?.length) return [];
+  const ids = notes.map((n) => n.question_id);
+  const qs: { id: string; prompt: string; subject_id: string; unit_id: string | null; topic: string | null; correct_choice: number | null; choices: { ord: number; text: string }[] }[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await db.from("questions").select("id, prompt, subject_id, unit_id, topic, correct_choice, choices(ord, text)").in("id", ids.slice(i, i + 200));
+    qs.push(...(data ?? []));
+  }
+  const unitIds = [...new Set(qs.map((q) => q.unit_id).filter((x): x is string => !!x))];
+  const units = new Map<string, { no: number | null; title: string; sort: number }>();
+  if (unitIds.length) {
+    const { data } = await db.from("units").select("id, no, title, sort").in("id", unitIds);
+    for (const u of data ?? []) units.set(u.id, u);
+  }
+  const byId = new Map(qs.map((q) => [q.id, q]));
+  return notes
+    .map((n) => {
+      const q = byId.get(n.question_id);
+      if (!q) return null;
+      if (subjectId && q.subject_id !== subjectId) return null;
+      const u = q.unit_id ? units.get(q.unit_id) : null;
+      return {
+        questionId: n.question_id,
+        content: n.content,
+        updatedAt: n.updated_at,
+        prompt: q.prompt,
+        subjectId: q.subject_id,
+        unitId: q.unit_id,
+        unitLabel: u ? (u.no !== null ? `${u.no}. ${u.title}` : u.title) : "단원 없음",
+        topic: q.topic,
+        correctText: q.choices.find((c) => c.ord === q.correct_choice)?.text ?? null,
+        _sort: u ? (u.no ?? u.sort) : 9999,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .sort((a, b) => a._sort - b._sort || (b.updatedAt > a.updatedAt ? 1 : -1))
+    .map((x) => {
+      const { _sort, ...rest } = x;
+      void _sort;
+      return rest;
+    });
+}
