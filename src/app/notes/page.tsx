@@ -7,12 +7,23 @@ import { cleanExplanation } from "@/domains/shared/labels";
 
 export const metadata = { title: "필기" };
 
-export default async function NotesPage({ searchParams }: { searchParams: Promise<{ subject?: string }> }) {
+export default async function NotesPage({ searchParams }: { searchParams: Promise<{ subject?: string; unit?: string }> }) {
   await requireUser("/notes");
-  const { subject } = await searchParams;
+  const { subject, unit } = await searchParams;
   const subjects = await listSubjects();
   const current = subjects.find((s) => s.id === subject) ?? subjects[0] ?? null;
-  const notes = await listMyNotes(current?.id ?? null);
+  const allNotes = await listMyNotes(current?.id ?? null);
+
+  // 단원 목록 (메모가 있는 단원만) + 선택
+  const unitOptions: { key: string; label: string; count: number }[] = [];
+  for (const n of allNotes) {
+    const key = n.unitId ?? "__none__";
+    const o = unitOptions.find((x) => x.key === key);
+    if (o) o.count++;
+    else unitOptions.push({ key, label: n.unitLabel, count: 1 });
+  }
+  const unitFilter = unit && unitOptions.some((o) => o.key === unit) ? unit : null;
+  const notes = unitFilter ? allNotes.filter((n) => (n.unitId ?? "__none__") === unitFilter) : allNotes;
 
   // 단원별로 묶기
   const groups = new Map<string, typeof notes>();
@@ -42,6 +53,26 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           </Link>
         ))}
       </div>
+      {unitOptions.length > 0 && current && (
+        <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
+          <span className="w-full text-xs font-semibold text-muted">단원</span>
+          <Link
+            href={`/notes?subject=${current.id}`}
+            className={`rounded-full border px-3 py-1 text-sm ${unitFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+          >
+            전체 보기 {allNotes.length}
+          </Link>
+          {unitOptions.map((o) => (
+            <Link
+              key={o.key}
+              href={`/notes?subject=${current.id}&unit=${o.key}`}
+              className={`rounded-full border px-3 py-1 text-sm ${unitFilter === o.key ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+            >
+              {o.label} {o.count}
+            </Link>
+          ))}
+        </div>
+      )}
       {notes.length === 0 ? (
         <p className="card text-muted">아직 메모가 없습니다. 문제를 풀 때 아래 메모 칸에 적으면 여기에 모입니다.</p>
       ) : (

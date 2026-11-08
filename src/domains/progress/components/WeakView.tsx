@@ -106,8 +106,9 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
               </button>
             ))}
           </div>
-          {groupList.length > 1 && (
-            <div className="flex flex-wrap gap-2">
+          {groupList.length > 0 && (
+            <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
+              <span className="w-full text-xs font-semibold text-muted">단원</span>
               <button
                 onClick={() => setUnitFilter(null)}
                 className={`rounded-full border px-3 py-1 text-sm ${unitFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
