@@ -16,6 +16,7 @@ export default async function QuizPage({ searchParams }: { searchParams: Promise
       title={quiz.title}
       subjectId={subjectId}
       isGuest={!user}
+      isAdmin={user?.isAdmin ?? false}
       backHref={backHref}
       seed={quiz.seed}
       resume={quiz.resume}

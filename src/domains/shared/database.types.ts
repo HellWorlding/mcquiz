@@ -251,6 +251,38 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"source_chunks": {
+                  Row: {
+                    "content": string,"id": string,"ord": number,"page": number | null,"source_id": string,"subject_id": string,"tsv": unknown,"unit_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "content": string,"id"?: string,"ord": number,"page"?: number | null,"source_id": string,"subject_id": string,"tsv"?: never,"unit_id"?: string | null
+                  }
+                  Update: {
+                    "content"?: string,"id"?: string,"ord"?: number,"page"?: number | null,"source_id"?: string,"subject_id"?: string,"tsv"?: never,"unit_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "source_chunks_source_id_fkey"
+      columns: ["source_id"]
+isOneToOne: false
+      referencedRelation: "sources"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "source_chunks_subject_id_fkey"
+      columns: ["subject_id"]
+isOneToOne: false
+      referencedRelation: "subjects"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "source_chunks_unit_id_fkey"
+      columns: ["unit_id"]
+isOneToOne: false
+      referencedRelation: "units"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"sources": {
                   Row: {
                     "content": string,"created_at": string,"id": string,"kind": string,"page_range": string | null,"subject_id": string,"title": string,"tsv": unknown,"unit_id": string | null
@@ -365,6 +397,11 @@ isOneToOne: false
                            },
 "is_admin":
 { Args: Record<PropertyKey, never>; Returns: boolean
+                           },
+"search_chunks":
+{ Args: { "p_limit"?: number,"p_subject": string,"p_tokens": (string)[],"p_unit_ids"?: (string)[] }; Returns: {
+              "chunk_id": string,"content": string,"kind": string,"ord": number,"page": number,"score": number,"source_id": string,"source_title": string,"unit_id": string,"unit_no": number
+            }[]
                            },
 "show_limit":
 { Args: Record<PropertyKey, never>; Returns: number

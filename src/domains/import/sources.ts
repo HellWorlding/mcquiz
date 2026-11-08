@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/domains/shared/database.types";
 import type { Unit } from "@/domains/shared/types";
 import { unitNoFromFilename } from "./parse-text";
+import { chunkText } from "./chunk";
 
 type Db = SupabaseClient<Database>;
 
@@ -127,19 +128,32 @@ export async function importSourceFile(
   // 같은 이름의 자료가 이미 있으면 새 내용으로 바꾼다 (다시 올려도 중복되지 않게)
   const { data: dup } = await db.from("sources").select("id").eq("subject_id", input.subjectId).eq("title", title);
   if (dup && dup.length) await db.from("sources").delete().in("id", dup.map((d) => d.id));
-  const { error } = await db.from("sources").insert({
-    subject_id: input.subjectId,
-    unit_id: unitId,
-    kind: input.kind,
-    title,
-    content: text,
-    page_range: pageRange,
-  });
-  if (error) return { filename: input.filename, status: "skipped", message: error.message };
+  const chunks = chunkText(text);
+  const pages = chunks.map((c) => c.page).filter((p): p is number => p !== null);
+  const range = pageRange ?? (pages.length ? `${Math.min(...pages)}-${Math.max(...pages)}` : null);
+  const { data: inserted, error } = await db
+    .from("sources")
+    .insert({ subject_id: input.subjectId, unit_id: unitId, kind: input.kind, title, content: text, page_range: range })
+    .select("id")
+    .single();
+  if (error || !inserted) return { filename: input.filename, status: "skipped", message: error?.message ?? "저장 실패" };
+  // 검색·인용용 조각 (책은 쪽 단위)
+  for (let i = 0; i < chunks.length; i += 200) {
+    const rows = chunks.slice(i, i + 200).map((c) => ({
+      source_id: inserted.id,
+      subject_id: input.subjectId,
+      unit_id: unitId,
+      ord: c.ord,
+      page: c.page,
+      content: c.content,
+    }));
+    const { error: cErr } = await db.from("source_chunks").insert(rows);
+    if (cErr) return { filename: input.filename, status: "skipped", message: `조각 저장 실패: ${cErr.message}` };
+  }
   return {
     filename: input.filename,
     status: "source",
     unitTitle,
-    message: unitId ? `단원 "${unitTitle}" 에 연결` : "단원을 찾지 못해 연결하지 않음",
+    message: `${unitId ? `단원 "${unitTitle}" 에 연결` : "단원을 찾지 못해 연결하지 않음"} · 조각 ${chunks.length}개${pages.length ? ` (p.${Math.min(...pages)}-${Math.max(...pages)})` : ""}`,
   };
 }

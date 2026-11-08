@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/subjects", "/quiz", "/weak", "/admin", "/collections", "/account"];
+const PROTECTED_PREFIXES = ["/subjects", "/quiz", "/weak", "/admin", "/collections", "/account", "/chat"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -30,7 +30,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const guestAccess = (process.env.PUBLIC_GUEST_ACCESS ?? "false").toLowerCase() === "true";
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  const guestAllowed = guestAccess && !pathname.startsWith("/admin") && !pathname.startsWith("/weak") && !pathname.startsWith("/account");
+  const guestAllowed = guestAccess && !["/admin", "/weak", "/account", "/chat"].some((p) => pathname.startsWith(p));
 
   if (!user && isProtected && !guestAllowed) {
     const url = request.nextUrl.clone();

@@ -107,9 +107,14 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{subject.name}</h1>
-        <Link href={`/weak?subject=${subject.id}`} className="btn-ghost btn-sm">
-          저장된 문제
-        </Link>
+        <div className="flex gap-1">
+          <Link href={`/chat?subject=${subject.id}`} className="btn-ghost btn-sm">
+            AI에게 묻기
+          </Link>
+          <Link href={`/weak?subject=${subject.id}`} className="btn-ghost btn-sm">
+            저장된 문제
+          </Link>
+        </div>
       </div>
 
       {sessions.length > 0 && (

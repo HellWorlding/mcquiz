@@ -7,6 +7,7 @@ import { recordAttemptAction, saveProgressAction, setConfusedAction, type Sessio
 import type { ResumeState } from "@/domains/quiz/resolve";
 import { saveQuestionAction } from "@/domains/progress/actions";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
+import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
 import { AddToCollection } from "./AddToCollection";
 
 type Props = {
@@ -14,6 +15,7 @@ type Props = {
   title: string;
   subjectId: string | null;
   isGuest: boolean;
+  isAdmin?: boolean;
   backHref: string;
   /** 선지 셔플 seed. 서버에서 만들어 넘겨야 hydration 이 어긋나지 않는다 */
   seed: number;
@@ -33,7 +35,7 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
   return shuffled(q.choices, hashString(q.id) ^ salt);
 }
 
-export function QuizRunner({ questions: initial, title, subjectId, isGuest, backHref, seed, resume }: Props) {
+export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAdmin = false, backHref, seed, resume }: Props) {
   const [questions, setQuestions] = useState(initial);
   const [idx, setIdx] = useState(resume?.position ?? 0);
   const [answers, setAnswers] = useState<Record<string, Answer>>(() => {
@@ -293,6 +295,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, back
               )}
               <SourceQuote q={q} />
               {q.trap_types.length > 0 && <QuestionBadges q={{ ...q, difficulty: null, topic: null }} />}
+              {!isGuest && <EvidencePanel questionId={q.id} subjectId={subjectId} isAdmin={isAdmin} />}
               {q.choices.some((c) => c.explanation) && (
                 <button className="btn-ghost btn-sm self-start" onClick={() => setShowAll(!showAll)}>
                   {showAll ? "선지별 해설 접기" : "선지별 해설 모두 보기"}

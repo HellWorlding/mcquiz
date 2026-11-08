@@ -7,6 +7,7 @@ import type { GroupStat, SavedItem, WeakSummary } from "@/domains/progress/queri
 import { dismissQuestionAction } from "@/domains/progress/actions";
 import { AddToCollection } from "@/domains/quiz/components/AddToCollection";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
+import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
 
 type Filter = "all" | "wrong" | "confused" | "saved";
 
@@ -148,6 +149,9 @@ function SavedList({ subjectId, items, byId }: { subjectId: string; items: Saved
               <SourceQuote q={q} className="mt-1" />
               <div className="mt-1">
                 <QuestionBadges q={q} />
+              </div>
+              <div className="mt-2">
+                <EvidencePanel questionId={q.id} subjectId={subjectId} />
               </div>
             </li>
           );
