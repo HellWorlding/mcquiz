@@ -40,25 +40,45 @@ export async function saveQuestionSet(
     questions: PreviewQuestion[];
   },
 ): Promise<SaveResult> {
-  // 기존 문항 찾기: (unit_id, prompt)
+  // 기존 문항 찾기 1: 같은 파일(source_filename)에서 온 같은 단원·같은 번호 → 질문 문장이 바뀌어도 같은 문항
+  const byFilePos = new Map<string, string>(); // `${unit_id}|${ord}` → id
+  if (input.sourceFilename) {
+    const { data: sets } = await db
+      .from("question_sets")
+      .select("id")
+      .eq("subject_id", input.subjectId)
+      .eq("source_filename", input.sourceFilename);
+    const setIds = (sets ?? []).map((s) => s.id);
+    if (setIds.length) {
+      const { data } = await db.from("questions").select("id, unit_id, ord").in("set_id", setIds);
+      for (const r of data ?? []) byFilePos.set(`${r.unit_id ?? ""}|${r.ord}`, r.id);
+    }
+  }
+  // 기존 문항 찾기 2: (unit_id, prompt)
   const prompts = [...new Set(input.questions.map((q) => q.prompt))];
-  const existing = new Map<string, string>(); // `${unit_id}|${prompt}` → id
+  const byPrompt = new Map<string, string>(); // `${unit_id}|${prompt}` → id
   for (let i = 0; i < prompts.length; i += 100) {
     const { data } = await db
       .from("questions")
       .select("id, unit_id, prompt")
       .eq("subject_id", input.subjectId)
       .in("prompt", prompts.slice(i, i + 100));
-    for (const r of data ?? []) existing.set(`${r.unit_id ?? ""}|${r.prompt}`, r.id);
+    for (const r of data ?? []) byPrompt.set(`${r.unit_id ?? ""}|${r.prompt}`, r.id);
   }
 
   const toInsert: PreviewQuestion[] = [];
   const toUpdate: { id: string; q: PreviewQuestion }[] = [];
-  for (const q of input.questions) {
-    const id = existing.get(`${q.unitId ?? ""}|${q.prompt}`);
-    if (id) toUpdate.push({ id, q });
-    else toInsert.push(q);
-  }
+  const used = new Set<string>();
+  input.questions.forEach((q, i) => {
+    const no = q.no ?? i + 1;
+    const id = byFilePos.get(`${q.unitId ?? ""}|${no}`) ?? byPrompt.get(`${q.unitId ?? ""}|${q.prompt}`);
+    if (id && !used.has(id)) {
+      used.add(id);
+      toUpdate.push({ id, q });
+    } else {
+      toInsert.push(q);
+    }
+  });
 
   const row = (q: PreviewQuestion) => ({
     subject_id: input.subjectId,
@@ -100,14 +120,15 @@ export async function saveQuestionSet(
       .single();
     if (setErr || !set) throw new Error(setErr?.message ?? "세트를 만들지 못했습니다");
     setId = set.id;
-    const rows = toInsert.map((q, i) => ({ ...row(q), set_id: set.id, ord: i + 1 }));
+    const rows = toInsert.map((q, i) => ({ ...row(q), set_id: set.id, ord: q.no ?? i + 1 }));
     const { data: inserted, error: qErr } = await db.from("questions").insert(rows).select("id, ord");
     if (qErr || !inserted) {
       await db.from("question_sets").delete().eq("id", set.id);
       throw new Error(qErr?.message ?? "문항 저장 실패");
     }
+    const ordOf = (q: PreviewQuestion, i: number) => q.no ?? i + 1;
     const idByOrd = new Map(inserted.map((r) => [r.ord, r.id]));
-    const allChoices = toInsert.flatMap((q, i) => choiceRows(idByOrd.get(i + 1)!, q));
+    const allChoices = toInsert.flatMap((q, i) => choiceRows(idByOrd.get(ordOf(q, i))!, q));
     const { error: cErr } = await db.from("choices").insert(allChoices);
     if (cErr) {
       await db.from("question_sets").delete().eq("id", set.id);
