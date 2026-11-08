@@ -1,8 +1,11 @@
 import "server-only";
 import { getQuestionsByIds, listQuestionIds } from "@/domains/questions/queries";
 import { buildWeakMix, getWrongOrConfusedIds } from "@/domains/progress/queries";
-import { shuffled } from "./shuffle";
+import { hashString, shuffled } from "./shuffle";
 import type { QuestionWithChoices } from "@/domains/shared/types";
+import { createClient } from "@/domains/auth/supabase/server";
+import { getCurrentUser } from "@/domains/auth/session";
+import type { SessionAnswer } from "./actions";
 
 export type QuizParams = {
   subject?: string;
@@ -14,7 +17,10 @@ export type QuizParams = {
   order?: "seq" | "random";
   offset?: string; // 순서대로일 때 시작 위치 (0부터)
   ids?: string; // 쉼표 구분 (다시 풀기)
+  session?: string; // 이어서 풀기
 };
+
+export type ResumeState = { id: string; position: number; answers: Record<string, SessionAnswer> };
 
 export type ResolvedQuiz = {
   questions: QuestionWithChoices[];
@@ -22,12 +28,32 @@ export type ResolvedQuiz = {
   title: string;
   /** 선지 셔플 seed (렌더 밖에서 만든다) */
   seed: number;
+  /** 이어서 풀기일 때 저장된 진행 상태 */
+  resume: ResumeState | null;
 };
 
 export async function resolveQuiz(p: QuizParams): Promise<ResolvedQuiz> {
   const seed = Date.now() & 0xffff;
   let ids: string[] = [];
   let title = "퀴즈";
+
+  if (p.session) {
+    const user = await getCurrentUser();
+    if (user) {
+      const db = await createClient();
+      const { data: ses } = await db.from("quiz_sessions").select("*").eq("id", p.session).maybeSingle();
+      if (ses) {
+        const qs = await getQuestionsByIds(ses.question_ids);
+        return {
+          questions: qs,
+          total: qs.length,
+          title: ses.title,
+          seed: hashString(ses.id) & 0xffff, // 같은 세션은 같은 선지 순서
+          resume: { id: ses.id, position: Math.min(ses.position, Math.max(0, qs.length - 1)), answers: (ses.answers ?? {}) as Record<string, SessionAnswer> },
+        };
+      }
+    }
+  }
 
   if (p.ids) {
     ids = p.ids.split(",").filter(Boolean);
@@ -37,7 +63,7 @@ export async function resolveQuiz(p: QuizParams): Promise<ResolvedQuiz> {
     ids = await buildWeakMix(p.subject, n);
     title = "약점 섞어 풀기";
     const qs = await getQuestionsByIds(ids);
-    return { questions: qs, total: qs.length, title, seed };
+    return { questions: qs, total: qs.length, title, seed, resume: null };
   } else if ((p.mode === "wrong" || p.mode === "confused") && p.subject) {
     ids = await getWrongOrConfusedIds(p.subject, p.mode);
     title = p.mode === "wrong" ? "틀린 문제 다시 풀기" : "헷갈린 문제 다시 풀기";
@@ -67,5 +93,5 @@ export async function resolveQuiz(p: QuizParams): Promise<ResolvedQuiz> {
     picked = ids.slice(offset, offset + count);
   }
   const questions = await getQuestionsByIds(picked);
-  return { questions, total, title, seed };
+  return { questions, total, title, seed, resume: null };
 }

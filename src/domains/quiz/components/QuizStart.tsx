@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import type { Collection, QuestionSet, Subject, Unit } from "@/domains/shared/types";
 import { subtreeIds, type TreeNode } from "@/domains/shared/tree";
 import { createCollectionAction, deleteCollectionAction } from "@/domains/subjects/collection-actions";
+import { deleteSessionAction } from "@/domains/quiz/actions";
+import type { UnfinishedSession } from "@/domains/quiz/sessions";
 
 type Props = {
   subject: Subject;
@@ -14,13 +16,15 @@ type Props = {
   unitCounts: Record<string, number>;
   collectionCounts: Record<string, number>;
   user: { id: string; isAdmin: boolean } | null;
+  sessions: UnfinishedSession[];
 };
 
 type Tab = "units" | "collections" | "sets";
 const COUNTS = ["10", "20", "40", "all"] as const;
 
-export function QuizStart({ subject, units, sets, collections, unitCounts, collectionCounts, user }: Props) {
+export function QuizStart({ subject, units, sets, collections, unitCounts, collectionCounts, user, sessions }: Props) {
   const router = useRouter();
+  const [sessionPending, startSessionTransition] = useTransition();
   const [tab, setTab] = useState<Tab>(units.length ? "units" : sets.length ? "sets" : "collections");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [count, setCount] = useState<(typeof COUNTS)[number]>("20");
@@ -104,6 +108,32 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
           약점 보기
         </Link>
       </div>
+
+      {sessions.length > 0 && (
+        <div className="card flex flex-col gap-2">
+          <div className="font-semibold">이어서 풀기</div>
+          {sessions.map((s) => (
+            <div key={s.id} className="flex items-center gap-2 text-sm">
+              <Link href={`/quiz?session=${s.id}`} className="btn-primary btn-sm">
+                {s.title} · {Math.min(s.position + 1, s.total)}/{s.total}
+              </Link>
+              <span className="text-muted">{new Date(s.updated_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+              <button
+                className="btn-ghost btn-sm ml-auto text-bad"
+                disabled={sessionPending}
+                onClick={() =>
+                  startSessionTransition(async () => {
+                    await deleteSessionAction(s.id);
+                    router.refresh();
+                  })
+                }
+              >
+                버리기
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="flex gap-1 rounded-xl bg-card p-1">
         {(
@@ -352,6 +382,9 @@ function CollectionsPanel({
             </div>
           </div>
           <div className="flex gap-1">
+            <Link href={`/collections/${c.id}`} className="btn-secondary btn-sm">
+              보기
+            </Link>
             <Link href={`/quiz?collection=${c.id}&count=all&order=random`} className="btn-primary btn-sm">
               풀기
             </Link>

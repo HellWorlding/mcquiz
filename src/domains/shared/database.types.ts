@@ -199,6 +199,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"quiz_sessions": {
+                  Row: {
+                    "answers": NonNullable<Json>,"created_at": string,"finished": boolean,"id": string,"position": number,"question_ids": (string)[],"subject_id": string | null,"title": string,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "answers"?: NonNullable<Json>,"created_at"?: string,"finished"?: boolean,"id"?: string,"position"?: number,"question_ids": (string)[],"subject_id"?: string | null,"title"?: string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "answers"?: NonNullable<Json>,"created_at"?: string,"finished"?: boolean,"id"?: string,"position"?: number,"question_ids"?: (string)[],"subject_id"?: string | null,"title"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "quiz_sessions_subject_id_fkey"
+      columns: ["subject_id"]
+isOneToOne: false
+      referencedRelation: "subjects"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "quiz_sessions_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"sources": {
                   Row: {
                     "content": string,"created_at": string,"id": string,"kind": string,"page_range": string | null,"subject_id": string,"title": string,"tsv": unknown,"unit_id": string | null

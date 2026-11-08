@@ -9,7 +9,12 @@ type QMeta = { id: string; unit_id: string | null; set_id: string; tags: string[
 export type GroupStat = { key: string; label: string; total: number; correct: number; accuracy: number };
 
 export type WeakSummary = {
+  /** 한 번이라도 틀린 문항 (많이 틀린 순) */
   wrongIds: string[];
+  /** 문항별 틀린 횟수 */
+  wrongCounts: Record<string, number>;
+  /** 문항별 마지막 결과 (true 정답 / false 오답) */
+  lastResult: Record<string, boolean>;
   confusedIds: string[];
   byUnit: GroupStat[];
   bySet: GroupStat[];
@@ -58,7 +63,11 @@ export async function getWeakSummary(subjectId: string): Promise<WeakSummary | n
   const p = await loadProgress(subjectId);
   if (!p) return null;
   const { latest, everConfused } = latestByQuestion(p.attempts);
-  const wrongIds = [...latest.values()].filter((a) => a.is_correct === false).map((a) => a.question_id);
+  const wrongCounts: Record<string, number> = {};
+  for (const a of p.attempts) if (a.is_correct === false) wrongCounts[a.question_id] = (wrongCounts[a.question_id] ?? 0) + 1;
+  const wrongIds = Object.keys(wrongCounts).sort((a, b) => wrongCounts[b] - wrongCounts[a]);
+  const lastResult: Record<string, boolean> = {};
+  for (const [qid, a] of latest) if (a.is_correct !== null) lastResult[qid] = a.is_correct;
   const confusedIds = [...everConfused];
 
   const unitTitle = new Map(p.units.map((u) => [u.id, u.no ? `${u.no}. ${u.title}` : u.title]));
@@ -82,6 +91,8 @@ export async function getWeakSummary(subjectId: string): Promise<WeakSummary | n
   const graded = [...latest.values()];
   return {
     wrongIds,
+    wrongCounts,
+    lastResult,
     confusedIds,
     byUnit: agg((m) => [m.unit_id ?? "__none__"], (k) => unitTitle.get(k) ?? "단원 미지정"),
     bySet: agg((m) => [m.set_id], (k) => setTitle.get(k) ?? "세트"),

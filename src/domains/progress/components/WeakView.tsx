@@ -9,7 +9,8 @@ export function WeakView({ subject, summary, questions }: { subject: Subject; su
   const [tab, setTab] = useState<"wrong" | "confused" | "stats">("wrong");
   const wrongSet = new Set(summary.wrongIds);
   const confusedSet = new Set(summary.confusedIds);
-  const wrong = questions.filter((q) => wrongSet.has(q.id));
+  const order = new Map(summary.wrongIds.map((id, i) => [id, i]));
+  const wrong = questions.filter((q) => wrongSet.has(q.id)).sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
   const confused = questions.filter((q) => confusedSet.has(q.id));
 
   return (
@@ -47,7 +48,9 @@ export function WeakView({ subject, summary, questions }: { subject: Subject; su
         ))}
       </div>
 
-      {tab !== "stats" && <QuestionList subjectId={subject.id} items={tab === "wrong" ? wrong : confused} mode={tab} />}
+      {tab !== "stats" && (
+        <QuestionList subjectId={subject.id} items={tab === "wrong" ? wrong : confused} mode={tab} counts={summary.wrongCounts} last={summary.lastResult} />
+      )}
       {tab === "stats" && (
         <div className="flex flex-col gap-4">
           <StatTable title="단원별" rows={summary.byUnit} />
@@ -59,7 +62,19 @@ export function WeakView({ subject, summary, questions }: { subject: Subject; su
   );
 }
 
-function QuestionList({ subjectId, items, mode }: { subjectId: string; items: QuestionWithChoices[]; mode: "wrong" | "confused" }) {
+function QuestionList({
+  subjectId,
+  items,
+  mode,
+  counts,
+  last,
+}: {
+  subjectId: string;
+  items: QuestionWithChoices[];
+  mode: "wrong" | "confused";
+  counts: Record<string, number>;
+  last: Record<string, boolean>;
+}) {
   if (items.length === 0) return <p className="card text-muted">{mode === "wrong" ? "틀린 문항이 없습니다." : "헷갈림 체크한 문항이 없습니다."}</p>;
   return (
     <div className="card">
@@ -79,6 +94,12 @@ function QuestionList({ subjectId, items, mode }: { subjectId: string; items: Qu
             <li key={q.id} className="border-t border-border pt-3 first:border-t-0 first:pt-0">
               <p className="font-semibold">
                 {i + 1}. {q.prompt}
+              </p>
+              <p className="mt-1 flex flex-wrap gap-2 text-xs">
+                {counts[q.id] ? <span className="badge bg-bad-soft text-bad">{counts[q.id]}회 틀림</span> : null}
+                {last[q.id] !== undefined && (
+                  <span className={`badge ${last[q.id] ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad"}`}>최근 {last[q.id] ? "정답" : "오답"}</span>
+                )}
               </p>
               {correct && <p className="mt-1 text-sm text-ok">정답: {correct.text}</p>}
               {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{correct.explanation}</p>}

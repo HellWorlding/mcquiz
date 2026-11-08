@@ -18,6 +18,7 @@ export default async function QuizPage({ searchParams }: { searchParams: Promise
       isGuest={!user}
       backHref={backHref}
       seed={quiz.seed}
+      resume={quiz.resume}
     />
   );
 }

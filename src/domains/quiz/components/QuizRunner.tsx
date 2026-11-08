@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { Choice, QuestionWithChoices } from "@/domains/shared/types";
 import { hashString, shuffled } from "@/domains/quiz/shuffle";
-import { recordAttemptAction, setConfusedAction } from "@/domains/quiz/actions";
+import { recordAttemptAction, saveProgressAction, setConfusedAction, type SessionAnswer } from "@/domains/quiz/actions";
+import type { ResumeState } from "@/domains/quiz/resolve";
 import { AddToCollection } from "./AddToCollection";
 
 type Props = {
@@ -14,6 +15,8 @@ type Props = {
   backHref: string;
   /** 선지 셔플 seed. 서버에서 만들어 넘겨야 hydration 이 어긋나지 않는다 */
   seed: number;
+  /** 이어서 풀기 */
+  resume: ResumeState | null;
 };
 
 type Answer = {
@@ -28,10 +31,43 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
   return shuffled(q.choices, hashString(q.id) ^ salt);
 }
 
-export function QuizRunner({ questions: initial, title, subjectId, isGuest, backHref, seed }: Props) {
+export function QuizRunner({ questions: initial, title, subjectId, isGuest, backHref, seed, resume }: Props) {
   const [questions, setQuestions] = useState(initial);
-  const [idx, setIdx] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, Answer>>({});
+  const [idx, setIdx] = useState(resume?.position ?? 0);
+  const [answers, setAnswers] = useState<Record<string, Answer>>(() => {
+    const out: Record<string, Answer> = {};
+    for (const [qid, a] of Object.entries(resume?.answers ?? {})) out[qid] = { ...a, attemptId: null };
+    return out;
+  });
+  const [sessionId, setSessionId] = useState<string | null>(resume?.id ?? null);
+  const sessionRef = useRef<string | null>(resume?.id ?? null);
+  const saving = useRef<Promise<void> | null>(null);
+
+  /** 진행 상태를 DB 에 저장 (게스트는 건너뜀). 호출 순서를 지키려고 직렬화한다. */
+  const persist = useCallback(
+    (qs: QuestionWithChoices[], pos: number, ans: Record<string, Answer>, finished: boolean) => {
+      if (isGuest) return;
+      const compact: Record<string, SessionAnswer> = {};
+      for (const [qid, a] of Object.entries(ans)) compact[qid] = { selectedOrd: a.selectedOrd, isCorrect: a.isCorrect, confused: a.confused };
+      const run = async () => {
+        const r = await saveProgressAction({
+          sessionId: sessionRef.current,
+          subjectId,
+          title,
+          questionIds: qs.map((q) => q.id),
+          position: pos,
+          answers: compact,
+          finished,
+        });
+        if (r.ok && r.data && !sessionRef.current) {
+          sessionRef.current = r.data;
+          setSessionId(r.data);
+        }
+      };
+      saving.current = (saving.current ?? Promise.resolve()).then(run, run);
+    },
+    [isGuest, subjectId, title],
+  );
   const [flashcard, setFlashcard] = useState(false);
   const [flipped, setFlipped] = useState(false);
   const [showHint, setShowHint] = useState(false);
@@ -57,37 +93,46 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, back
       const isCorrect = q.correct_choice === null ? null : choice.ord === q.correct_choice;
       const prev = answers[q.id];
       const confused = prev?.confused ?? false;
-      setAnswers((s) => ({ ...s, [q.id]: { selectedOrd: choice.ord, isCorrect, confused, attemptId: prev?.attemptId ?? null } }));
+      const nextAnswers = { ...answers, [q.id]: { selectedOrd: choice.ord, isCorrect, confused, attemptId: prev?.attemptId ?? null } };
+      setAnswers(nextAnswers);
       if (isGuest) return;
+      persist(questions, idx, nextAnswers, false);
       if (prev?.attemptId) {
         // 플래시카드에서 먼저 헷갈림을 눌러 둔 경우: 기존 기록은 두고 새 기록을 남긴다
       }
       const r = await recordAttemptAction({ questionId: q.id, selectedOrd: choice.ord, isCorrect, confused });
       if (r.ok && r.data) setAnswers((s) => ({ ...s, [q.id]: { ...s[q.id], attemptId: r.data } }));
     },
-    [q, answered, answers, isGuest],
+    [q, answered, answers, isGuest, persist, questions, idx],
   );
 
   const toggleConfused = useCallback(async () => {
     if (!q) return;
     const cur = answers[q.id];
     const next = !(cur?.confused ?? false);
-    setAnswers((s) => ({
-      ...s,
+    const nextAnswers = {
+      ...answers,
       [q.id]: { selectedOrd: cur?.selectedOrd ?? null, isCorrect: cur?.isCorrect ?? null, confused: next, attemptId: cur?.attemptId ?? null },
-    }));
+    };
+    setAnswers(nextAnswers);
     if (isGuest) return;
+    persist(questions, idx, nextAnswers, false);
     if (cur?.attemptId) {
       await setConfusedAction(cur.attemptId, next);
     } else {
       const r = await recordAttemptAction({ questionId: q.id, selectedOrd: null, isCorrect: null, confused: next });
       if (r.ok && r.data) setAnswers((s) => ({ ...s, [q.id]: { ...s[q.id], attemptId: r.data } }));
     }
-  }, [q, answers, isGuest]);
+  }, [q, answers, isGuest, persist, questions, idx]);
 
   const goNext = () => {
-    if (idx + 1 >= questions.length) setFinished(true);
-    else goTo(idx + 1);
+    if (idx + 1 >= questions.length) {
+      setFinished(true);
+      persist(questions, idx, answers, true);
+    } else {
+      goTo(idx + 1);
+      persist(questions, idx + 1, answers, false);
+    }
   };
 
   const retryWrong = () => {
@@ -98,6 +143,10 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, back
     goTo(0);
     setFinished(false);
     setSalt(Date.now() & 0xffff);
+    // 다시 풀기는 새 세션으로 저장한다
+    sessionRef.current = null;
+    setSessionId(null);
+    persist(wrong, 0, {}, false);
   };
 
   if (questions.length === 0) {
@@ -152,6 +201,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, back
         </Link>
         <span>
           {idx + 1} / {questions.length}
+          {sessionId && <span className="ml-1 text-xs text-muted">· 저장됨</span>}
         </span>
         <button
           className={`btn-sm rounded-full border px-3 ${flashcard ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
