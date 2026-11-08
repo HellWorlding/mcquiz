@@ -28,7 +28,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
   const [sessionPending, startSessionTransition] = useTransition();
   const [tab, setTab] = useState<Tab>(units.length ? "units" : sets.length ? "sets" : "collections");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [count, setCount] = useState<(typeof COUNTS)[number]>("20");
+  const [count, setCount] = useState<(typeof COUNTS)[number]>("all");
   const [order, setOrder] = useState<"seq" | "random">("seq");
   const [offset, setOffset] = useState(0);
   const [difficulty, setDifficulty] = useState<string>("");
