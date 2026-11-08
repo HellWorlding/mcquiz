@@ -114,6 +114,11 @@ export function UploadWizard({ subjects, currentSubjectId, unitTree }: Props) {
           <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="세트 이름" />
           <div className="flex flex-wrap gap-2 text-sm">
             <span className="badge bg-accent-soft text-accent">형식: {preview.format}</span>
+            {Object.entries(preview.subjectOverrides ?? {}).map(([name, n]) => (
+              <span key={name} className="badge bg-ok-soft text-ok">
+                파일 지정 주제 &quot;{name}&quot; {n}문항
+              </span>
+            ))}
             {needsReview > 0 && <span className="badge bg-warn-soft text-warn">정답 없음 {needsReview}</span>}
             {lowUnit > 0 && <span className="badge bg-warn-soft text-warn">단원 확인 필요 {lowUnit}</span>}
           </div>

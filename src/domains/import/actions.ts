@@ -8,6 +8,7 @@ import { parseAny } from "./parse";
 import { unitNoFromFilename } from "./parse-text";
 import { saveQuestionSet, validateQuestions, type FailedQuestion } from "./save";
 import { extractText, importSourceFile, type SourceUploadResult } from "./sources";
+import { ensureUnitPath, resolveSubjectByName, targetFromFilename } from "./targets";
 import type { ParsedQuestion, PreviewQuestion } from "./types";
 
 export type PreviewResult = {
@@ -16,6 +17,8 @@ export type PreviewResult = {
   format: string;
   suggestedTitle: string;
   sourceFilename: string | null;
+  /** 파일이 주제를 지정한 경우: 주제 이름 → 문항 수 */
+  subjectOverrides: Record<string, number>;
 };
 
 const MAX_FILES = 60;
@@ -51,11 +54,20 @@ export async function previewImportAction(formData: FormData): Promise<ActionRes
     answerCombined += "\n" + text;
   }
 
+  let fileTitle: string | null = null;
   for (const f of questionFiles) {
     const { text } = await extractText(f.name, new Uint8Array(await f.arrayBuffer()));
     const r = await parseAny(text, null);
     const fileUnit = unitNoFromFilename(f.name);
-    for (const q of r.questions) if (q.unitHint === null && fileUnit !== null) q.unitHint = fileUnit;
+    const fromName = targetFromFilename(f.name);
+    if (r.title && !fileTitle) fileTitle = r.title;
+    for (const q of r.questions) {
+      if (fromName && !q.subjectName) {
+        q.subjectName = fromName.subject;
+        if (!q.unitPath) q.unitPath = fromName.unitPath;
+      }
+      if (q.unitHint === null && fileUnit !== null && !q.subjectName) q.unitHint = fileUnit;
+    }
     parsed.push(...r.questions);
     warnings.push(...r.warnings.map((w) => `${f.name}: ${w}`));
     if (r.questions.length) format = r.format;
@@ -77,11 +89,46 @@ export async function previewImportAction(formData: FormData): Promise<ActionRes
   if (parsed.length === 0) return { ok: false, error: "문항을 하나도 찾지 못했습니다. 형식을 확인하세요." };
 
   const questions: PreviewQuestion[] = [];
+  const subjectOverrides: Record<string, number> = {};
+  const subjectIdByName = new Map<string, string>();
+  const unitsBySubject = new Map<string, Unit[]>([[subjectId, units]]);
   for (let i = 0; i < parsed.length; i++) {
     const q = parsed[i];
     let unitId: string | null = null;
     let unitConfidence: number | null = null;
     let unitCandidates: { unitId: string; score: number }[] = [];
+    // 파일이 주제/단원 경로를 지정한 문항: 그 주제로 보내고 단원은 경로대로 (없으면 생성)
+    if (q.subjectName || q.unitPath) {
+      let sid = subjectId;
+      if (q.subjectName) {
+        if (!subjectIdByName.has(q.subjectName)) {
+          const s = await resolveSubjectByName(db, q.subjectName, { createIfMissing: true, visibility: "public" });
+          if (!s) {
+            warnings.push(`#${i + 1}: 주제 "${q.subjectName}" 를 찾지 못했습니다.`);
+            continue;
+          }
+          subjectIdByName.set(q.subjectName, s.id);
+        }
+        sid = subjectIdByName.get(q.subjectName)!;
+        subjectOverrides[q.subjectName] = (subjectOverrides[q.subjectName] ?? 0) + 1;
+      }
+      if (!unitsBySubject.has(sid)) {
+        const { data } = await db.from("units").select("*").eq("subject_id", sid);
+        unitsBySubject.set(sid, data ?? []);
+      }
+      const uList = unitsBySubject.get(sid)!;
+      if (q.unitPath?.length) {
+        unitId = await ensureUnitPath(db, sid, q.unitPath, uList);
+        unitConfidence = 1;
+      } else {
+        const a = await classifyQuestion(db, sid, uList, q, { preferParent: null });
+        unitId = a.unitId;
+        unitConfidence = a.confidence;
+        unitCandidates = a.candidates;
+      }
+      questions.push({ ...q, key: `q${i}`, subjectId: sid, unitId, unitConfidence, unitCandidates });
+      continue;
+    }
     if (assignMode === "manual" && targetUnitId) {
       unitId = targetUnitId;
       unitConfidence = 1;
@@ -91,13 +138,14 @@ export async function previewImportAction(formData: FormData): Promise<ActionRes
       unitConfidence = a.confidence;
       unitCandidates = a.candidates;
     }
-    questions.push({ ...q, key: `q${i}`, unitId, unitConfidence, unitCandidates });
+    questions.push({ ...q, key: `q${i}`, subjectId, unitId, unitConfidence, unitCandidates });
   }
 
   const suggestedTitle =
+    fileTitle ??
     sourceFilename?.split(",")[0]?.replace(/\.[a-z0-9]+$/i, "") ??
     `붙여넣기 ${new Date().toLocaleDateString("ko-KR")}`;
-  return { ok: true, data: { questions, warnings, format, suggestedTitle, sourceFilename } };
+  return { ok: true, data: { questions, warnings, format, suggestedTitle, sourceFilename, subjectOverrides } };
 }
 
 export type SaveSummary = { setId: string; count: number; inserted: number; updated: number; failed: FailedQuestion[] };
@@ -118,16 +166,22 @@ export async function saveImportAction(input: {
   }
   const db = await createClient();
   try {
-    const r = await saveQuestionSet(db, {
-      subjectId: input.subjectId,
-      title,
-      sourceFilename: input.sourceFilename,
-      createdBy: user.id,
-      questions: valid,
-    });
-    revalidatePath(`/subjects/${input.subjectId}`);
+    // 파일이 주제를 지정한 문항은 그 주제로, 나머지는 화면에서 고른 주제로. 서로 섞이지 않는다.
+    const bySubject = new Map<string, PreviewQuestion[]>();
+    for (const q of valid) {
+      const sid = q.subjectId ?? input.subjectId;
+      bySubject.set(sid, [...(bySubject.get(sid) ?? []), q]);
+    }
+    let setId = "";
+    let count = 0, inserted = 0, updated = 0;
+    for (const [sid, qs] of bySubject) {
+      const r = await saveQuestionSet(db, { subjectId: sid, title, sourceFilename: input.sourceFilename, createdBy: user.id, questions: qs });
+      if (!setId) setId = r.setId;
+      count += r.count; inserted += r.inserted; updated += r.updated;
+      revalidatePath(`/subjects/${sid}`);
+    }
     revalidatePath("/admin");
-    return { ok: true, data: { ...r, failed } };
+    return { ok: true, data: { setId, count, inserted, updated, failed } };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }

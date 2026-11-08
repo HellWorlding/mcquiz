@@ -10,15 +10,20 @@ const choiceSchema = z.union([
   }),
 ]);
 
+const optionSchema = z.object({ id: z.union([z.string(), z.number()]), text: z.string(), explanation: z.string().nullable().optional() });
+
 const questionSchema = z.object({
   no: z.number().int().optional(),
   prompt: z.string().optional(),
   question: z.string().optional(),
+  // Claude 퀴즈 형식: options + correct_option_id
+  options: z.array(optionSchema).optional(),
+  correct_option_id: z.union([z.string(), z.number()]).nullable().optional(),
   choice_count: z.number().int().optional(),
   correct_choice: z.number().int().nullable().optional(),
   correct: z.number().int().nullable().optional(),
   answer: z.union([z.number().int(), z.string()]).nullable().optional(),
-  choices: z.array(choiceSchema),
+  choices: z.array(choiceSchema).optional(),
   explanation: z.string().nullable().optional(),
   hint: z.string().nullable().optional(),
   tags: z.array(z.string()).optional(),
@@ -31,6 +36,8 @@ const questionSchema = z.object({
   trap_types: z.array(z.string()).nullable().optional(),
   source_quote: z.string().nullable().optional(),
   source_page: z.union([z.number(), z.string()]).nullable().optional(),
+  subject: z.string().nullable().optional(),
+  unit_path: z.array(z.string()).nullable().optional(),
 });
 
 const DIFFICULTIES = new Set(["easy", "medium", "hard", "very_hard"]);
@@ -40,7 +47,14 @@ const DIFFICULTY_ALIASES: Record<string, "easy" | "medium" | "hard" | "very_hard
 
 const fileSchema = z.union([
   z.array(questionSchema),
-  z.object({ questions: z.array(questionSchema), unit_no: z.number().int().optional(), lecture_no: z.number().int().optional() }),
+  z.object({
+    questions: z.array(questionSchema),
+    title: z.string().nullable().optional(),
+    subject: z.string().nullable().optional(),
+    unit_path: z.array(z.string()).nullable().optional(),
+    unit_no: z.number().int().optional(),
+    lecture_no: z.number().int().optional(),
+  }),
 ]);
 
 export function looksLikeJson(text: string): boolean {
@@ -59,20 +73,37 @@ export function parseJsonQuestions(text: string): ParseResult {
   if (!parsed.success) {
     return { questions: [], warnings: [`JSON 형식이 맞지 않습니다: ${parsed.error.issues[0]?.message ?? ""}`], format: "none" };
   }
-  const fileUnit = Array.isArray(parsed.data) ? null : (parsed.data.unit_no ?? parsed.data.lecture_no ?? null);
+  const file = Array.isArray(parsed.data) ? null : parsed.data;
+  const fileUnit = file ? (file.unit_no ?? file.lecture_no ?? null) : null;
+  const fileSubject = file?.subject?.trim() || null;
+  const fileUnitPath = file?.unit_path?.length ? file.unit_path.map((u) => u.trim()).filter(Boolean) : null;
   const list = Array.isArray(parsed.data) ? parsed.data : parsed.data.questions;
   const questions: ParsedQuestion[] = list.map((item, i) => {
     const q = emptyQuestion(item.no ?? i + 1);
     q.prompt = (item.prompt ?? item.question ?? "").trim();
-    const choices = item.choices
-      .map((c, idx) =>
-        typeof c === "string"
-          ? { ord: idx + 1, text: c, explanation: null }
-          : { ord: c.ord ?? idx + 1, text: c.text, explanation: c.explanation ?? null },
-      )
-      .sort((a, b) => a.ord - b.ord);
+    let correctFromOptions: number | null = null;
+    let choices: { ord: number; text: string; explanation: string | null }[];
+    if (item.options && item.options.length) {
+      // Claude 퀴즈 형식: options 순서가 곧 ord
+      choices = item.options.map((o, idx) => ({ ord: idx + 1, text: o.text, explanation: o.explanation ?? null }));
+      if (item.correct_option_id !== null && item.correct_option_id !== undefined) {
+        const idx = item.options.findIndex((o) => String(o.id) === String(item.correct_option_id));
+        correctFromOptions = idx >= 0 ? idx + 1 : null;
+        if (idx < 0) q.warnings.push(`correct_option_id "${item.correct_option_id}" 에 맞는 option 이 없습니다.`);
+      }
+    } else {
+      choices = (item.choices ?? [])
+        .map((c, idx) =>
+          typeof c === "string"
+            ? { ord: idx + 1, text: c, explanation: null }
+            : { ord: c.ord ?? idx + 1, text: c.text, explanation: c.explanation ?? null },
+        )
+        .sort((a, b) => a.ord - b.ord);
+    }
     q.choices = choices.map((c) => ({ text: c.text.trim(), explanation: c.explanation?.trim() || null }));
-    let correct: number | null = item.correct_choice ?? item.correct ?? null;
+    q.subjectName = item.subject?.trim() || fileSubject;
+    q.unitPath = item.unit_path?.length ? item.unit_path.map((u) => u.trim()).filter(Boolean) : fileUnitPath;
+    let correct: number | null = item.correct_choice ?? item.correct ?? correctFromOptions ?? null;
     if (correct === null && item.answer !== null && item.answer !== undefined) {
       const n = typeof item.answer === "number" ? item.answer : parseInt(item.answer, 10);
       correct = Number.isFinite(n) ? n : null;
@@ -111,5 +142,5 @@ export function parseJsonQuestions(text: string): ParseResult {
     if (q.correct === null) q.warnings.push("정답이 없습니다. 미리보기에서 지정하세요.");
     return q;
   });
-  return { questions, warnings: [], format: "json" };
+  return { questions, warnings: [], format: "json", title: file?.title?.trim() || null };
 }

@@ -190,6 +190,51 @@ describe("JSON", () => {
   });
 });
 
+describe("JSON: 주제·단원 경로·Claude 퀴즈 형식", () => {
+  it("subject / unit_path 를 문항에 싣는다 (파일 수준 + 문항 수준)", () => {
+    const r = parseJsonQuestions(
+      JSON.stringify({
+        subject: "토익",
+        unit_path: ["콜로케이션", "파트1"],
+        questions: [
+          { prompt: "q1", correct_choice: 1, choices: ["a", "b", "c", "d"] },
+          { prompt: "q2", correct_choice: 2, choices: ["a", "b", "c", "d"], unit_path: ["콜로케이션", "파트2"] },
+        ],
+      }),
+    );
+    expect(r.questions[0].subjectName).toBe("토익");
+    expect(r.questions[0].unitPath).toEqual(["콜로케이션", "파트1"]);
+    expect(r.questions[1].unitPath).toEqual(["콜로케이션", "파트2"]);
+    expect(r.questions[0].choices[0].explanation).toBeNull(); // 선지 해설 없어도 됨
+  });
+
+  it("Claude 퀴즈 형식 {title, questions:[{options, correct_option_id}]}", () => {
+    const r = parseJsonQuestions(
+      JSON.stringify({
+        title: "콜로케이션 파트1",
+        questions: [
+          {
+            prompt: "make a ___",
+            options: [
+              { id: "a", text: "decision" },
+              { id: "b", text: "homework" },
+              { id: "c", text: "photo" },
+              { id: "d", text: "exercise" },
+            ],
+            correct_option_id: "a",
+            explanation: "make a decision",
+            hint: null,
+          },
+        ],
+      }),
+    );
+    expect(r.title).toBe("콜로케이션 파트1");
+    expect(r.questions[0].choices.map((c) => c.text)).toEqual(["decision", "homework", "photo", "exercise"]);
+    expect(r.questions[0].correct).toBe(1);
+    expect(r.questions[0].explanation).toBe("make a decision");
+  });
+});
+
 describe("파일명 단원 추출", () => {
   it("N강 / part / day", () => {
     expect(unitNoFromFilename("과목_26강.txt")).toBe(26);

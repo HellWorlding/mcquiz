@@ -96,12 +96,32 @@ ChatGPT·Claude 등에 아래 프롬프트와 자료(강의 스크립트, 정리
 | `trap_types` | 답을 고른 뒤 "함정: 숫자 변경" 배지, 통계 "함정 유형별" | 아래 코드 목록에서만 |
 | `hint` | "힌트 보기" 버튼 (있을 때만) | 정답을 바로 말하지 않는 한 줄 |
 
+## 다른 주제 (예: 토익 > 콜로케이션 > 파트1~30)
+
+파일이나 문항에 `subject`(주제 이름)와 `unit_path`(단원 경로 배열)를 적으면 그 주제·단원으로 들어갑니다. 단원 경로의 단원이 없으면 자동으로 만들어집니다(트리). `subject`가 없으면 기본 주제 + `unit_no` 방식 그대로입니다. 같은 문항 판별은 (주제, 단원, 번호/질문) 기준이라 주제끼리 섞이지 않습니다.
+
+```json
+{
+  "subject": "토익",
+  "unit_path": ["콜로케이션", "파트3"],
+  "title": "콜로케이션 파트3",
+  "questions": [
+    { "prompt": "We need to ___ a decision.", "correct_choice": 1, "explanation": "make a decision",
+      "choices": [ { "ord": 1, "text": "make" }, { "ord": 2, "text": "do" }, { "ord": 3, "text": "take" }, { "ord": 4, "text": "have" } ] }
+  ]
+}
+```
+
+- 선지별 `explanation`은 없어도 됩니다(문항 `explanation`만 보여 줌).
+- 파일명이 `toeic_collocation_part3.json`이면 `subject`/`unit_path`가 없어도 토익 > 콜로케이션 > 파트3으로 갑니다(`toeic_<묶음>_part<N>.json`; 묶음 코드: collocation, part5, hackers, vocab, grammar, listening, reading).
+- Claude 퀴즈 형식도 그대로 됩니다: `{ "title", "questions": [ { "prompt", "options": [ { "id", "text" } ], "correct_option_id", "explanation", "hint" } ] }` → options 순서가 선지 번호가 됩니다.
+
 ## 폴더째 올리기
 
 ```bash
 npm run import:questions -- <폴더> --subject "<주제 이름>"
 ```
-폴더 안의 `questions_*.json` 을 전부 올립니다. 같은 (주제, 단원, 질문) 문항이 이미 있으면 새로 만들지 않고 덮어씁니다. 검증에 실패한 문항은 목록으로 보여 주고 나머지는 저장합니다.
+폴더 안의 `questions_*.json`과 `toeic*.json`을 전부 올립니다. 같은 (주제, 단원, 질문) 문항이 이미 있으면 새로 만들지 않고 덮어씁니다. 검증에 실패한 문항은 목록으로 보여 주고 나머지는 저장합니다.
 
 ## 선택 필드
 

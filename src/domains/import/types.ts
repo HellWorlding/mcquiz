@@ -23,6 +23,10 @@ export type ParsedQuestion = {
   sourceQuote: string | null;
   /** 근거 책 쪽수 */
   sourcePage: number | null;
+  /** 파일에 적힌 주제 이름 (없으면 업로드 화면에서 고른 주제) */
+  subjectName: string | null;
+  /** 파일에 적힌 단원 경로 (예: ["콜로케이션", "파트3"]). 없으면 unit_no / 자동 분류 */
+  unitPath: string[] | null;
   /** 원문에 표시된 단원 번호 (예: [26강] → 26) */
   unitHint: number | null;
   points: number | null;
@@ -34,11 +38,15 @@ export type ParseResult = {
   warnings: string[];
   /** 어떤 파서가 처리했는지 */
   format: "json" | "text" | "ai" | "none";
+  /** 파일 수준 제목 (Claude 퀴즈 형식의 title 등) */
+  title?: string | null;
 };
 
 /** 미리보기 화면에서 편집되는 문항 (단원 배정 결과 포함) */
 export type PreviewQuestion = ParsedQuestion & {
   key: string;
+  /** 파일의 subject 로 정해진 주제 (없으면 화면에서 고른 주제) */
+  subjectId?: string | null;
   unitId: string | null;
   unitConfidence: number | null;
   unitCandidates: { unitId: string; score: number }[];
@@ -58,6 +66,8 @@ export function emptyQuestion(no: number | null = null): ParsedQuestion {
     trapTypes: [],
     sourceQuote: null,
     sourcePage: null,
+    subjectName: null,
+    unitPath: null,
     unitHint: null,
     points: null,
     warnings: [],
