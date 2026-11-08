@@ -2,8 +2,10 @@
  * 폴더의 questions_*.json 을 전부 올린다. 같은 (주제, 단원, 질문) 문항은 덮어쓴다.
  *   npm run import:questions -- <폴더> [--subject "<주제 이름>"] [--no-ai]
  * 주제를 생략하면 .env.local 의 DEFAULT_SUBJECT 를 쓴다.
+ * 내용이 바뀌지 않은 파일은 건너뛴다 (content/.import-cache.json 에 해시 기록). --force 로 전부 다시 올린다.
  */
-import { readdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { adminDb, findSubject } from "./_db";
 import { parseJsonQuestions } from "../src/domains/import/parse-json";
@@ -18,6 +20,7 @@ async function main() {
   const si = args.indexOf("--subject");
   const subjectName = si >= 0 ? args[si + 1] : process.env.DEFAULT_SUBJECT;
   const allowAI = !args.includes("--no-ai");
+  const force = args.includes("--force");
   if (!dir || !subjectName) {
     console.error('사용법: npm run import:questions -- <폴더> --subject "<주제 이름>"  (또는 .env.local 에 DEFAULT_SUBJECT 설정)');
     process.exit(1);
@@ -33,9 +36,20 @@ async function main() {
     process.exit(1);
   }
   console.log(`${files.length}개 파일 → 주제 "${subject.name}"`);
-  let totalIns = 0, totalUpd = 0, totalFail = 0;
+  const cachePath = join("content", ".import-cache.json");
+  let cache: Record<string, string> = {};
+  try {
+    if (existsSync(cachePath)) cache = JSON.parse(readFileSync(cachePath, "utf8"));
+  } catch {}
+  const cacheKey = (f: string, hash: string) => `${process.env.NEXT_PUBLIC_SUPABASE_URL}|${subject.id}|${f}`;
+  let totalIns = 0, totalUpd = 0, totalFail = 0, skipped = 0;
   for (const f of files) {
     const text = readFileSync(join(dir, f), "utf8");
+    const hash = createHash("sha256").update(text).digest("hex");
+    if (!force && cache[cacheKey(f, hash)] === hash) {
+      skipped++;
+      continue;
+    }
     const parsed = parseJsonQuestions(text);
     if (parsed.questions.length === 0) {
       console.log(`  [skip] ${f}: ${parsed.warnings.join("; ") || "문항 없음"}`);
@@ -65,8 +79,13 @@ async function main() {
     });
     totalIns += r.inserted; totalUpd += r.updated; totalFail += failed.length;
     console.log(`  [ok] ${f}: 새로 ${r.inserted}, 덮어씀 ${r.updated}, 실패 ${failed.length}`);
+    if (failed.length === 0) {
+      cache[cacheKey(f, hash)] = hash;
+      mkdirSync("content", { recursive: true });
+      writeFileSync(cachePath, JSON.stringify(cache, null, 2));
+    }
   }
-  console.log(`합계: 새로 ${totalIns}, 덮어씀 ${totalUpd}, 실패 ${totalFail}`);
+  console.log(`합계: 새로 ${totalIns}, 덮어씀 ${totalUpd}, 실패 ${totalFail}${skipped ? `, 변경 없어 건너뜀 ${skipped}` : ""}`);
 }
 main().catch((e) => {
   console.error(e);
