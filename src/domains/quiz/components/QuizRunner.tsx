@@ -8,6 +8,9 @@ import type { ResumeState } from "@/domains/quiz/resolve";
 import { saveQuestionAction } from "@/domains/progress/actions";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
+import { cleanExplanation } from "@/domains/shared/labels";
+
+const pts = (q: QuestionWithChoices) => (q.points && q.points > 0 ? q.points : 1);
 import { AddToCollection } from "./AddToCollection";
 
 type Props = {
@@ -170,14 +173,19 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     const correct = graded.filter((x) => answers[x.id]?.isCorrect === true);
     const wrong = questions.filter((x) => answers[x.id]?.isCorrect === false);
     const confused = questions.filter((x) => answers[x.id]?.confused);
+    const totalPts = graded.reduce((s, x) => s + pts(x), 0);
+    const gotPts = correct.reduce((s, x) => s + pts(x), 0);
+    const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
     return (
       <section className="flex flex-col gap-4">
         <div className="card text-center">
           <div className="text-sm text-muted">{title}</div>
           <div className="mt-1 text-4xl font-bold">
-            {correct.length} / {graded.length}
+            {fmt(gotPts)} / {fmt(totalPts)}점
           </div>
-          <div className="mt-1 text-muted">{graded.length ? Math.round((correct.length / graded.length) * 100) : 0}% 정답</div>
+          <div className="mt-1 text-muted">
+            {correct.length} / {graded.length}문항 · {totalPts ? Math.round((gotPts / totalPts) * 100) : 0}%
+          </div>
           {isGuest && <p className="mt-2 text-sm text-warn">로그인하지 않아 풀이 기록이 저장되지 않았습니다.</p>}
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {wrong.length > 0 && (
@@ -241,7 +249,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
               ) : (
                 <p className="mt-2 text-warn">정답이 아직 지정되지 않은 문항입니다.</p>
               )}
-              {correctChoice?.explanation && <p className="mt-3 whitespace-pre-wrap text-base">{correctChoice.explanation}</p>}
+              {correctChoice?.explanation && <p className="mt-3 whitespace-pre-wrap text-base">{cleanExplanation(correctChoice.explanation)}</p>}
               {q.explanation && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-background p-3 text-base">{q.explanation}</p>}
               <SourceQuote q={q} className="mt-3" />
               {q.hint && <p className="mt-3 text-sm text-muted">힌트: {q.hint}</p>}
@@ -273,11 +281,6 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
                     <span className="mr-2 font-bold text-muted">{i + 1}</span>
                     {c.text}
                   </button>
-                  {answered && (showAll || isAns || picked) && c.explanation && (
-                    <p className={`mt-1 whitespace-pre-wrap px-2 text-base ${isAns ? "text-ok" : picked ? "text-bad" : "text-muted"}`}>
-                      {c.explanation}
-                    </p>
-                  )}
                 </li>
               );
             })}
@@ -293,14 +296,34 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
                   <p className="whitespace-pre-wrap text-base">{q.explanation}</p>
                 </div>
               )}
-              <SourceQuote q={q} />
-              {q.trap_types.length > 0 && <QuestionBadges q={{ ...q, difficulty: null, topic: null }} />}
-              {!isGuest && <EvidencePanel questionId={q.id} subjectId={subjectId} isAdmin={isAdmin} />}
               {q.choices.some((c) => c.explanation) && (
-                <button className="btn-ghost btn-sm self-start" onClick={() => setShowAll(!showAll)}>
-                  {showAll ? "선지별 해설 접기" : "선지별 해설 모두 보기"}
-                </button>
+                <div className="rounded-xl bg-background p-3">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted">선지별 해설</span>
+                    <button className="text-xs text-accent" onClick={() => setShowAll(!showAll)}>
+                      {showAll ? "접기" : "펼치기"}
+                    </button>
+                  </div>
+                  <ul className="flex flex-col gap-1.5">
+                    {order.map((c, i) => {
+                      const isAns = q.correct_choice !== null && c.ord === q.correct_choice;
+                      const picked = a?.selectedOrd === c.ord;
+                      if (!showAll && !isAns && !picked) return null;
+                      const ex = cleanExplanation(c.explanation);
+                      if (!ex) return null;
+                      return (
+                        <li key={c.id} className={`whitespace-pre-wrap text-base ${isAns ? "text-ok" : picked ? "text-bad" : "text-muted"}`}>
+                          <span className="mr-1 font-bold">{i + 1}</span>
+                          {ex}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               )}
+              <SourceQuote q={q} />
+              {q.trap_types.length > 0 && <QuestionBadges q={{ ...q, difficulty: null, topic: null, points: null }} />}
+              {!isGuest && <EvidencePanel questionId={q.id} subjectId={subjectId} isAdmin={isAdmin} />}
             </div>
           )}
         </div>
@@ -389,7 +412,7 @@ function ResultList({
               </p>
               {picked && ans?.isCorrect === false && <p className="mt-1 text-sm text-bad">내 답: {picked.text}</p>}
               {correct && <p className="mt-1 text-sm text-ok">정답: {correct.text}</p>}
-              {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{correct.explanation}</p>}
+              {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{cleanExplanation(correct.explanation)}</p>}
               {q.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{q.explanation}</p>}
               <SourceQuote q={q} className="mt-1" />
               <div className="mt-1">

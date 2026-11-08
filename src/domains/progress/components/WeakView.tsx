@@ -1,4 +1,5 @@
 "use client";
+import { cleanExplanation } from "@/domains/shared/labels";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -144,7 +145,7 @@ function SavedList({ subjectId, items, byId }: { subjectId: string; items: Saved
                 )}
               </p>
               {correct && <p className="mt-1 text-sm text-ok">정답: {correct.text}</p>}
-              {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{correct.explanation}</p>}
+              {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{cleanExplanation(correct.explanation)}</p>}
               {q.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{q.explanation}</p>}
               <SourceQuote q={q} className="mt-1" />
               <div className="mt-1">
@@ -175,8 +176,9 @@ function StatTable({ title, rows }: { title: string; rows: GroupStat[] }) {
               <div className="h-2 flex-1 overflow-hidden rounded-full bg-border">
                 <div className={`h-full ${r.accuracy < 0.7 ? "bg-bad" : "bg-ok"}`} style={{ width: `${r.accuracy * 100}%` }} />
               </div>
-              <span className="w-20 shrink-0 text-right text-muted">
+              <span className="w-28 shrink-0 text-right text-muted">
                 {r.correct}/{r.total} ({Math.round(r.accuracy * 100)}%)
+                {r.weak > 0 && <span className="ml-1 text-bad">약점 {r.weak}</span>}
               </span>
             </li>
           ))}

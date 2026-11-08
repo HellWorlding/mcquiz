@@ -8,7 +8,7 @@ import { difficultyLabel, trapLabel } from "@/domains/shared/labels";
 type QMeta = { id: string; unit_id: string | null; set_id: string; tags: string[]; topic: string | null; difficulty: string | null; trap_types: string[] };
 type Mark = { question_id: string; kind: string; at: string };
 
-export type GroupStat = { key: string; label: string; total: number; correct: number; accuracy: number };
+export type GroupStat = { key: string; label: string; total: number; correct: number; accuracy: number; /** 오답·헷갈림 횟수 */ weak: number };
 
 /** 저장된 문제 목록의 한 항목 */
 export type SavedItem = {
@@ -128,20 +128,31 @@ export async function getWeakSummary(subjectId: string): Promise<WeakSummary | n
   const unitTitle = new Map(p.units.map((u) => [u.id, u.no ? `${u.no}. ${u.title}` : u.title]));
   const setTitle = new Map(p.sets.map((s) => [s.id, s.title]));
   const agg = (keyOf: (m: QMeta) => string[], labelOf: (k: string) => string): GroupStat[] => {
-    const acc = new Map<string, { total: number; correct: number }>();
+    const acc = new Map<string, { total: number; correct: number; weak: number }>();
+    const get = (k: string) => {
+      const s = acc.get(k) ?? { total: 0, correct: 0, weak: 0 };
+      acc.set(k, s);
+      return s;
+    };
     for (const a of latest.values()) {
       const m = p.meta.get(a.question_id);
       if (!m) continue;
       for (const k of keyOf(m)) {
-        const s = acc.get(k) ?? { total: 0, correct: 0 };
+        const s = get(k);
         s.total++;
         if (a.is_correct) s.correct++;
-        acc.set(k, s);
       }
     }
+    // 오답·헷갈림은 모든 시도를 센다 (여러 번 틀리면 여러 번)
+    for (const a of p.attempts) {
+      if (a.is_correct !== false && !a.confused) continue;
+      const m = p.meta.get(a.question_id);
+      if (!m) continue;
+      for (const k of keyOf(m)) get(k).weak++;
+    }
     return [...acc.entries()]
-      .map(([key, s]) => ({ key, label: labelOf(key), total: s.total, correct: s.correct, accuracy: s.total ? s.correct / s.total : 0 }))
-      .sort((a, b) => a.accuracy - b.accuracy || b.total - a.total);
+      .map(([key, s]) => ({ key, label: labelOf(key), total: s.total, correct: s.correct, accuracy: s.total ? s.correct / s.total : 0, weak: s.weak }))
+      .sort((a, b) => b.weak - a.weak || a.accuracy - b.accuracy || b.total - a.total);
   };
   const graded = [...latest.values()];
   return {

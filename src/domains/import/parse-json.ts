@@ -30,6 +30,7 @@ const questionSchema = z.object({
   difficulty: z.string().nullable().optional(),
   trap_types: z.array(z.string()).nullable().optional(),
   source_quote: z.string().nullable().optional(),
+  source_page: z.union([z.number(), z.string()]).nullable().optional(),
 });
 
 const DIFFICULTIES = new Set(["easy", "medium", "hard", "very_hard"]);
@@ -87,6 +88,8 @@ export function parseJsonQuestions(text: string): ParseResult {
     if (d && q.difficulty === null) q.warnings.push(`난이도 "${item.difficulty}" 를 알 수 없어 비웠습니다 (easy/medium/hard/very_hard).`);
     q.trapTypes = (item.trap_types ?? []).map((t) => t.trim()).filter(Boolean);
     q.sourceQuote = item.source_quote?.trim() || null;
+    const sp = item.source_page === null || item.source_page === undefined ? NaN : Number(item.source_page);
+    q.sourcePage = Number.isFinite(sp) ? Math.trunc(sp) : null;
     const unitRaw = item.lecture_no ?? item.unit_no ?? (typeof item.unit === "number" ? item.unit : null) ?? fileUnit;
     q.unitHint = unitRaw ?? null;
     if (typeof item.unit === "string") {

@@ -6,7 +6,7 @@ import type { ActionResult, Unit } from "@/domains/shared/types";
 import { classifyQuestion } from "./classify";
 import { parseAny } from "./parse";
 import { unitNoFromFilename } from "./parse-text";
-import { saveQuestionSet } from "./save";
+import { saveQuestionSet, validateQuestions, type FailedQuestion } from "./save";
 import { extractText, importSourceFile, type SourceUploadResult } from "./sources";
 import type { ParsedQuestion, PreviewQuestion } from "./types";
 
@@ -100,26 +100,21 @@ export async function previewImportAction(formData: FormData): Promise<ActionRes
   return { ok: true, data: { questions, warnings, format, suggestedTitle, sourceFilename } };
 }
 
-/** 업로드 2단계: 미리보기에서 수정한 문항을 저장 */
+export type SaveSummary = { setId: string; count: number; inserted: number; updated: number; failed: FailedQuestion[] };
+
+/** 업로드 2단계: 검증 → 통과한 문항 저장(같은 단원·질문은 덮어쓰기) → 실패 목록 반환 */
 export async function saveImportAction(input: {
   subjectId: string;
   title: string;
   sourceFilename: string | null;
   questions: PreviewQuestion[];
-}): Promise<ActionResult<{ setId: string; count: number }>> {
+}): Promise<ActionResult<SaveSummary>> {
   const user = await requireAdmin();
   const title = input.title.trim();
   if (!title) return { ok: false, error: "세트 이름을 입력하세요." };
-  const questions = input.questions.filter((q) => q.prompt.trim());
-  if (questions.length === 0) return { ok: false, error: "저장할 문항이 없습니다." };
-  for (const q of questions) {
-    q.prompt = q.prompt.trim();
-    q.choices = q.choices.map((c) => ({ text: c.text.trim(), explanation: c.explanation?.trim() || null }));
-    q.explanation = q.explanation?.trim() || null;
-    q.hint = q.hint?.trim() || null;
-    if (q.choices.length < 4 || q.choices.length > 5) {
-      return { ok: false, error: `"${q.prompt.slice(0, 20)}…" 문항의 선지는 4개 또는 5개여야 합니다.` };
-    }
+  const { valid, failed } = validateQuestions(input.questions);
+  if (valid.length === 0) {
+    return { ok: false, error: `저장할 수 있는 문항이 없습니다. ${failed.map((f) => `#${f.index + 1} ${f.reason}`).join(" / ")}` };
   }
   const db = await createClient();
   try {
@@ -128,11 +123,11 @@ export async function saveImportAction(input: {
       title,
       sourceFilename: input.sourceFilename,
       createdBy: user.id,
-      questions,
+      questions: valid,
     });
     revalidatePath(`/subjects/${input.subjectId}`);
     revalidatePath("/admin");
-    return { ok: true, data: r };
+    return { ok: true, data: { ...r, failed } };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }

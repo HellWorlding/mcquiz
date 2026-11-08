@@ -11,17 +11,21 @@ export type Difficulty = (typeof DIFFICULTIES)[number];
 export const TRAP_LABELS: Record<string, string> = {
   concept_swap: "개념 바꿔치기",
   number_change: "숫자 변경",
-  scope_change: "범위 변경",
+  scope_change: "범위 확대·축소",
   subject_change: "주체 변경",
-  modality_change: "의무·재량 변경",
-  partial_truth: "부분만 맞음",
-  reversal: "뒤집기",
-  stage_mixup: "단계 뒤섞기",
-  law_article_mixup: "조문 뒤섞기",
-  plausible_synonym: "그럴듯한 유사어",
-  missing_add_on: "조건 누락",
+  modality_change: "할 수 있다↔해야 한다",
+  partial_truth: "절반만 맞음",
+  reversal: "순서·관계 뒤집기",
+  stage_mixup: "다른 단계 내용",
+  law_article_mixup: "조항·법률 혼동",
+  plausible_synonym: "비슷한 용어",
+  missing_add_on: "빠뜨린 조건",
 };
 export const TRAP_TYPES = Object.keys(TRAP_LABELS);
+
+/** 선지 해설의 "(정답)" 표시는 화면에서 숨긴다 (정답 선지는 색으로 구분) */
+export const cleanExplanation = (text: string | null | undefined) =>
+  text ? text.replace(/\(\s*정답\s*\)\s*/g, "").replace(/\s{2,}/g, " ").trim() : null;
 
 export const difficultyLabel = (d: string | null | undefined) => (d ? (DIFFICULTY_LABELS[d] ?? d) : null);
 export const trapLabel = (t: string) => TRAP_LABELS[t] ?? t;

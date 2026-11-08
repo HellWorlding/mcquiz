@@ -3,7 +3,8 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Subject, Unit } from "@/domains/shared/types";
 import { flattenTree, type TreeNode } from "@/domains/shared/tree";
-import { previewImportAction, saveImportAction, type PreviewResult } from "@/domains/import/actions";
+import Link from "next/link";
+import { previewImportAction, saveImportAction, type PreviewResult, type SaveSummary } from "@/domains/import/actions";
 import type { PreviewQuestion } from "@/domains/import/types";
 import { LOW_CONFIDENCE } from "@/domains/import/types";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
@@ -17,6 +18,7 @@ export function UploadWizard({ subjects, currentSubjectId, unitTree }: Props) {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [questions, setQuestions] = useState<PreviewQuestion[]>([]);
   const [title, setTitle] = useState("");
+  const [saved, setSaved] = useState<SaveSummary | null>(null);
   const units = useMemo(() => flattenTree(unitTree), [unitTree]);
   const unitLabel = (id: string | null) => {
     const u = units.find((x) => x.id === id);
@@ -47,12 +49,55 @@ export function UploadWizard({ subjects, currentSubjectId, unitTree }: Props) {
         setError(r.error);
         return;
       }
-      router.push(`/admin/sets/${r.data.setId}`);
+      setSaved(r.data);
+      window.scrollTo({ top: 0 });
     });
   };
 
   const update = (key: string, patch: Partial<PreviewQuestion>) =>
     setQuestions((qs) => qs.map((q) => (q.key === key ? { ...q, ...patch } : q)));
+
+  if (saved) {
+    return (
+      <div className="card flex flex-col gap-3">
+        <h1 className="text-xl font-bold">저장 완료</h1>
+        <p>
+          새로 {saved.inserted}문항, 덮어씀 {saved.updated}문항{saved.failed.length > 0 && `, 실패 ${saved.failed.length}문항`}
+        </p>
+        {saved.failed.length > 0 && (
+          <div className="rounded-xl bg-bad-soft p-3 text-sm">
+            <div className="mb-1 font-semibold text-bad">저장하지 못한 문항</div>
+            <ul className="list-disc pl-5">
+              {saved.failed.map((f) => (
+                <li key={f.index}>
+                  #{f.index + 1} {f.reason} — {f.prompt.slice(0, 60)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {saved.setId && (
+            <Link href={`/admin/sets/${saved.setId}`} className="btn-primary">
+              세트 보기
+            </Link>
+          )}
+          <Link href={`/subjects/${currentSubjectId}`} className="btn-secondary">
+            풀러 가기
+          </Link>
+          <button
+            className="btn-ghost"
+            onClick={() => {
+              setSaved(null);
+              setPreview(null);
+            }}
+          >
+            다른 파일 올리기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (preview) {
     const needsReview = questions.filter((q) => q.correct === null).length;

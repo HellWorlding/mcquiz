@@ -21,6 +21,8 @@ export type ParsedQuestion = {
   trapTypes: string[];
   /** 정답 근거가 된 원문 문장 */
   sourceQuote: string | null;
+  /** 근거 책 쪽수 */
+  sourcePage: number | null;
   /** 원문에 표시된 단원 번호 (예: [26강] → 26) */
   unitHint: number | null;
   points: number | null;
@@ -55,6 +57,7 @@ export function emptyQuestion(no: number | null = null): ParsedQuestion {
     difficulty: null,
     trapTypes: [],
     sourceQuote: null,
+    sourcePage: null,
     unitHint: null,
     points: null,
     warnings: [],

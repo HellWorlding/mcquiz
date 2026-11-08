@@ -14,7 +14,8 @@
     "db:push": "supabase db push",
     "upload:sources": "tsx scripts/upload-sources.ts",
     "upload:questions": "tsx scripts/upload-questions.ts",
-    "admin:grant": "tsx scripts/grant-subject.ts"
+    "admin:grant": "tsx scripts/grant-subject.ts",
+    "import:questions": "tsx scripts/import-questions.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
