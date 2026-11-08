@@ -32,6 +32,18 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
   const [order, setOrder] = useState<"seq" | "random">("seq");
   const [offset, setOffset] = useState(0);
   const [difficulty, setDifficulty] = useState<string>("");
+  // "N번부터 M번까지" 직접 입력 (비우면 위의 문항 수·구간 설정을 따른다)
+  const [rangeFrom, setRangeFrom] = useState("");
+  const [rangeTo, setRangeTo] = useState("");
+  const customRange = (() => {
+    const f = Number(rangeFrom);
+    const t = Number(rangeTo);
+    if (!rangeFrom && !rangeTo) return null;
+    if (!Number.isInteger(f) || f < 1) return null;
+    const to = rangeTo ? t : selectedTotal;
+    if (!Number.isInteger(to) || to < f) return null;
+    return { from: f, to: Math.min(to, selectedTotal) };
+  })();
   const [expanded, setExpanded] = useState<Set<string>>(new Set(units.map((u) => u.id)));
 
   // 단원별 누적 문항 수 (하위 포함)
@@ -88,6 +100,12 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
   const start = () => {
     const p = new URLSearchParams({ subject: subject.id, count, order });
     if (order === "seq" && count !== "all") p.set("offset", String(offset));
+    if (customRange) {
+      // 번호 구간이 우선: 순서대로, from-1 부터 (to-from+1) 개
+      p.set("order", "seq");
+      p.set("offset", String(customRange.from - 1));
+      p.set("count", String(customRange.to - customRange.from + 1));
+    }
     if (difficulty) p.set("difficulty", difficulty);
     // 상위가 선택된 하위는 빼고 보낸다 (서버가 하위를 다시 펼친다)
     const roots = allUnits.filter((u) => selected.has(u.id) && !(u.parent_id && selected.has(u.parent_id)));
@@ -290,8 +308,47 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
               </div>
             </div>
           )}
-          <button className="btn-primary text-lg" disabled={selectedTotal === 0} onClick={start}>
-            {selectedTotal === 0 ? "단원을 고르세요" : "시작"}
+          <div>
+            <div className="label">번호로 직접 고르기 (선택)</div>
+            <div className="flex items-center gap-2">
+              <input
+                className="input w-24 text-center"
+                inputMode="numeric"
+                placeholder="1"
+                value={rangeFrom}
+                onChange={(e) => setRangeFrom(e.target.value.replace(/\D/g, ""))}
+              />
+              <span className="text-muted">번부터</span>
+              <input
+                className="input w-24 text-center"
+                inputMode="numeric"
+                placeholder={String(selectedTotal || "")}
+                value={rangeTo}
+                onChange={(e) => setRangeTo(e.target.value.replace(/\D/g, ""))}
+              />
+              <span className="text-muted">번까지</span>
+              {(rangeFrom || rangeTo) && (
+                <button
+                  className="btn-ghost btn-sm"
+                  onClick={() => {
+                    setRangeFrom("");
+                    setRangeTo("");
+                  }}
+                >
+                  지우기
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              {customRange
+                ? `${customRange.from}~${customRange.to}번, ${customRange.to - customRange.from + 1}문항을 순서대로 풉니다.`
+                : (rangeFrom || rangeTo)
+                  ? "번호가 올바르지 않습니다."
+                  : "단원 안 번호 기준입니다. 여러 단원을 고르면 이어 붙인 순서의 번호입니다."}
+            </p>
+          </div>
+          <button className="btn-primary text-lg" disabled={selectedTotal === 0 || (!!(rangeFrom || rangeTo) && !customRange)} onClick={start}>
+            {selectedTotal === 0 ? "단원을 고르세요" : customRange ? `${customRange.from}~${customRange.to}번 시작` : "시작"}
           </button>
         </div>
       )}
