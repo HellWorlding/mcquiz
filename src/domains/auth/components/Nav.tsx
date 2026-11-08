@@ -24,6 +24,9 @@ export async function Nav() {
                   관리
                 </Link>
               )}
+              <Link href="/account" className="btn-ghost btn-sm">
+                계정
+              </Link>
               <form action={signoutAction}>
                 <button className="btn-secondary btn-sm" type="submit">
                   로그아웃
