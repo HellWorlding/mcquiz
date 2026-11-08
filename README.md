@@ -91,6 +91,8 @@ npm run db:push
 4 선지
 ```
 
+AI 에게 문제를 만들게 할 때 쓰는 프롬프트는 [docs/quiz-prompt.md](docs/quiz-prompt.md) 에 있습니다.
+
 ## 개발
 
 ```bash

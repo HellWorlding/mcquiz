@@ -186,3 +186,46 @@ describe("파일명 단원 추출", () => {
     expect(unitNoFromFilename("notes.txt")).toBeNull();
   });
 });
+
+describe("한 파일에 문제지 + 뒤쪽 정답·해설 블록", () => {
+  it("AI 생성 프롬프트 출력 형식을 그대로 읽는다", () => {
+    const r = parseQuestionText(`
+[3강] 학교 교육계획
+
+1. 학교 교육계획 수립 절차로 옳은 것은?
+1) 가
+2) 나
+3) 다
+4) 라
+
+2. 다음 중 틀린 것은?
+1) a
+2) b
+3) c
+4) d
+5) e
+
+==================
+정답 및 해설
+==================
+
+1. 정답: 2번
+  1) 틀림. 가 이유
+  2) 옳음. 나 이유
+  3) 틀림. 다 이유
+  4) 틀림. 라 이유
+
+2. 정답: 5번
+  5) 틀림. e 이유
+  힌트: 조문을 떠올려 보세요
+`);
+    expect(r.questions).toHaveLength(2);
+    expect(r.questions.map((q) => q.correct)).toEqual([2, 5]);
+    expect(r.questions.map((q) => q.unitHint)).toEqual([3, 3]);
+    expect(r.questions[0].choices[1].explanation).toBe("옳음. 나 이유");
+    expect(r.questions[0].choices[0].explanation).toBe("틀림. 가 이유");
+    expect(r.questions[1].choices).toHaveLength(5);
+    expect(r.questions[1].choices[4].explanation).toBe("틀림. e 이유");
+    expect(r.questions[1].hint).toBe("조문을 떠올려 보세요");
+  });
+});

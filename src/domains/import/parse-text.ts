@@ -162,19 +162,21 @@ function applyAnswer(st: State, q: ParsedQuestion | null, ord: number, tail: str
 function appendText(st: State, text: string) {
   if (!text) return;
   if (st.mode === "answers" && st.target) {
-    if (st.lastExplainOrd && st.target.choices[st.lastExplainOrd - 1]) {
-      const c = st.target.choices[st.lastExplainOrd - 1];
-      c.explanation = (c.explanation ?? "") + (c.explanation ? "\n" : "") + text;
+    const hm = HINT.exec(text);
+    if (hm) {
+      st.target.hint = (st.target.hint ? st.target.hint + "\n" : "") + hm[1];
+      st.lastExplainOrd = null;
       return;
     }
     const em = EXPLAIN.exec(text);
     if (em) {
       st.pendingExplanation = (st.pendingExplanation ? st.pendingExplanation + "\n" : "") + em[1];
+      st.lastExplainOrd = null;
       return;
     }
-    const hm = HINT.exec(text);
-    if (hm) {
-      st.target.hint = (st.target.hint ? st.target.hint + "\n" : "") + hm[1];
+    if (st.lastExplainOrd && st.target.choices[st.lastExplainOrd - 1]) {
+      const c = st.target.choices[st.lastExplainOrd - 1];
+      c.explanation = (c.explanation ?? "") + (c.explanation ? "\n" : "") + text;
       return;
     }
     st.pendingExplanation = (st.pendingExplanation ? st.pendingExplanation + "\n" : "") + text;
