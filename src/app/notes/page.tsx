@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/domains/auth/session";
 import { listSubjects } from "@/domains/subjects/queries";
 import { listMyNotes } from "@/domains/notes/queries";
-import { NoteBox } from "@/domains/notes/components/NoteBox";
+import { FontSizeControl, NoteBox } from "@/domains/notes/components/NoteBox";
 import { cleanExplanation } from "@/domains/shared/labels";
 
 export const metadata = { title: "필기" };
@@ -24,9 +24,12 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">필기</h1>
-        <span className="text-sm text-muted">{notes.length}개</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted">{notes.length}개</span>
+          <FontSizeControl />
+        </div>
       </div>
       <div className="flex flex-wrap gap-2">
         {subjects.map((s) => (
@@ -58,7 +61,12 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                   </Link>
                 </div>
                 {n.correctText && <p className="text-xs text-ok">정답: {n.correctText}</p>}
-                <NoteBox questionId={n.questionId} initial={n.content} />
+                <NoteBox
+                  questionId={n.questionId}
+                  initial={n.content}
+                  showFontControl={false}
+                  importText={[n.explanation, n.sourceQuote ? `근거${n.sourcePage ? ` (책 p.${n.sourcePage})` : ""}: ${n.sourceQuote}` : null].filter(Boolean).join("\n\n") || null}
+                />
                 {(n.explanation || n.correctExplanation || n.sourceQuote) && (
                   <details className="rounded-lg bg-background px-3 py-2 text-sm">
                     <summary className="cursor-pointer text-muted">해설·근거 보기</summary>

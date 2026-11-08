@@ -13,15 +13,12 @@ import { NoteBox } from "@/domains/notes/components/NoteBox";
 
 const pts = (q: QuestionWithChoices) => (q.points && q.points > 0 ? q.points : 1);
 
-/** 메모에 붙여 넣을 해설 묶음: 정답 선지 + 문항 해설 + 근거 */
+/** 메모에 붙여 넣을 글: 문항 해설 + 근거만 */
 function explanationText(q: QuestionWithChoices): string | null {
-  const correct = q.choices.find((c) => c.ord === q.correct_choice);
   const parts: string[] = [];
-  if (correct) parts.push(`정답: ${correct.text}`);
-  if (correct?.explanation) parts.push(cleanExplanation(correct.explanation) ?? "");
   if (q.explanation) parts.push(q.explanation);
   if (q.source_quote) parts.push(`근거${q.source_page ? ` (책 p.${q.source_page})` : ""}: ${q.source_quote}`);
-  const t = parts.filter(Boolean).join("\n");
+  const t = parts.filter(Boolean).join("\n\n");
   return t || null;
 }
 import { AddToCollection } from "./AddToCollection";
