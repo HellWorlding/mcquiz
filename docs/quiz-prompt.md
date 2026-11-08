@@ -79,6 +79,13 @@ ChatGPT·Claude 등에 아래 프롬프트와 자료(강의 스크립트, 정리
 
 정답이 없는 문항(복기 메모)도 올릴 수 있고, 미리보기에서 정답 번호를 눌러 지정하면 됩니다.
 
+## 폴더째 올리기
+
+```bash
+npm run import:questions -- <폴더> --subject "<주제 이름>"
+```
+폴더 안의 `questions_*.json` 을 전부 올립니다. 같은 (주제, 단원, 질문) 문항이 이미 있으면 새로 만들지 않고 덮어씁니다. 검증에 실패한 문항은 목록으로 보여 주고 나머지는 저장합니다.
+
 ## 선택 필드
 
 | 필드 | 값 | 화면 |
@@ -88,6 +95,7 @@ ChatGPT·Claude 등에 아래 프롬프트와 자료(강의 스크립트, 정리
 | `points` | 숫자 | 저장만 |
 | `trap_types` | 아래 코드 배열 | 답 고른 뒤 "함정: …" 배지, 통계(함정 유형별) |
 | `source_quote` | 원문 문장 | 답 고른 뒤 "근거" 인용 |
+| `source_page` | 책 쪽수(숫자) | 근거에 "책 p.N" 으로 표시 |
 
 `trap_types` 코드: `concept_swap` 개념 바꿔치기 · `number_change` 숫자 변경 · `scope_change` 범위 변경 · `subject_change` 주체 변경 · `modality_change` 의무·재량 변경 · `partial_truth` 부분만 맞음 · `reversal` 뒤집기 · `stage_mixup` 단계 뒤섞기 · `law_article_mixup` 조문 뒤섞기 · `plausible_synonym` 그럴듯한 유사어 · `missing_add_on` 조건 누락
 
@@ -107,7 +115,8 @@ ChatGPT·Claude 등에 아래 프롬프트와 자료(강의 스크립트, 정리
     "difficulty": "hard",
     "points": 1.5,
     "trap_types": ["concept_swap", "number_change"],
-    "source_quote": "정답 근거가 된 원문 문장 (선택, 책이면 쪽수 포함)",
+    "source_quote": "정답 근거가 된 원문 문장 (선택)",
+    "source_page": 5,
     "choices": [
       { "ord": 1, "text": "선지", "explanation": "틀림. 이유" },
       { "ord": 2, "text": "선지", "explanation": "옳음. 이유" },
