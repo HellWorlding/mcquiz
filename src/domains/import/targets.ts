@@ -28,9 +28,10 @@ export async function resolveSubjectByName(
   return created;
 }
 
-/** "파트3", "Part 3", "Day12", "3강" → 3 */
+/** "파트3", "Part 3", "Day12", "세트07", "Set 7", "3강" → 3 */
 export function unitNoFromTitle(title: string): number | null {
-  const m = /(?:파트|part|day|unit|강|회|장)\s*[-_ ]?(\d{1,3})|(\d{1,3})\s*(?:강|회|장|과)/i.exec(title);
+  const m =
+    /(?:파트|part|day|unit|set|세트|lesson|chapter|챕터|회차|강|회|장)\s*[-_ ]?(\d{1,3})|(\d{1,3})\s*(?:강|회|장|과|세트|일차)/i.exec(title);
   if (m) return +(m[1] ?? m[2]);
   return null;
 }
@@ -78,7 +79,8 @@ const TOEIC_GROUPS: Record<string, string> = {
   collocation: "콜로케이션",
   collocations: "콜로케이션",
   part5: "파트5 단어",
-  vocab: "단어",
+  vocab: "어휘",
+  vocabulary: "어휘",
   hackers: "해커스 단어",
   grammar: "문법",
   listening: "듣기",
@@ -87,12 +89,13 @@ const TOEIC_GROUPS: Record<string, string> = {
 
 export function targetFromFilename(filename: string): { subject: string; unitPath: string[] | null } | null {
   const base = filename.replace(/\.[a-z0-9]+$/i, "");
-  const m = /^toeic(?:[_-]([a-z0-9]+))?(?:[_-](?:part|day|unit)[_-]?(\d{1,3}))?/i.exec(base);
+  const m = /^toeic(?:[_-]([a-z0-9]+))?(?:[_-](?:part|day|unit|set)[_-]?(\d{1,3}))?/i.exec(base);
   if (!m) return null;
   const group = m[1] ? (TOEIC_GROUPS[m[1].toLowerCase()] ?? m[1]) : null;
   const n = m[2] ? +m[2] : null;
+  const isSet = /[_-]set[_-]?\d/i.test(base);
   const path: string[] = [];
   if (group) path.push(group);
-  if (n !== null) path.push(`파트${n}`);
+  if (n !== null) path.push(isSet ? `세트${n}` : `파트${n}`);
   return { subject: "토익", unitPath: path.length ? path : null };
 }

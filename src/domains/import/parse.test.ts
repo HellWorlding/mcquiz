@@ -235,6 +235,18 @@ describe("JSON: 주제·단원 경로·Claude 퀴즈 형식", () => {
   });
 });
 
+describe("단원 제목/파일명에서 번호·경로", () => {
+  it("세트N / 파트N / Set N 을 번호로 읽는다", async () => {
+    const { unitNoFromTitle, targetFromFilename } = await import("./targets");
+    expect(unitNoFromTitle("세트07")).toBe(7);
+    expect(unitNoFromTitle("Set 12")).toBe(12);
+    expect(unitNoFromTitle("파트30")).toBe(30);
+    expect(unitNoFromTitle("콜로케이션")).toBeNull();
+    expect(targetFromFilename("toeic_vocab_set5.json")).toEqual({ subject: "토익", unitPath: ["어휘", "세트5"] });
+    expect(targetFromFilename("toeic_collocation_part3.json")).toEqual({ subject: "토익", unitPath: ["콜로케이션", "파트3"] });
+  });
+});
+
 describe("파일명 단원 추출", () => {
   it("N강 / part / day", () => {
     expect(unitNoFromFilename("과목_26강.txt")).toBe(26);
