@@ -1,6 +1,6 @@
 import "server-only";
 import { getQuestionsByIds, listQuestionIds } from "@/domains/questions/queries";
-import { buildWeakMix, getWrongOrConfusedIds } from "@/domains/progress/queries";
+import { buildWeakMix, getSavedIds } from "@/domains/progress/queries";
 import { hashString, shuffled } from "./shuffle";
 import type { QuestionWithChoices } from "@/domains/shared/types";
 import { createClient } from "@/domains/auth/supabase/server";
@@ -12,7 +12,7 @@ export type QuizParams = {
   units?: string; // 쉼표 구분
   set?: string;
   collection?: string;
-  mode?: "wrong" | "confused" | "weakmix";
+  mode?: "wrong" | "confused" | "saved" | "weakmix";
   count?: string; // 10 | 20 | 40 | all
   order?: "seq" | "random";
   offset?: string; // 순서대로일 때 시작 위치 (0부터)
@@ -64,9 +64,9 @@ export async function resolveQuiz(p: QuizParams): Promise<ResolvedQuiz> {
     title = "약점 섞어 풀기";
     const qs = await getQuestionsByIds(ids);
     return { questions: qs, total: qs.length, title, seed, resume: null };
-  } else if ((p.mode === "wrong" || p.mode === "confused") && p.subject) {
-    ids = await getWrongOrConfusedIds(p.subject, p.mode);
-    title = p.mode === "wrong" ? "틀린 문제 다시 풀기" : "헷갈린 문제 다시 풀기";
+  } else if ((p.mode === "wrong" || p.mode === "confused" || p.mode === "saved") && p.subject) {
+    ids = await getSavedIds(p.subject, p.mode);
+    title = p.mode === "wrong" ? "틀린 문제 다시 풀기" : p.mode === "confused" ? "헷갈린 문제 다시 풀기" : "저장된 문제 풀기";
   } else if (p.set) {
     ids = await listQuestionIds({ kind: "set", setId: p.set });
     title = "세트";

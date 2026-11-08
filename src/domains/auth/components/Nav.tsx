@@ -17,7 +17,7 @@ export async function Nav() {
                 주제
               </Link>
               <Link href="/weak" className="btn-ghost btn-sm">
-                약점
+                저장함
               </Link>
               {user.isAdmin && (
                 <Link href="/admin" className="btn-ghost btn-sm">

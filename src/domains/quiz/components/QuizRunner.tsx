@@ -5,6 +5,7 @@ import type { Choice, QuestionWithChoices } from "@/domains/shared/types";
 import { hashString, shuffled } from "@/domains/quiz/shuffle";
 import { recordAttemptAction, saveProgressAction, setConfusedAction, type SessionAnswer } from "@/domains/quiz/actions";
 import type { ResumeState } from "@/domains/quiz/resolve";
+import { saveQuestionAction } from "@/domains/progress/actions";
 import { AddToCollection } from "./AddToCollection";
 
 type Props = {
@@ -40,6 +41,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, back
     return out;
   });
   const [sessionId, setSessionId] = useState<string | null>(resume?.id ?? null);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const sessionRef = useRef<string | null>(resume?.id ?? null);
   const saving = useRef<Promise<void> | null>(null);
 
@@ -301,6 +303,23 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, back
         >
           {a?.confused ? "✓ 헷갈림" : "헷갈림 체크"}
         </button>
+        {!isGuest && (
+          <button
+            className={`btn-sm rounded-xl border px-3 py-2 font-semibold ${savedIds.has(q.id) ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+            onClick={() => {
+              const next = !savedIds.has(q.id);
+              setSavedIds((s) => {
+                const n = new Set(s);
+                if (next) n.add(q.id);
+                else n.delete(q.id);
+                return n;
+              });
+              void saveQuestionAction(q.id, next);
+            }}
+          >
+            {savedIds.has(q.id) ? "✓ 저장됨" : "저장"}
+          </button>
+        )}
         <div className="ml-auto flex gap-2">
           {idx > 0 && (
             <button className="btn-secondary btn-sm" onClick={() => goTo(idx - 1)}>

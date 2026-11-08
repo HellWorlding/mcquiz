@@ -105,7 +105,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{subject.name}</h1>
         <Link href={`/weak?subject=${subject.id}`} className="btn-ghost btn-sm">
-          약점 보기
+          저장된 문제
         </Link>
       </div>
 

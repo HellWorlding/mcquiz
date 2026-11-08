@@ -5,16 +5,29 @@ import { shuffled } from "@/domains/quiz/shuffle";
 import type { Attempt } from "@/domains/shared/types";
 
 type QMeta = { id: string; unit_id: string | null; set_id: string; tags: string[] };
+type Mark = { question_id: string; kind: string; at: string };
 
 export type GroupStat = { key: string; label: string; total: number; correct: number; accuracy: number };
 
+/** 저장된 문제 목록의 한 항목 */
+export type SavedItem = {
+  questionId: string;
+  wrongCount: number;
+  /** 마지막 채점 결과 */
+  lastResult: boolean | null;
+  confused: boolean;
+  /** 직접 저장 */
+  saved: boolean;
+  /** 목록에 들어온 이유 */
+  reasons: ("wrong" | "confused" | "saved")[];
+  /** 정렬용: 가장 최근 활동 시각 */
+  lastAt: string;
+};
+
 export type WeakSummary = {
-  /** 한 번이라도 틀린 문항 (많이 틀린 순) */
+  /** 저장된 문제 (틀림·헷갈림 자동 + 직접 저장, '빼기' 한 것은 제외) */
+  items: SavedItem[];
   wrongIds: string[];
-  /** 문항별 틀린 횟수 */
-  wrongCounts: Record<string, number>;
-  /** 문항별 마지막 결과 (true 정답 / false 오답) */
-  lastResult: Record<string, boolean>;
   confusedIds: string[];
   byUnit: GroupStat[];
   bySet: GroupStat[];
@@ -23,7 +36,7 @@ export type WeakSummary = {
   accuracy: number;
 };
 
-/** 주제 안의 내 풀이 기록 + 문항 메타 */
+/** 주제 안의 내 풀이 기록 + 표시 + 문항 메타 */
 async function loadProgress(subjectId: string) {
   const user = await getCurrentUser();
   if (!user) return null;
@@ -34,41 +47,78 @@ async function loadProgress(subjectId: string) {
     db.from("question_sets").select("id, title").eq("subject_id", subjectId),
   ]);
   const meta = new Map<string, QMeta>((qs ?? []).map((q) => [q.id, q]));
-  if (meta.size === 0) return { user, db, meta, attempts: [] as Attempt[], units: units ?? [], sets: sets ?? [] };
-  const ids = [...meta.keys()];
   const attempts: Attempt[] = [];
+  const marks: Mark[] = [];
+  const ids = [...meta.keys()];
   for (let i = 0; i < ids.length; i += 500) {
-    const { data } = await db
-      .from("attempts")
-      .select("*")
-      .eq("user_id", user.id)
-      .in("question_id", ids.slice(i, i + 500))
-      .order("created_at");
-    attempts.push(...(data ?? []));
+    const chunk = ids.slice(i, i + 500);
+    const [{ data: a }, { data: m }] = await Promise.all([
+      db.from("attempts").select("*").eq("user_id", user.id).in("question_id", chunk).order("created_at"),
+      db.from("question_marks").select("question_id, kind, at").eq("user_id", user.id).in("question_id", chunk),
+    ]);
+    attempts.push(...(a ?? []));
+    marks.push(...(m ?? []));
   }
-  return { user, db, meta, attempts, units: units ?? [], sets: sets ?? [] };
+  return { user, db, meta, attempts, marks, units: units ?? [], sets: sets ?? [] };
 }
 
 function latestByQuestion(attempts: Attempt[]) {
   const latest = new Map<string, Attempt>();
-  const everConfused = new Set<string>();
-  for (const a of attempts) {
-    if (a.selected_ord !== null) latest.set(a.question_id, a); // 정렬이 created_at 오름차순이므로 마지막이 최신
-    if (a.confused) everConfused.add(a.question_id);
+  for (const a of attempts) if (a.selected_ord !== null) latest.set(a.question_id, a); // created_at 오름차순 → 마지막이 최신
+  return latest;
+}
+
+/** 저장된 문제 목록 계산: 빼기(dismissed) 이후에 새로 틀리거나 헷갈림·저장한 것만 다시 들어온다 */
+function buildSavedItems(attempts: Attempt[], marks: Mark[]): SavedItem[] {
+  const dismissedAt = new Map<string, string>();
+  const savedAt = new Map<string, string>();
+  for (const m of marks) {
+    if (m.kind === "dismissed") dismissedAt.set(m.question_id, m.at);
+    if (m.kind === "saved") savedAt.set(m.question_id, m.at);
   }
-  return { latest, everConfused };
+  const acc = new Map<string, SavedItem>();
+  const get = (qid: string) => {
+    let it = acc.get(qid);
+    if (!it) {
+      it = { questionId: qid, wrongCount: 0, lastResult: null, confused: false, saved: false, reasons: [], lastAt: "" };
+      acc.set(qid, it);
+    }
+    return it;
+  };
+  const after = (qid: string, at: string) => {
+    const d = dismissedAt.get(qid);
+    return !d || at > d;
+  };
+  for (const a of attempts) {
+    const it = get(a.question_id);
+    if (a.is_correct === false) it.wrongCount++;
+    if (a.selected_ord !== null && a.is_correct !== null) it.lastResult = a.is_correct;
+    if (after(a.question_id, a.created_at)) {
+      if (a.is_correct === false && !it.reasons.includes("wrong")) it.reasons.push("wrong");
+      if (a.confused) {
+        it.confused = true;
+        if (!it.reasons.includes("confused")) it.reasons.push("confused");
+      }
+      if (a.is_correct === false || a.confused) it.lastAt = a.created_at > it.lastAt ? a.created_at : it.lastAt;
+    }
+  }
+  for (const [qid, at] of savedAt) {
+    if (!after(qid, at)) continue;
+    const it = get(qid);
+    it.saved = true;
+    it.reasons.push("saved");
+    it.lastAt = at > it.lastAt ? at : it.lastAt;
+  }
+  return [...acc.values()]
+    .filter((it) => it.reasons.length > 0)
+    .sort((a, b) => b.wrongCount - a.wrongCount || (b.lastAt > a.lastAt ? 1 : -1));
 }
 
 export async function getWeakSummary(subjectId: string): Promise<WeakSummary | null> {
   const p = await loadProgress(subjectId);
   if (!p) return null;
-  const { latest, everConfused } = latestByQuestion(p.attempts);
-  const wrongCounts: Record<string, number> = {};
-  for (const a of p.attempts) if (a.is_correct === false) wrongCounts[a.question_id] = (wrongCounts[a.question_id] ?? 0) + 1;
-  const wrongIds = Object.keys(wrongCounts).sort((a, b) => wrongCounts[b] - wrongCounts[a]);
-  const lastResult: Record<string, boolean> = {};
-  for (const [qid, a] of latest) if (a.is_correct !== null) lastResult[qid] = a.is_correct;
-  const confusedIds = [...everConfused];
+  const latest = latestByQuestion(p.attempts);
+  const items = buildSavedItems(p.attempts, p.marks);
 
   const unitTitle = new Map(p.units.map((u) => [u.id, u.no ? `${u.no}. ${u.title}` : u.title]));
   const setTitle = new Map(p.sets.map((s) => [s.id, s.title]));
@@ -90,10 +140,9 @@ export async function getWeakSummary(subjectId: string): Promise<WeakSummary | n
   };
   const graded = [...latest.values()];
   return {
-    wrongIds,
-    wrongCounts,
-    lastResult,
-    confusedIds,
+    items,
+    wrongIds: items.filter((i) => i.reasons.includes("wrong")).map((i) => i.questionId),
+    confusedIds: items.filter((i) => i.reasons.includes("confused")).map((i) => i.questionId),
     byUnit: agg((m) => [m.unit_id ?? "__none__"], (k) => unitTitle.get(k) ?? "단원 미지정"),
     bySet: agg((m) => [m.set_id], (k) => setTitle.get(k) ?? "세트"),
     byTag: agg((m) => m.tags, (k) => `#${k}`),
@@ -102,21 +151,24 @@ export async function getWeakSummary(subjectId: string): Promise<WeakSummary | n
   };
 }
 
-export async function getWrongOrConfusedIds(subjectId: string, mode: "wrong" | "confused"): Promise<string[]> {
+/** 저장된 문제 전체 / 틀림만 / 헷갈림만 */
+export async function getSavedIds(subjectId: string, mode: "saved" | "wrong" | "confused"): Promise<string[]> {
   const s = await getWeakSummary(subjectId);
   if (!s) return [];
-  return mode === "wrong" ? s.wrongIds : s.confusedIds;
+  if (mode === "wrong") return s.wrongIds;
+  if (mode === "confused") return s.confusedIds;
+  return s.items.map((i) => i.questionId);
 }
 
 /**
- * 약점 섞어 풀기: 약한 단원·세트·태그(정답률 70% 미만)에서 아직 안 푼 문항 60% + 과거 오답·헷갈림 40%.
+ * 약점 섞어 풀기: 약한 단원·세트·태그(정답률 70% 미만)에서 아직 안 푼 문항 60% + 저장된 문제 40%.
  * 모자라는 쪽은 다른 쪽으로 채운다.
  */
 export async function buildWeakMix(subjectId: string, n: number): Promise<string[]> {
   const p = await loadProgress(subjectId);
   if (!p) return [];
-  const { latest, everConfused } = latestByQuestion(p.attempts);
-  const seed = Date.now() & 0xffffffff;
+  const latest = latestByQuestion(p.attempts);
+  const seed = Date.now() & 0xffff;
 
   const weakUnits = new Set<string>();
   const weakSets = new Set<string>();
@@ -144,7 +196,7 @@ export async function buildWeakMix(subjectId: string, n: number): Promise<string
     .filter((m) => weakUnits.has(String(m.unit_id)) || weakSets.has(m.set_id) || m.tags.some((t) => weakTags.has(t)))
     .map((m) => m.id);
   const unseenAny = [...p.meta.values()].filter((m) => !latest.has(m.id)).map((m) => m.id);
-  const past = [...new Set([...[...latest.values()].filter((a) => a.is_correct === false).map((a) => a.question_id), ...everConfused])];
+  const past = buildSavedItems(p.attempts, p.marks).map((i) => i.questionId);
 
   const wantNew = Math.round(n * 0.6);
   const wantPast = n - wantNew;

@@ -141,6 +141,32 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"question_marks": {
+                  Row: {
+                    "at": string,"kind": string,"question_id": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "at"?: string,"kind": string,"question_id": string,"user_id": string
+                  }
+                  Update: {
+                    "at"?: string,"kind"?: string,"question_id"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "question_marks_question_id_fkey"
+      columns: ["question_id"]
+isOneToOne: false
+      referencedRelation: "questions"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "question_marks_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"question_sets": {
                   Row: {
                     "created_at": string,"created_by": string | null,"id": string,"source_filename": string | null,"subject_id": string,"title": string

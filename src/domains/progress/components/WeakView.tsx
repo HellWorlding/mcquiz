@@ -1,17 +1,25 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { QuestionWithChoices, Subject } from "@/domains/shared/types";
-import type { GroupStat, WeakSummary } from "@/domains/progress/queries";
+import type { GroupStat, SavedItem, WeakSummary } from "@/domains/progress/queries";
+import { dismissQuestionAction } from "@/domains/progress/actions";
 import { AddToCollection } from "@/domains/quiz/components/AddToCollection";
 
+type Filter = "all" | "wrong" | "confused" | "saved";
+
 export function WeakView({ subject, summary, questions }: { subject: Subject; summary: WeakSummary; questions: QuestionWithChoices[] }) {
-  const [tab, setTab] = useState<"wrong" | "confused" | "stats">("wrong");
-  const wrongSet = new Set(summary.wrongIds);
-  const confusedSet = new Set(summary.confusedIds);
-  const order = new Map(summary.wrongIds.map((id, i) => [id, i]));
-  const wrong = questions.filter((q) => wrongSet.has(q.id)).sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-  const confused = questions.filter((q) => confusedSet.has(q.id));
+  const [tab, setTab] = useState<"list" | "stats">("list");
+  const [filter, setFilter] = useState<Filter>("all");
+  const byId = new Map(questions.map((q) => [q.id, q]));
+  const items = summary.items.filter((it) => filter === "all" || it.reasons.includes(filter)).filter((it) => byId.has(it.questionId));
+  const counts = {
+    all: summary.items.length,
+    wrong: summary.items.filter((i) => i.reasons.includes("wrong")).length,
+    confused: summary.items.filter((i) => i.reasons.includes("confused")).length,
+    saved: summary.items.filter((i) => i.reasons.includes("saved")).length,
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -21,8 +29,8 @@ export function WeakView({ subject, summary, questions }: { subject: Subject; su
           <div className="text-2xl font-bold">{Math.round(summary.accuracy * 100)}% 정답</div>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
-          <Link href={`/quiz?subject=${subject.id}&mode=wrong&count=all&order=random`} className="btn-secondary btn-sm">
-            틀린 문제 다시 풀기
+          <Link href={`/quiz?subject=${subject.id}&mode=saved&count=all&order=random`} className="btn-secondary btn-sm">
+            저장된 문제 풀기 ({counts.all})
           </Link>
           <Link href={`/quiz?subject=${subject.id}&mode=weakmix&count=20`} className="btn-primary btn-sm">
             약점 섞어 풀기 (20)
@@ -33,8 +41,7 @@ export function WeakView({ subject, summary, questions }: { subject: Subject; su
       <div className="flex gap-1 rounded-xl bg-card p-1">
         {(
           [
-            ["wrong", `틀림 ${wrong.length}`],
-            ["confused", `헷갈림 ${confused.length}`],
+            ["list", `저장된 문제 ${counts.all}`],
             ["stats", "통계"],
           ] as const
         ).map(([k, label]) => (
@@ -48,8 +55,28 @@ export function WeakView({ subject, summary, questions }: { subject: Subject; su
         ))}
       </div>
 
-      {tab !== "stats" && (
-        <QuestionList subjectId={subject.id} items={tab === "wrong" ? wrong : confused} mode={tab} counts={summary.wrongCounts} last={summary.lastResult} />
+      {tab === "list" && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["all", "전체"],
+                ["wrong", "틀림"],
+                ["confused", "헷갈림"],
+                ["saved", "직접 저장"],
+              ] as [Filter, string][]
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setFilter(k)}
+                className={`rounded-full border px-3 py-1 text-sm ${filter === k ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+              >
+                {label} {counts[k]}
+              </button>
+            ))}
+          </div>
+          <SavedList subjectId={subject.id} items={items} byId={byId} />
+        </>
       )}
       {tab === "stats" && (
         <div className="flex flex-col gap-4">
@@ -62,43 +89,53 @@ export function WeakView({ subject, summary, questions }: { subject: Subject; su
   );
 }
 
-function QuestionList({
-  subjectId,
-  items,
-  mode,
-  counts,
-  last,
-}: {
-  subjectId: string;
-  items: QuestionWithChoices[];
-  mode: "wrong" | "confused";
-  counts: Record<string, number>;
-  last: Record<string, boolean>;
-}) {
-  if (items.length === 0) return <p className="card text-muted">{mode === "wrong" ? "틀린 문항이 없습니다." : "헷갈림 체크한 문항이 없습니다."}</p>;
+function SavedList({ subjectId, items, byId }: { subjectId: string; items: SavedItem[]; byId: Map<string, QuestionWithChoices> }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [removing, setRemoving] = useState<string | null>(null);
+  if (items.length === 0) {
+    return <p className="card text-muted">저장된 문제가 없습니다. 틀리거나 헷갈림 체크한 문제는 자동으로 들어오고, 퀴즈 중 &quot;저장&quot;으로 직접 넣을 수도 있습니다.</p>;
+  }
+  const remove = (qid: string) => {
+    setRemoving(qid);
+    startTransition(async () => {
+      await dismissQuestionAction(qid);
+      setRemoving(null);
+      router.refresh();
+    });
+  };
+  const ids = items.map((i) => i.questionId);
   return (
     <div className="card">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-sm text-muted">{items.length}문항</span>
         <div className="flex gap-2">
-          <AddToCollection subjectId={subjectId} questionIds={items.map((q) => q.id)} />
-          <Link href={`/quiz?ids=${items.map((q) => q.id).join(",")}`} className="btn-primary btn-sm">
-            다시 풀기
+          <AddToCollection subjectId={subjectId} questionIds={ids} />
+          <Link href={`/quiz?ids=${ids.join(",")}`} className="btn-primary btn-sm">
+            이 목록 풀기
           </Link>
         </div>
       </div>
       <ol className="flex flex-col gap-3">
-        {items.map((q, i) => {
+        {items.map((it, i) => {
+          const q = byId.get(it.questionId)!;
           const correct = q.choices.find((c) => c.ord === q.correct_choice);
           return (
             <li key={q.id} className="border-t border-border pt-3 first:border-t-0 first:pt-0">
-              <p className="font-semibold">
-                {i + 1}. {q.prompt}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-semibold">
+                  {i + 1}. {q.prompt}
+                </p>
+                <button className="btn-ghost btn-sm shrink-0 text-bad" disabled={pending && removing === q.id} onClick={() => remove(q.id)}>
+                  {removing === q.id ? "빼는 중…" : "빼기"}
+                </button>
+              </div>
               <p className="mt-1 flex flex-wrap gap-2 text-xs">
-                {counts[q.id] ? <span className="badge bg-bad-soft text-bad">{counts[q.id]}회 틀림</span> : null}
-                {last[q.id] !== undefined && (
-                  <span className={`badge ${last[q.id] ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad"}`}>최근 {last[q.id] ? "정답" : "오답"}</span>
+                {it.wrongCount > 0 && <span className="badge bg-bad-soft text-bad">{it.wrongCount}회 틀림</span>}
+                {it.confused && <span className="badge bg-warn-soft text-warn">헷갈림</span>}
+                {it.saved && <span className="badge bg-accent-soft text-accent">직접 저장</span>}
+                {it.lastResult !== null && (
+                  <span className={`badge ${it.lastResult ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad"}`}>최근 {it.lastResult ? "정답" : "오답"}</span>
                 )}
               </p>
               {correct && <p className="mt-1 text-sm text-ok">정답: {correct.text}</p>}
