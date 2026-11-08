@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 콘텐츠(문제·스크립트·책)는 저장소에 넣지 않는다
+/content/
+# supabase local
+/supabase/.temp/
+/supabase/.branches/
+
+# 에이전트 지침 파일은 저장소에 올리지 않는다
+CLAUDE.md
+AGENTS.md
+.claude/
