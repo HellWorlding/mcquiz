@@ -13,6 +13,7 @@ export async function updateQuestionAction(input: {
   prompt?: string;
   unitId?: string | null;
   correctChoice?: number | null;
+  explanation?: string | null;
   hint?: string | null;
   tags?: string[];
   needsReview?: boolean;
@@ -29,6 +30,7 @@ export async function updateQuestionAction(input: {
     patch.correct_choice = input.correctChoice;
     patch.needs_review = input.correctChoice === null;
   }
+  if (input.explanation !== undefined) patch.explanation = input.explanation?.trim() || null;
   if (input.hint !== undefined) patch.hint = input.hint?.trim() || null;
   if (input.tags !== undefined) patch.tags = input.tags;
   if (input.needsReview !== undefined) patch.needs_review = input.needsReview;

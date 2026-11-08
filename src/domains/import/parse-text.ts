@@ -100,12 +100,7 @@ function finish(st: State) {
   q.prompt = q.prompt.trim();
   for (const c of q.choices) c.text = c.text.trim();
   if (st.pendingExplanation) {
-    if (q.correct && q.choices[q.correct - 1]) {
-      const c = q.choices[q.correct - 1];
-      c.explanation = c.explanation ? `${c.explanation}\n${st.pendingExplanation}` : st.pendingExplanation;
-    } else {
-      q.hint = q.hint ? `${q.hint}\n${st.pendingExplanation}` : st.pendingExplanation;
-    }
+    q.explanation = q.explanation ? `${q.explanation}\n${st.pendingExplanation}` : st.pendingExplanation;
     st.pendingExplanation = null;
   }
   if (q.prompt || q.choices.length || q.correct !== null) st.questions.push(q);
@@ -149,13 +144,7 @@ function applyAnswer(st: State, q: ParsedQuestion | null, ord: number, tail: str
   const t = tail.trim();
   if (t) {
     const em = EXPLAIN.exec(t);
-    const text = em ? em[1] : t;
-    if (q.choices[ord - 1]) {
-      const c = q.choices[ord - 1];
-      c.explanation = c.explanation ? `${c.explanation}\n${text}` : text;
-    } else {
-      st.pendingExplanation = text;
-    }
+    st.pendingExplanation = (st.pendingExplanation ? st.pendingExplanation + "\n" : "") + (em ? em[1] : t);
   }
 }
 
@@ -399,11 +388,7 @@ export function mergeAnswerKey(questions: ParsedQuestion[], answerText: string):
         const c = q.choices[ord - 1];
         if (c) c.explanation = c.explanation ? `${c.explanation}\n${textE}` : textE;
       }
-      if (ex.general) {
-        const c = q.correct ? q.choices[q.correct - 1] : null;
-        if (c) c.explanation = c.explanation ? `${c.explanation}\n${ex.general}` : ex.general;
-        else q.hint = q.hint ? `${q.hint}\n${ex.general}` : ex.general;
-      }
+      if (ex.general) q.explanation = q.explanation ? `${q.explanation}\n${ex.general}` : ex.general;
     }
   }
   return { merged, warnings };

@@ -59,6 +59,12 @@ export function SetEditor({ set, questions, unitTree }: { set: QuestionSet; ques
                 </li>
               ))}
             </ul>
+            <EditableText
+              value={q.explanation ?? ""}
+              placeholder="문항 해설 없음 (눌러서 입력)"
+              className="text-sm"
+              onSave={(v) => run(() => updateQuestionAction({ id: q.id, explanation: v || null }))}
+            />
             <EditableText value={q.hint ?? ""} placeholder="힌트 없음" className="text-sm" onSave={(v) => run(() => updateQuestionAction({ id: q.id, hint: v || null }))} />
             <div className="flex flex-wrap items-center gap-2">
               <select

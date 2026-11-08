@@ -36,6 +36,7 @@ export async function saveQuestionSet(
     prompt: q.prompt,
     choice_count: q.choices.length === 5 ? 5 : 4,
     correct_choice: q.correct,
+    explanation: q.explanation,
     hint: q.hint,
     tags: q.tags,
     points: q.points,

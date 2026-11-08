@@ -115,6 +115,8 @@ export async function saveImportAction(input: {
   for (const q of questions) {
     q.prompt = q.prompt.trim();
     q.choices = q.choices.map((c) => ({ text: c.text.trim(), explanation: c.explanation?.trim() || null }));
+    q.explanation = q.explanation?.trim() || null;
+    q.hint = q.hint?.trim() || null;
     if (q.choices.length < 4 || q.choices.length > 5) {
       return { ok: false, error: `"${q.prompt.slice(0, 20)}…" 문항의 선지는 4개 또는 5개여야 합니다.` };
     }

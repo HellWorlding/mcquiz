@@ -10,6 +10,8 @@ export type ParsedQuestion = {
   choices: ParsedChoice[];
   /** 정답 선지 번호 (1부터) */
   correct: number | null;
+  /** 문항 전체 해설 (선지별 해설과 별도) */
+  explanation: string | null;
   hint: string | null;
   tags: string[];
   /** 원문에 표시된 단원 번호 (예: [26강] → 26) */
@@ -39,6 +41,7 @@ export function emptyQuestion(no: number | null = null): ParsedQuestion {
     prompt: "",
     choices: [],
     correct: null,
+    explanation: null,
     hint: null,
     tags: [],
     unitHint: null,

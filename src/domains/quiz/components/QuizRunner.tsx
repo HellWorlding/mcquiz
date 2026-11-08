@@ -239,6 +239,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, back
                 <p className="mt-2 text-warn">정답이 아직 지정되지 않은 문항입니다.</p>
               )}
               {correctChoice?.explanation && <p className="mt-3 whitespace-pre-wrap text-base">{correctChoice.explanation}</p>}
+              {q.explanation && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-background p-3 text-base">{q.explanation}</p>}
               {q.hint && <p className="mt-3 text-sm text-muted">힌트: {q.hint}</p>}
             </>
           )}
@@ -281,6 +282,12 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, back
               <div className={`text-lg font-bold ${a?.isCorrect ? "text-ok" : a?.isCorrect === false ? "text-bad" : "text-warn"}`}>
                 {a?.isCorrect ? "정답!" : a?.isCorrect === false ? "오답" : "채점 불가"}
               </div>
+              {q.explanation && (
+                <div className="rounded-xl bg-background p-3">
+                  <div className="mb-1 text-xs font-semibold text-muted">해설</div>
+                  <p className="whitespace-pre-wrap text-base">{q.explanation}</p>
+                </div>
+              )}
               {q.choices.some((c) => c.explanation) && (
                 <button className="btn-ghost btn-sm self-start" onClick={() => setShowAll(!showAll)}>
                   {showAll ? "선지별 해설 접기" : "선지별 해설 모두 보기"}
@@ -375,6 +382,7 @@ function ResultList({
               {picked && ans?.isCorrect === false && <p className="mt-1 text-sm text-bad">내 답: {picked.text}</p>}
               {correct && <p className="mt-1 text-sm text-ok">정답: {correct.text}</p>}
               {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{correct.explanation}</p>}
+              {q.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{q.explanation}</p>}
             </li>
           );
         })}

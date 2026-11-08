@@ -23,6 +23,7 @@ const AiQuestion = z.object({
   prompt: z.string(),
   choices: z.array(z.object({ text: z.string(), explanation: z.string().nullable() })),
   correct_choice: z.number().nullable(),
+  explanation: z.string().nullable(),
   hint: z.string().nullable(),
   unit_no: z.number().nullable(),
 });
@@ -36,7 +37,7 @@ export async function aiParseQuestions(text: string): Promise<ParseResult | null
       {
         role: "system",
         content:
-          "너는 객관식 문제지 텍스트를 구조화하는 도구다. 4지선다 또는 5지선다 문항을 찾아 질문, 선지(순서대로), 정답 번호(1부터, 모르면 null), 선지별 해설(있을 때만), 힌트, 단원 번호(예: [26강] → 26, 없으면 null)를 추출한다. 원문을 바꾸거나 요약하지 말고 그대로 옮겨라.",
+          "너는 객관식 문제지 텍스트를 구조화하는 도구다. 4지선다 또는 5지선다 문항을 찾아 질문, 선지(순서대로), 정답 번호(1부터, 모르면 null), 선지별 해설(있을 때만), 문항 전체 해설(explanation, 있을 때만), 힌트, 단원 번호(예: [26강] → 26, 없으면 null)를 추출한다. 원문을 바꾸거나 요약하지 말고 그대로 옮겨라.",
       },
       { role: "user", content: text.slice(0, 60_000) },
     ],
@@ -49,6 +50,7 @@ export async function aiParseQuestions(text: string): Promise<ParseResult | null
     q.prompt = aq.prompt.trim();
     q.choices = aq.choices.map((c) => ({ text: c.text.trim(), explanation: c.explanation?.trim() || null }));
     q.correct = aq.correct_choice;
+    q.explanation = aq.explanation?.trim() || null;
     q.hint = aq.hint?.trim() || null;
     q.unitHint = aq.unit_no;
     while (q.choices.length < 4) q.choices.push({ text: "(선지 없음)", explanation: null });

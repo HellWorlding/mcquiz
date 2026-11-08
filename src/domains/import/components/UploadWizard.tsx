@@ -221,6 +221,13 @@ function QuestionCard({
           </button>
         )}
       </div>
+      <textarea
+        className="input py-2 text-sm"
+        placeholder="문항 해설 (선택) — 선지별 해설과 별도로 전체를 정리하는 설명"
+        rows={2}
+        value={q.explanation ?? ""}
+        onChange={(e) => onChange({ explanation: e.target.value || null })}
+      />
       <input className="input py-2 text-sm" placeholder="힌트 (선택)" value={q.hint ?? ""} onChange={(e) => onChange({ hint: e.target.value || null })} />
       <div className="flex flex-wrap items-center gap-2">
         <select className={`input w-auto py-2 text-sm ${low ? "border-warn" : ""}`} value={q.unitId ?? ""} onChange={(e) => onChange({ unitId: e.target.value || null, unitConfidence: e.target.value ? 1 : null })}>

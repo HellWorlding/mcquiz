@@ -106,7 +106,7 @@ describe("복기 메모 형식", () => {
 정답 ④
 `);
     expect(r.questions[0].correct).toBe(2);
-    expect(r.questions[0].choices[1].explanation).toBe("나가 맞다");
+    expect(r.questions[0].explanation).toBe("나가 맞다");
     expect(r.questions[1].correct).toBe(4);
   });
 });
@@ -142,7 +142,7 @@ describe("문제지 + 정답지", () => {
     expect(q.questions[0].choices[3].explanation).toBe("틀림. 라 설명");
     expect(q.questions[0].choices[0].explanation).toBe("옳음. 가 설명");
     expect(q.questions[1].correct).toBe(1);
-    expect(q.questions[1].choices[0].explanation).toBe("b 가 아니라 a");
+    expect(q.questions[1].explanation).toBe("b 가 아니라 a");
   });
 
   it("정답만 나열된 정답지 (1. ④)", () => {
@@ -161,6 +161,7 @@ describe("JSON", () => {
           prompt: "질문?",
           choice_count: 4,
           correct_choice: 2,
+          explanation: "전체 해설",
           lecture_no: 26,
           choices: [
             { ord: 1, text: "가", explanation: null },
@@ -175,6 +176,7 @@ describe("JSON", () => {
     expect(r.questions[0].correct).toBe(2);
     expect(r.questions[0].unitHint).toBe(26);
     expect(r.questions[0].choices[1].explanation).toBe("정답");
+    expect(r.questions[0].explanation).toBe("전체 해설");
   });
 });
 

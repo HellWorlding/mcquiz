@@ -66,6 +66,7 @@ export function CollectionView({ collection, questions, canEdit }: { collection:
                 </div>
                 {correct && <p className="mt-1 text-sm text-ok">정답: {correct.text}</p>}
                 {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{correct.explanation}</p>}
+              {q.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{q.explanation}</p>}
               </li>
             );
           })}

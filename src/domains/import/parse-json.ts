@@ -68,11 +68,7 @@ export function parseJsonQuestions(text: string): ParseResult {
       correct = Number.isFinite(n) ? n : null;
     }
     q.correct = correct;
-    if (item.explanation) {
-      const c = q.correct ? q.choices[q.correct - 1] : null;
-      if (c) c.explanation = c.explanation ? `${c.explanation}\n${item.explanation}` : item.explanation.trim();
-      else q.hint = item.explanation.trim();
-    }
+    q.explanation = item.explanation?.trim() || null;
     q.hint = item.hint?.trim() || q.hint;
     q.tags = item.tags ?? [];
     q.points = item.points ?? null;
