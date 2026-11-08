@@ -1,34 +1,42 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { saveNoteAction } from "@/domains/notes/actions";
 
 const FONT_KEY = "mcquiz.noteFontSize";
 const FONT_MIN = 14;
 const FONT_MAX = 32;
 const FONT_DEFAULT = 19;
-const FONT_EVENT = "mcquiz:noteFontSize";
 
-/** 메모 글자 크기 (기기별 기억, 모든 메모 칸에 동시에 적용) */
+// 글자 크기 저장소 (기기별 기억, 모든 메모 칸에 동시에 적용)
+let fontSize: number | null = null;
+const listeners = new Set<() => void>();
+function readFontSize(): number {
+  if (fontSize !== null) return fontSize;
+  let v = FONT_DEFAULT;
+  try {
+    const stored = Number(localStorage.getItem(FONT_KEY));
+    if (stored >= FONT_MIN && stored <= FONT_MAX) v = stored;
+  } catch {}
+  fontSize = v;
+  return v;
+}
+function writeFontSize(v: number) {
+  fontSize = v;
+  try {
+    localStorage.setItem(FONT_KEY, String(v));
+  } catch {}
+  listeners.forEach((l) => l());
+}
+function subscribe(l: () => void) {
+  listeners.add(l);
+  return () => listeners.delete(l);
+}
+
+/** 메모 글자 크기 */
 export function useNoteFontSize() {
-  const [size, setSize] = useState(FONT_DEFAULT);
-  useEffect(() => {
-    try {
-      const v = Number(localStorage.getItem(FONT_KEY));
-      if (v >= FONT_MIN && v <= FONT_MAX) setSize(v);
-    } catch {}
-    const onChange = (e: Event) => setSize((e as CustomEvent<number>).detail);
-    window.addEventListener(FONT_EVENT, onChange);
-    return () => window.removeEventListener(FONT_EVENT, onChange);
-  }, []);
+  const size = useSyncExternalStore(subscribe, readFontSize, () => FONT_DEFAULT);
   const change = useCallback((delta: number) => {
-    setSize((s) => {
-      const next = Math.max(FONT_MIN, Math.min(FONT_MAX, s + delta));
-      try {
-        localStorage.setItem(FONT_KEY, String(next));
-      } catch {}
-      window.dispatchEvent(new CustomEvent(FONT_EVENT, { detail: next }));
-      return next;
-    });
+    writeFontSize(Math.max(FONT_MIN, Math.min(FONT_MAX, readFontSize() + delta)));
   }, []);
   return { size, change };
 }
