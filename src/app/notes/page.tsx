@@ -3,6 +3,7 @@ import { requireUser } from "@/domains/auth/session";
 import { listSubjects } from "@/domains/subjects/queries";
 import { listMyNotes } from "@/domains/notes/queries";
 import { NoteBox } from "@/domains/notes/components/NoteBox";
+import { cleanExplanation } from "@/domains/shared/labels";
 
 export const metadata = { title: "필기" };
 
@@ -57,6 +58,18 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                 </div>
                 {n.correctText && <p className="text-xs text-ok">정답: {n.correctText}</p>}
                 <NoteBox questionId={n.questionId} initial={n.content} />
+                {(n.explanation || n.correctExplanation || n.sourceQuote) && (
+                  <details className="rounded-lg bg-background px-3 py-2 text-sm">
+                    <summary className="cursor-pointer text-muted">해설·근거 보기</summary>
+                    {n.correctExplanation && <p className="mt-2 whitespace-pre-wrap text-ok">{cleanExplanation(n.correctExplanation)}</p>}
+                    {n.explanation && <p className="mt-2 whitespace-pre-wrap">{n.explanation}</p>}
+                    {n.sourceQuote && (
+                      <p className="mt-2 whitespace-pre-wrap text-muted">
+                        근거{n.sourcePage ? ` · 책 p.${n.sourcePage}` : ""}: {n.sourceQuote}
+                      </p>
+                    )}
+                  </details>
+                )}
               </div>
             ))}
           </div>

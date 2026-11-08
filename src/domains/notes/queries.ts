@@ -29,6 +29,10 @@ export type NoteItem = {
   unitLabel: string;
   topic: string | null;
   correctText: string | null;
+  correctExplanation: string | null;
+  explanation: string | null;
+  sourceQuote: string | null;
+  sourcePage: number | null;
 };
 
 /** 내 메모 전체 (주제로 거르기 가능). 단원 순 → 최근 수정 순 */
@@ -43,9 +47,16 @@ export async function listMyNotes(subjectId: string | null): Promise<NoteItem[]>
     .order("updated_at", { ascending: false });
   if (!notes?.length) return [];
   const ids = notes.map((n) => n.question_id);
-  const qs: { id: string; prompt: string; subject_id: string; unit_id: string | null; topic: string | null; correct_choice: number | null; choices: { ord: number; text: string }[] }[] = [];
+  const qs: {
+    id: string; prompt: string; subject_id: string; unit_id: string | null; topic: string | null; correct_choice: number | null;
+    explanation: string | null; source_quote: string | null; source_page: number | null;
+    choices: { ord: number; text: string; explanation: string | null }[];
+  }[] = [];
   for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await db.from("questions").select("id, prompt, subject_id, unit_id, topic, correct_choice, choices(ord, text)").in("id", ids.slice(i, i + 200));
+    const { data } = await db
+      .from("questions")
+      .select("id, prompt, subject_id, unit_id, topic, correct_choice, explanation, source_quote, source_page, choices(ord, text, explanation)")
+      .in("id", ids.slice(i, i + 200));
     qs.push(...(data ?? []));
   }
   const unitIds = [...new Set(qs.map((q) => q.unit_id).filter((x): x is string => !!x))];
@@ -71,6 +82,10 @@ export async function listMyNotes(subjectId: string | null): Promise<NoteItem[]>
         unitLabel: u ? (u.no !== null ? `${u.no}. ${u.title}` : u.title) : "단원 없음",
         topic: q.topic,
         correctText: q.choices.find((c) => c.ord === q.correct_choice)?.text ?? null,
+        correctExplanation: q.choices.find((c) => c.ord === q.correct_choice)?.explanation ?? null,
+        explanation: q.explanation,
+        sourceQuote: q.source_quote,
+        sourcePage: q.source_page,
         _sort: u ? (u.no ?? u.sort) : 9999,
       };
     })

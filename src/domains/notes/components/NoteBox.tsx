@@ -3,7 +3,18 @@ import { useEffect, useRef, useState } from "react";
 import { saveNoteAction } from "@/domains/notes/actions";
 
 /** 문항 메모 칸. 입력을 멈추면 자동 저장. */
-export function NoteBox({ questionId, initial, compact = false }: { questionId: string; initial: string; compact?: boolean }) {
+export function NoteBox({
+  questionId,
+  initial,
+  compact = false,
+  importText,
+}: {
+  questionId: string;
+  initial: string;
+  compact?: boolean;
+  /** "해설 가져오기" 로 메모에 붙여 넣을 글 */
+  importText?: string | null;
+}) {
   const [text, setText] = useState(initial);
   const [state, setState] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
   const [open, setOpen] = useState(!!initial || !compact);
@@ -54,6 +65,11 @@ export function NoteBox({ questionId, initial, compact = false }: { questionId: 
           {state === "error" && <span className="text-bad">저장 실패</span>}
         </span>
       </div>
+      {importText && !text.includes(importText.slice(0, 40)) && (
+        <button type="button" className="btn-ghost btn-sm self-start" onClick={() => onChange(text ? `${text}\n\n${importText}` : importText)}>
+          해설 가져오기
+        </button>
+      )}
       <textarea
         className="input min-h-20 text-base"
         placeholder="이 문제에 대한 메모 (자동 저장)"
