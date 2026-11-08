@@ -1,6 +1,7 @@
 import "server-only";
 import { getReadClient, expandUnitIds } from "@/domains/subjects/queries";
 import type { QuestionSet, QuestionWithChoices } from "@/domains/shared/types";
+import { allRows } from "@/domains/shared/paginate";
 
 export async function listSets(subjectId: string): Promise<(QuestionSet & { question_count: number })[]> {
   const { db } = await getReadClient();
@@ -24,9 +25,9 @@ export async function getSet(setId: string): Promise<QuestionSet | null> {
 /** 단원별 문항 수 (하위 단원 미포함, 화면에서 합산) */
 export async function countQuestionsByUnit(subjectId: string): Promise<Record<string, number>> {
   const { db } = await getReadClient();
-  const { data } = await db.from("questions").select("unit_id").eq("subject_id", subjectId);
+  const data = await allRows<{ unit_id: string | null }>((f, t) => db.from("questions").select("unit_id").eq("subject_id", subjectId).range(f, t));
   const out: Record<string, number> = {};
-  for (const r of data ?? []) {
+  for (const r of data) {
     const k = r.unit_id ?? "__none__";
     out[k] = (out[k] ?? 0) + 1;
   }
@@ -63,16 +64,12 @@ export async function listQuestionIds(scope: QuestionScope): Promise<string[]> {
     case "units": {
       const all = await expandUnitIds(scope.unitIds);
       if (all.length === 0) return [];
-      const { data } = await db
-        .from("questions")
-        .select("id, unit_id, set_id, ord")
-        .eq("subject_id", scope.subjectId)
-        .in("unit_id", all)
-        .order("set_id")
-        .order("ord");
+      const data = await allRows<{ id: string; unit_id: string | null; set_id: string; ord: number }>((f, t) =>
+        db.from("questions").select("id, unit_id, set_id, ord").eq("subject_id", scope.subjectId).in("unit_id", all).order("set_id").order("ord").range(f, t),
+      );
       // 단원 순서(선택 순서 → 하위 순서)대로 정렬
       const unitOrder = new Map(all.map((id, i) => [id, i]));
-      return (data ?? [])
+      return data
         .sort((a, b) => (unitOrder.get(a.unit_id!) ?? 0) - (unitOrder.get(b.unit_id!) ?? 0))
         .map((r) => r.id);
     }
@@ -98,13 +95,10 @@ export async function listQuestionIds(scope: QuestionScope): Promise<string[]> {
       return [...new Set((data ?? []).map((r) => r.question_id))];
     }
     case "subject": {
-      const { data } = await db
-        .from("questions")
-        .select("id")
-        .eq("subject_id", scope.subjectId)
-        .order("set_id")
-        .order("ord");
-      return (data ?? []).map((r) => r.id);
+      const data = await allRows<{ id: string }>((f, t) =>
+        db.from("questions").select("id").eq("subject_id", scope.subjectId).order("set_id").order("ord").range(f, t),
+      );
+      return data.map((r) => r.id);
     }
     case "ids":
       return scope.ids;

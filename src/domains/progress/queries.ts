@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/domains/auth/session";
 import { shuffled } from "@/domains/quiz/shuffle";
 import type { Attempt } from "@/domains/shared/types";
 import { difficultyLabel, trapLabel } from "@/domains/shared/labels";
+import { allRows } from "@/domains/shared/paginate";
 
 type QMeta = { id: string; unit_id: string | null; set_id: string; tags: string[]; topic: string | null; difficulty: string | null; trap_types: string[] };
 type Mark = { question_id: string; kind: string; at: string };
@@ -46,12 +47,12 @@ async function loadProgress(subjectId: string) {
   const user = await getCurrentUser();
   if (!user) return null;
   const db = await createClient();
-  const [{ data: qs }, { data: units }, { data: sets }] = await Promise.all([
-    db.from("questions").select("id, unit_id, set_id, tags, topic, difficulty, trap_types").eq("subject_id", subjectId),
+  const [qs, { data: units }, { data: sets }] = await Promise.all([
+    allRows<QMeta>((f, t) => db.from("questions").select("id, unit_id, set_id, tags, topic, difficulty, trap_types").eq("subject_id", subjectId).range(f, t)),
     db.from("units").select("id, title, no").eq("subject_id", subjectId),
     db.from("question_sets").select("id, title").eq("subject_id", subjectId),
   ]);
-  const meta = new Map<string, QMeta>((qs ?? []).map((q) => [q.id, q]));
+  const meta = new Map<string, QMeta>(qs.map((q) => [q.id, q]));
   const attempts: Attempt[] = [];
   const marks: Mark[] = [];
   const ids = [...meta.keys()];
