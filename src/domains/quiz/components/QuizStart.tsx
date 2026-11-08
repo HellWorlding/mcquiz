@@ -32,18 +32,6 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
   const [order, setOrder] = useState<"seq" | "random">("seq");
   const [offset, setOffset] = useState(0);
   const [difficulty, setDifficulty] = useState<string>("");
-  // "N번부터 M번까지" 직접 입력 (비우면 위의 문항 수·구간 설정을 따른다)
-  const [rangeFrom, setRangeFrom] = useState("");
-  const [rangeTo, setRangeTo] = useState("");
-  const customRange = (() => {
-    const f = Number(rangeFrom);
-    const t = Number(rangeTo);
-    if (!rangeFrom && !rangeTo) return null;
-    if (!Number.isInteger(f) || f < 1) return null;
-    const to = rangeTo ? t : selectedTotal;
-    if (!Number.isInteger(to) || to < f) return null;
-    return { from: f, to: Math.min(to, selectedTotal) };
-  })();
   const [expanded, setExpanded] = useState<Set<string>>(new Set(units.map((u) => u.id)));
 
   // 단원별 누적 문항 수 (하위 포함)
@@ -82,6 +70,19 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
     }
     return total;
   }, [allUnits, selected, unitTotal]);
+
+  // "N번부터 M번까지" 직접 입력 (비우면 위의 문항 수·구간 설정을 따른다)
+  const [rangeFrom, setRangeFrom] = useState("");
+  const [rangeTo, setRangeTo] = useState("");
+  const customRange = (() => {
+    const f = Number(rangeFrom);
+    const t = Number(rangeTo);
+    if (!rangeFrom && !rangeTo) return null;
+    if (!Number.isInteger(f) || f < 1) return null;
+    const to = rangeTo ? t : selectedTotal;
+    if (!Number.isInteger(to) || to < f) return null;
+    return { from: f, to: Math.min(to, selectedTotal) };
+  })();
 
   const toggleUnit = (node: TreeNode<Unit>) => {
     const ids = subtreeIds(node);
