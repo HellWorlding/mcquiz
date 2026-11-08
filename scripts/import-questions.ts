@@ -41,12 +41,12 @@ async function main() {
   try {
     if (existsSync(cachePath)) cache = JSON.parse(readFileSync(cachePath, "utf8"));
   } catch {}
-  const cacheKey = (f: string, hash: string) => `${process.env.NEXT_PUBLIC_SUPABASE_URL}|${subject.id}|${f}`;
+  const cacheKey = (f: string) => `${process.env.NEXT_PUBLIC_SUPABASE_URL}|${subject.id}|${f}`;
   let totalIns = 0, totalUpd = 0, totalFail = 0, skipped = 0;
   for (const f of files) {
     const text = readFileSync(join(dir, f), "utf8");
     const hash = createHash("sha256").update(text).digest("hex");
-    if (!force && cache[cacheKey(f, hash)] === hash) {
+    if (!force && cache[cacheKey(f)] === hash) {
       skipped++;
       continue;
     }
@@ -80,7 +80,7 @@ async function main() {
     totalIns += r.inserted; totalUpd += r.updated; totalFail += failed.length;
     console.log(`  [ok] ${f}: 새로 ${r.inserted}, 덮어씀 ${r.updated}, 실패 ${failed.length}`);
     if (failed.length === 0) {
-      cache[cacheKey(f, hash)] = hash;
+      cache[cacheKey(f)] = hash;
       mkdirSync("content", { recursive: true });
       writeFileSync(cachePath, JSON.stringify(cache, null, 2));
     }
