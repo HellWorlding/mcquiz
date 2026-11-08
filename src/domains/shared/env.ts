@@ -5,7 +5,7 @@ export const env = {
   adminEmail: (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase(),
   publicGuestAccess: (process.env.PUBLIC_GUEST_ACCESS ?? "false").toLowerCase() === "true",
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
-  openaiModel: process.env.OPENAI_MODEL || "gpt-6.1-terra",
+  openaiModel: process.env.OPENAI_MODEL || "gpt-6-luna",
 };
 
 export function hasOpenAI() {

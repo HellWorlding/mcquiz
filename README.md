@@ -35,7 +35,7 @@ npm run dev
 | `ADMIN_EMAIL` | 이 이메일로 로그인하면 자동으로 관리자 |
 | `PUBLIC_GUEST_ACCESS` | `true`면 비로그인 방문자도 공개 주제를 풀 수 있음(기록은 저장되지 않음). 기본 `false` |
 | `OPENAI_API_KEY` | 선택. 규칙 파서가 실패한 텍스트의 AI 파싱, 단원 분류 보조 |
-| `OPENAI_MODEL` | 선택. 기본 `gpt-6.1-terra` |
+| `OPENAI_MODEL` | 선택. 기본 `gpt-6-luna` |
 
 `.env*` 와 `content/` 는 git 에 올라가지 않습니다.
 
