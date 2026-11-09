@@ -50,7 +50,7 @@ async function main() {
     return subjectIdByName.get(name)!;
   };
   const files = readdirSync(dir)
-    .filter((f) => /^(questions_|toeic).*\.json$/i.test(f))
+    .filter((f) => /\.json$/i.test(f) && !f.startsWith("."))
     .sort((a, b) => (unitNoFromFilename(a) ?? 0) - (unitNoFromFilename(b) ?? 0));
   if (files.length === 0) {
     console.error(`${dir} 에 questions_*.json 이 없습니다.`);

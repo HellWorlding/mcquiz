@@ -116,6 +116,16 @@ ChatGPT·Claude 등에 아래 프롬프트와 자료(강의 스크립트, 정리
 - 파일명이 `toeic_collocation_part3.json`이면 `subject`/`unit_path`가 없어도 토익 > 콜로케이션 > 파트3으로 갑니다(`toeic_<묶음>_part<N>.json`; 묶음 코드: collocation, part5, hackers, vocab, grammar, listening, reading).
 - Claude 퀴즈 형식도 그대로 됩니다: `{ "title", "questions": [ { "prompt", "options": [ { "id", "text" } ], "correct_option_id", "explanation", "hint" } ] }` → options 순서가 선지 번호가 됩니다.
 
+## 회차를 나눠 같은 단원에 쌓기 (예: English › Listening & Speaking 2 › Unit 3)
+
+같은 Unit 에 1차·2차를 쌓을 때는 회차별 파일을 따로 두고 `no` 를 이어서 매깁니다(1차 1~10, 2차 11~20). 같은 파일의 같은 번호는 덮어쓰고, 다른 파일은 서로 건드리지 않습니다.
+
+```
+english_ls2_unit3_r1.json  → "no": 1 ~ 10
+english_ls2_unit3_r2.json  → "no": 11 ~ 20
+```
+각 문항: `{"subject":"English","unit_path":["Listening & Speaking 2","Unit 3"],"no":11, …}`
+
 ## 폴더째 올리기
 
 ```bash
