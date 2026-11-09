@@ -10,6 +10,7 @@ import { AddToCollection } from "@/domains/quiz/components/AddToCollection";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
 import { useT } from "@/domains/shared/i18n-client";
+import { ReportButton } from "@/domains/questions/components/ReportModal";
 
 type Filter = "all" | "wrong" | "confused" | "saved";
 
@@ -278,8 +279,9 @@ function SavedList({
               <div className="mt-1">
                 <QuestionBadges q={q} />
               </div>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-start gap-2">
                 <EvidencePanel questionId={q.id} subjectId={subjectId} />
+                <ReportButton questionId={q.id} />
               </div>
             </li>
           );

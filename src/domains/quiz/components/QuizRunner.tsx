@@ -11,6 +11,7 @@ import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
 import { cleanExplanation } from "@/domains/shared/labels";
 import { NoteBox } from "@/domains/notes/components/NoteBox";
 import { useT } from "@/domains/shared/i18n-client";
+import { ReportButton } from "@/domains/questions/components/ReportModal";
 
 const pts = (q: QuestionWithChoices) => (q.points && q.points > 0 ? q.points : 1);
 
@@ -334,7 +335,12 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
               <SourceQuote q={q} />
               {q.trap_types.length > 0 && <QuestionBadges q={{ ...q, difficulty: null, topic: null, points: null }} />}
               {!isGuest && <EvidencePanel questionId={q.id} subjectId={subjectId} isAdmin={isAdmin} />}
-              {!isGuest && <NoteBox key={q.id} questionId={q.id} initial={notes[q.id] ?? ""} compact importText={explanationText(q)} />}
+              {!isGuest && (
+                <div className="flex flex-wrap items-start gap-2">
+                  <NoteBox key={q.id} questionId={q.id} initial={notes[q.id] ?? ""} compact importText={explanationText(q)} />
+                  <ReportButton questionId={q.id} />
+                </div>
+              )}
             </div>
           )}
         </div>

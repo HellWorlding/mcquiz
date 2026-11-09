@@ -8,6 +8,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     ["/admin/units", "단원"],
     ["/admin/sources", "스크립트"],
     ["/admin/upload", "문제 업로드"],
+    ["/admin/reports", "신고"],
   ];
   return (
     <div className="flex flex-col gap-4">

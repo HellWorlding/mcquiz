@@ -81,6 +81,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"board_posts": {
+                  Row: {
+                    "admin_reply": string | null,"body": string,"created_at": string,"id": string,"kind": string,"status": string,"title": string,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "admin_reply"?: string | null,"body": string,"created_at"?: string,"id"?: string,"kind"?: string,"status"?: string,"title": string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "admin_reply"?: string | null,"body"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"status"?: string,"title"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "board_posts_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"choices": {
                   Row: {
                     "explanation": string | null,"id": string,"ord": number,"question_id": string,"text": string
@@ -219,6 +239,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     },{
       foreignKeyName: "question_notes_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"question_reports": {
+                  Row: {
+                    "created_at": string,"id": string,"kind": string,"message": string,"question_id": string,"status": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"kind"?: string,"message": string,"question_id": string,"status"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"kind"?: string,"message"?: string,"question_id"?: string,"status"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "question_reports_question_id_fkey"
+      columns: ["question_id"]
+isOneToOne: false
+      referencedRelation: "questions"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "question_reports_user_id_fkey"
       columns: ["user_id"]
 isOneToOne: false
       referencedRelation: "profiles"
@@ -436,7 +482,21 @@ isOneToOne: false
                 }
           }
           Views: {
-            [_ in never]: never
+            "board_posts_view": {
+                  Row: {
+                    "admin_reply": string | null,"author": string | null,"body": string,"created_at": string,"id": string,"kind": string,"status": string,"title": string,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "board_posts_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                }
           }
           Functions: {
             "can_edit_collection":

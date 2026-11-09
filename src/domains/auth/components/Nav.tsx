@@ -27,6 +27,9 @@ export async function Nav() {
               <Link href="/notes" className="btn-ghost btn-sm">
                 {tr("nav.notes")}
               </Link>
+              <Link href="/board" className="btn-ghost btn-sm">
+                {tr("nav.board")}
+              </Link>
               {user.isAdmin && (
                 <Link href="/admin" className="btn-ghost btn-sm">
                   {tr("nav.admin")}
