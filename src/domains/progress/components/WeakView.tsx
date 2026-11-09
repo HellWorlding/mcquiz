@@ -27,7 +27,7 @@ export function unitLabelOf(units: Unit[], unitId: string | null): { key: string
     top = parent;
   }
   const isLeafOfTree = top.id !== u.id;
-  const label = isLeafOfTree ? (u.no !== null ? `${u.no}. ${u.title}` : u.title) : u.no !== null ? `${u.no}강 ${u.title}` : u.title;
+  const label = isLeafOfTree ? (u.no !== null ? `${u.no}. ${u.title}` : u.title) : u.no !== null && isKoreanTitle(u.title) ? `${u.no}강 ${u.title}` : u.title;
   return { key: u.id, label, sort: u.no ?? u.sort, groupKey: isLeafOfTree ? top.id : "__top__" };
 }
 
@@ -36,7 +36,8 @@ export function questionNoLabel(units: Unit[], q: { unit_id: string | null; ord:
   const u = units.find((x) => x.id === q.unit_id);
   if (!u) return qNoLabel(q.ord, true);
   const korean = isKoreanTitle(u.title);
-  return u.no !== null && korean ? `${u.no}강 ${q.ord}번` : qNoLabel(q.ord, korean);
+  if (!korean) return `${u.title} ${qNoLabel(q.ord, false)}`;
+  return u.no !== null ? `${u.no}강 ${q.ord}번` : qNoLabel(q.ord, true);
 }
 
 export function WeakView({ subject, summary, questions, units }: { subject: Subject; summary: WeakSummary; questions: QuestionWithChoices[]; units: Unit[] }) {

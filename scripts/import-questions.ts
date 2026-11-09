@@ -4,7 +4,7 @@
  * 주제를 생략하면 .env.local 의 DEFAULT_SUBJECT 를 쓴다.
  * 내용이 바뀌지 않은 파일은 건너뛴다 (content/.import-cache.json 에 해시 기록). --force 로 전부 다시 올린다.
  * 파일/문항의 "subject" 와 "unit_path" 가 있으면 그 주제·단원으로 간다 (단원은 없으면 만든다).
- * toeic_*.json 은 토익 주제로 처리하고 파일명(toeic_collocation_part3)에서 단원 경로를 추정한다.
+ * toeic_*.json 은 파일명(toeic_collocation_part3)으로 주제("TOEIC(English) - Collocation")·단원("Part 3")을 추정한다.
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -14,7 +14,7 @@ import { parseJsonQuestions } from "../src/domains/import/parse-json";
 import { unitNoFromFilename } from "../src/domains/import/parse-text";
 import { classifyQuestion } from "../src/domains/import/classify";
 import { saveQuestionSet, validateQuestions } from "../src/domains/import/save";
-import { ensureUnitPath, resolveSubjectByName, targetFromFilename } from "../src/domains/import/targets";
+import { ensureUnitPath, normalizeTarget, resolveSubjectByName, targetFromFilename } from "../src/domains/import/targets";
 import type { PreviewQuestion } from "../src/domains/import/types";
 import type { Unit } from "../src/domains/shared/types";
 
@@ -81,10 +81,11 @@ async function main() {
     const preview: PreviewQuestion[] = [];
     for (let i = 0; i < parsed.questions.length; i++) {
       const q = parsed.questions[i];
-      const subjName = q.subjectName ?? fromName?.subject ?? null;
+      const raw = q.subjectName ? normalizeTarget(q.subjectName, q.unitPath) : { subject: fromName?.subject ?? null, unitPath: q.unitPath ?? fromName?.unitPath ?? null };
+      const subjName = raw.subject;
       const sid = subjName ? await subjectIdOf(subjName) : defaultSubject.id;
       const units = await unitsOf(sid);
-      const path = q.unitPath ?? (subjName ? fromName?.unitPath ?? null : null);
+      const path = raw.unitPath;
       if (path && path.length) {
         const unitId = await ensureUnitPath(db, sid, path, units);
         preview.push({ ...q, key: `q${i}`, subjectId: sid, unitId, unitConfidence: 1, unitCandidates: [] });

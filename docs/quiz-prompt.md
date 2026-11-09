@@ -96,14 +96,14 @@ ChatGPT·Claude 등에 아래 프롬프트와 자료(강의 스크립트, 정리
 | `trap_types` | 답을 고른 뒤 "함정: 숫자 변경" 배지, 통계 "함정 유형별" | 아래 코드 목록에서만 |
 | `hint` | "힌트 보기" 버튼 (있을 때만) | 정답을 바로 말하지 않는 한 줄 |
 
-## 다른 주제 (예: TOEIC > Collocation > Part 1~30)
+## 다른 주제 (예: TOEIC(English) - Collocation > Part 1~30)
 
 파일이나 문항에 `subject`(주제 이름)와 `unit_path`(단원 경로 배열)를 적으면 그 주제·단원으로 들어갑니다. 단원 경로의 단원이 없으면 자동으로 만들어집니다(트리). `subject`가 없으면 기본 주제 + `unit_no` 방식 그대로입니다. 같은 문항 판별은 (주제, 단원, 번호/질문) 기준이라 주제끼리 섞이지 않습니다.
 
 ```json
 {
-  "subject": "TOEIC",
-  "unit_path": ["Collocation", "Part 3"],
+  "subject": "TOEIC(English) - Collocation",
+  "unit_path": ["Part 3"],
   "title": "Collocation Part 3",
   "questions": [
     { "prompt": "We need to ___ a decision.", "correct_choice": 1, "explanation": "make a decision",
@@ -113,7 +113,7 @@ ChatGPT·Claude 등에 아래 프롬프트와 자료(강의 스크립트, 정리
 ```
 
 - 선지별 `explanation`은 없어도 됩니다(문항 `explanation`만 보여 줌).
-- 파일명이 `toeic_collocation_part3.json`이면 `subject`/`unit_path`가 없어도 TOEIC > Collocation > Part 3으로 갑니다(`toeic_<묶음>_part<N>.json`; 묶음 코드: collocation, part5, hackers, vocab, grammar, listening, reading). 영어로 배우는 주제는 단원 이름도 영어로 적습니다(Collocation, Vocabulary, Part 3, Set 7). 예전 한글 이름(토익, 콜로케이션, 어휘, 파트3, 세트7)을 적어도 같은 단원으로 들어갑니다.
+- 파일명이 `toeic_collocation_part3.json`이면 `subject`/`unit_path`가 없어도 "TOEIC(English) - Collocation" > Part 3으로 갑니다(`toeic_<묶음>_part<N>.json`; 묶음 코드: collocation, part5, hackers, vocab, grammar, listening, reading). 영어로 배우는 주제는 단원 이름도 영어로 적습니다(Collocation, Vocabulary, Part 3, Set 7). 영어 과정은 과정마다 주제를 따로 둡니다: "TOEIC(English) - Collocation", "TOEIC(English) - Vocabulary", "English - Listening and Speaking 2", "English - Grammar in Use". 예전 방식(subject "토익"/"TOEIC"/"English" + unit_path 첫 단계에 과정 이름)으로 적어도 자동으로 같은 주제·단원으로 들어갑니다.
 - Claude 퀴즈 형식도 그대로 됩니다: `{ "title", "questions": [ { "prompt", "options": [ { "id", "text" } ], "correct_option_id", "explanation", "hint" } ] }` → options 순서가 선지 번호가 됩니다.
 
 ## 회차를 나눠 같은 단원에 쌓기 (예: English › Listening & Speaking 2 › Unit 3)
@@ -124,7 +124,7 @@ ChatGPT·Claude 등에 아래 프롬프트와 자료(강의 스크립트, 정리
 english_ls2_unit3_r1.json  → "no": 1 ~ 10
 english_ls2_unit3_r2.json  → "no": 11 ~ 20
 ```
-각 문항: `{"subject":"English","unit_path":["Listening & Speaking 2","Unit 3"],"no":11, …}`
+각 문항: `{"subject":"English - Listening and Speaking 2","unit_path":["Unit 3"],"no":11, …}` (Grammar in Use 는 `"subject":"English - Grammar in Use","unit_path":["Passive","Unit 42: Passive 1 (is done / was done)"]` 처럼 2단계)
 
 ## 폴더째 올리기
 

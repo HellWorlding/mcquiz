@@ -8,7 +8,7 @@ import { parseAny } from "./parse";
 import { unitNoFromFilename } from "./parse-text";
 import { saveQuestionSet, validateQuestions, type FailedQuestion } from "./save";
 import { extractText, importSourceFile, type SourceUploadResult } from "./sources";
-import { ensureUnitPath, resolveSubjectByName, targetFromFilename } from "./targets";
+import { ensureUnitPath, normalizeTarget, resolveSubjectByName, targetFromFilename } from "./targets";
 import type { ParsedQuestion, PreviewQuestion } from "./types";
 
 export type PreviewResult = {
@@ -99,6 +99,11 @@ export async function previewImportAction(formData: FormData): Promise<ActionRes
     let unitCandidates: { unitId: string; score: number }[] = [];
     // 파일이 주제/단원 경로를 지정한 문항: 그 주제로 보내고 단원은 경로대로 (없으면 생성)
     if (q.subjectName || q.unitPath) {
+      if (q.subjectName) {
+        const t = normalizeTarget(q.subjectName, q.unitPath);
+        q.subjectName = t.subject;
+        q.unitPath = t.unitPath;
+      }
       let sid = subjectId;
       if (q.subjectName) {
         if (!subjectIdByName.has(q.subjectName)) {

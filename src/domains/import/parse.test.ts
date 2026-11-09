@@ -242,8 +242,8 @@ describe("단원 제목/파일명에서 번호·경로", () => {
     expect(unitNoFromTitle("Set 12")).toBe(12);
     expect(unitNoFromTitle("파트30")).toBe(30);
     expect(unitNoFromTitle("콜로케이션")).toBeNull();
-    expect(targetFromFilename("toeic_vocab_set5.json")).toEqual({ subject: "TOEIC", unitPath: ["Vocabulary", "Set 5"] });
-    expect(targetFromFilename("toeic_collocation_part3.json")).toEqual({ subject: "TOEIC", unitPath: ["Collocation", "Part 3"] });
+    expect(targetFromFilename("toeic_vocab_set5.json")).toEqual({ subject: "TOEIC(English) - Vocabulary", unitPath: ["Set 5"] });
+    expect(targetFromFilename("toeic_collocation_part3.json")).toEqual({ subject: "TOEIC(English) - Collocation", unitPath: ["Part 3"] });
   });
 
   it("예전 한글 이름은 영어 이름으로 정규화한다", async () => {
@@ -256,6 +256,19 @@ describe("단원 제목/파일명에서 번호·경로", () => {
     expect(normalizeUnitTitle("세트07")).toBe("Set 7");
     expect(normalizeUnitTitle("Unit 3")).toBe("Unit 3");
     expect(normalizeUnitTitle("학교 경영")).toBe("학교 경영");
+  });
+
+  it("묶음 주제(TOEIC/English)는 과정별 주제로 나눈다", async () => {
+    const { normalizeTarget } = await import("./targets");
+    expect(normalizeTarget("토익", ["콜로케이션", "파트3"])).toEqual({ subject: "TOEIC(English) - Collocation", unitPath: ["Part 3"] });
+    expect(normalizeTarget("TOEIC", ["Vocabulary", "Set 7"])).toEqual({ subject: "TOEIC(English) - Vocabulary", unitPath: ["Set 7"] });
+    expect(normalizeTarget("English", ["Listening & Speaking 2", "Unit 3"])).toEqual({ subject: "English - Listening and Speaking 2", unitPath: ["Unit 3"] });
+    expect(normalizeTarget("English", ["Grammar in Use Intermediate", "Passive", "Unit 42: Passive 1"])).toEqual({
+      subject: "English - Grammar in Use",
+      unitPath: ["Passive", "Unit 42: Passive 1"],
+    });
+    expect(normalizeTarget("TOEIC(English) - Collocation", ["Part 3"])).toEqual({ subject: "TOEIC(English) - Collocation", unitPath: ["Part 3"] });
+    expect(normalizeTarget("교직실무", null)).toEqual({ subject: "교직실무", unitPath: null });
   });
 });
 

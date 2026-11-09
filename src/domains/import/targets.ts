@@ -24,6 +24,31 @@ export function normalizeUnitTitle(title: string): string {
   return t;
 }
 
+/**
+ * 묶음 주제(TOEIC, English)는 과정별로 주제를 나눈다. 파일에 묶음 이름 + 과정이 첫 단원으로 적혀 있으면
+ * "TOEIC(English) - Collocation" 처럼 주제 이름을 합치고 단원 경로에서 첫 단계를 뺀다.
+ *   ("토익", ["콜로케이션", "파트3"])                      → ("TOEIC(English) - Collocation", ["Part 3"])
+ *   ("English", ["Listening & Speaking 2", "Unit 3"])       → ("English - Listening and Speaking 2", ["Unit 3"])
+ *   ("English", ["Grammar in Use Intermediate", "Passive", "Unit 42: …"]) → ("English - Grammar in Use", ["Passive", "Unit 42: …"])
+ */
+const UMBRELLAS: Record<string, string> = { TOEIC: "TOEIC(English)", "TOEIC(English)": "TOEIC(English)", English: "English" };
+const COURSE_ALIASES: [RegExp, string][] = [
+  [/^listening\s*(&|and)\s*speaking\s*2$/i, "Listening and Speaking 2"],
+  [/^grammar in use\b.*$/i, "Grammar in Use"],
+];
+const courseName = (title: string) => {
+  const t = normalizeUnitTitle(title);
+  return COURSE_ALIASES.find(([re]) => re.test(t))?.[1] ?? t;
+};
+export function normalizeTarget(subject: string | null, unitPath: string[] | null): { subject: string | null; unitPath: string[] | null } {
+  const name = subject ? normalizeSubjectName(subject) : null;
+  const path = unitPath?.map(normalizeUnitTitle).filter(Boolean) ?? null;
+  if (name && UMBRELLAS[name] && path && path.length >= 1) {
+    return { subject: `${UMBRELLAS[name]} - ${courseName(path[0])}`, unitPath: path.slice(1) };
+  }
+  return { subject: name, unitPath: path };
+}
+
 /** 주제 이름으로 주제를 찾는다 (관리자/서비스 롤에서만 자동 생성 가능) */
 export async function resolveSubjectByName(
   db: Db,
@@ -88,7 +113,7 @@ export async function ensureUnitPath(db: Db, subjectId: string, path: string[], 
 
 /**
  * 파일명으로 주제·단원 경로를 추정한다.
- *  toeic_collocation_part3.json → { subject: "TOEIC", unitPath: ["Collocation", "Part 3"] }
+ *  toeic_collocation_part3.json → { subject: "TOEIC(English) - Collocation", unitPath: ["Part 3"] }
  */
 const TOEIC_GROUPS: Record<string, string> = {
   collocation: "Collocation",
@@ -112,5 +137,6 @@ export function targetFromFilename(filename: string): { subject: string; unitPat
   const path: string[] = [];
   if (group) path.push(group);
   if (n !== null) path.push(isSet ? `Set ${n}` : `Part ${n}`);
-  return { subject: "TOEIC", unitPath: path.length ? path : null };
+  const t = normalizeTarget("TOEIC", path);
+  return { subject: t.subject ?? "TOEIC(English)", unitPath: t.unitPath?.length ? t.unitPath : null };
 }

@@ -6,6 +6,7 @@ import type { ActionResult } from "@/domains/shared/types";
 import { findEvidence, type EvidenceHit } from "./search";
 import { getLang } from "@/domains/shared/i18n-server";
 import { getAiQuota, type AiQuota } from "./quota";
+import { isKoreanTitle } from "@/domains/shared/labels";
 
 export type EvidenceResult = { hits: EvidenceHit[]; unitTitle: string | null };
 
@@ -20,7 +21,7 @@ export async function findEvidenceAction(questionId: string): Promise<ActionResu
   let unitTitle: string | null = null;
   if (q.unit_id) {
     const { data: u } = await db.from("units").select("title, no").eq("id", q.unit_id).maybeSingle();
-    if (u) unitTitle = u.no ? `${u.no}강 ${u.title}` : u.title;
+    if (u) unitTitle = u.no && isKoreanTitle(u.title) ? `${u.no}강 ${u.title}` : u.title;
   }
   const hits = await findEvidence(db, { subjectId: q.subject_id, unitIds: q.unit_id ? [q.unit_id] : null, query, limit: 6 });
   return { ok: true, data: { hits, unitTitle } };
