@@ -25,12 +25,9 @@ export async function getSet(setId: string): Promise<QuestionSet | null> {
 /** 단원별 문항 수 (하위 단원 미포함, 화면에서 합산) */
 export async function countQuestionsByUnit(subjectId: string): Promise<Record<string, number>> {
   const { db } = await getReadClient();
-  const data = await allRows<{ unit_id: string | null }>((f, t) => db.from("questions").select("unit_id").eq("subject_id", subjectId).range(f, t));
+  const { data } = await db.rpc("question_counts_by_unit", { p_subject: subjectId });
   const out: Record<string, number> = {};
-  for (const r of data) {
-    const k = r.unit_id ?? "__none__";
-    out[k] = (out[k] ?? 0) + 1;
-  }
+  for (const r of data ?? []) out[r.unit_id ?? "__none__"] = Number(r.n);
   return out;
 }
 

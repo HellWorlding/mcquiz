@@ -275,7 +275,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         </div>
       ) : (
         <div className="card">
-          <QuestionBadges q={q} showTraps={false} />
+          <QuestionBadges q={{ ...q, topic: answered ? q.topic : null }} showTraps={false} />
           <p className="mt-1 whitespace-pre-wrap text-xl font-semibold leading-relaxed">{q.prompt}</p>
           {q.needs_review && <p className="mt-2 text-sm text-warn">정답이 지정되지 않은 문항입니다. 선택은 기록되지만 채점되지 않습니다.</p>}
           <ul className="mt-4 flex flex-col gap-2">

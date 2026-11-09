@@ -131,7 +131,8 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
       )}
       {tab === "stats" && (
         <div className="flex flex-col gap-4">
-          <StatTable title="단원별" rows={summary.byUnit} />
+          <StatTable title="묶음별 (콜로케이션 / 어휘 등)" rows={summary.byGroup} />
+          <StatTable title="단원·파트별" rows={summary.byUnit} />
           <StatTable title="세부 주제별" rows={summary.byTopic} />
           <StatTable title="난이도별" rows={summary.byDifficulty} />
           <StatTable title="함정 유형별 (틀린 문항의 함정)" rows={summary.byTrap} />

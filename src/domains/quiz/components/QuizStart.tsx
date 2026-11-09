@@ -32,6 +32,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
   const [order, setOrder] = useState<"seq" | "random">("seq");
   const [offset, setOffset] = useState(0);
   const [difficulty, setDifficulty] = useState<string>("");
+  const [under, setUnder] = useState<string>(""); // 풀이 횟수 N회 미만만
   const [expanded, setExpanded] = useState<Set<string>>(new Set(units.map((u) => u.id)));
 
   // 단원별 누적 문항 수 (하위 포함)
@@ -108,6 +109,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
       p.set("count", String(customRange.to - customRange.from + 1));
     }
     if (difficulty) p.set("difficulty", difficulty);
+    if (under && Number(under) > 0) p.set("under", under);
     // 상위가 선택된 하위는 빼고 보낸다 (서버가 하위를 다시 펼친다)
     const roots = allUnits.filter((u) => selected.has(u.id) && !(u.parent_id && selected.has(u.parent_id)));
     if (roots.length) p.set("units", roots.map((u) => u.id).join(","));
@@ -309,6 +311,26 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
               </div>
             </div>
           )}
+          <div>
+            <div className="label">풀이 횟수로 거르기 (선택)</div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                ["", "전부"],
+                ["1", "안 푼 것만"],
+                ["2", "2회 미만"],
+                ["3", "3회 미만"],
+              ].map(([v, label]) => (
+                <button
+                  key={v || "all"}
+                  onClick={() => setUnder(v)}
+                  className={`rounded-full border px-3 py-1 text-sm ${under === v ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-muted">내가 그 횟수보다 적게 푼 문항만 냅니다. 번호 구간과 함께 쓰면 구간을 먼저 자른 뒤 거릅니다.</p>
+          </div>
           <div>
             <div className="label">번호로 직접 고르기 (선택)</div>
             <div className="flex items-center gap-2">

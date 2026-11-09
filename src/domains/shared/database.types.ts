@@ -424,6 +424,16 @@ isOneToOne: false
 "is_admin":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"my_question_stats":
+{ Args: { "p_subject": string }; Returns: {
+              "attempt_count": number,"confused_after": boolean,"last_correct": boolean,"last_graded_at": string,"last_weak_at": string,"question_id": string,"saved": boolean,"wrong_after": boolean,"wrong_count": number
+            }[]
+                           },
+"question_counts_by_unit":
+{ Args: { "p_subject": string }; Returns: {
+              "n": number,"unit_id": string
+            }[]
+                           },
 "search_chunks":
 { Args: { "p_limit"?: number,"p_subject": string,"p_tokens": (string)[],"p_unit_ids"?: (string)[] }; Returns: {
               "chunk_id": string,"content": string,"kind": string,"ord": number,"page": number,"score": number,"source_id": string,"source_title": string,"unit_id": string,"unit_no": number

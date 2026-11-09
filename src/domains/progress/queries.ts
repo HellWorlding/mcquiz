@@ -2,12 +2,22 @@ import "server-only";
 import { createClient } from "@/domains/auth/supabase/server";
 import { getCurrentUser } from "@/domains/auth/session";
 import { shuffled } from "@/domains/quiz/shuffle";
-import type { Attempt } from "@/domains/shared/types";
 import { difficultyLabel, trapLabel } from "@/domains/shared/labels";
 import { allRows } from "@/domains/shared/paginate";
 
 type QMeta = { id: string; unit_id: string | null; set_id: string; tags: string[]; topic: string | null; difficulty: string | null; trap_types: string[] };
-type Mark = { question_id: string; kind: string; at: string };
+/** my_question_stats 한 행: 문항당 내 기록 요약 (DB 에서 집계) */
+type Stat = {
+  question_id: string;
+  attempt_count: number;
+  wrong_count: number;
+  last_correct: boolean | null;
+  last_graded_at: string | null;
+  wrong_after: boolean;
+  confused_after: boolean;
+  saved: boolean;
+  last_weak_at: string | null;
+};
 
 export type GroupStat = { key: string; label: string; total: number; correct: number; accuracy: number; /** 오답·헷갈림 횟수 */ weak: number };
 
@@ -15,119 +25,100 @@ export type GroupStat = { key: string; label: string; total: number; correct: nu
 export type SavedItem = {
   questionId: string;
   wrongCount: number;
-  /** 마지막 채점 결과 */
   lastResult: boolean | null;
   confused: boolean;
-  /** 직접 저장 */
   saved: boolean;
-  /** 목록에 들어온 이유 */
   reasons: ("wrong" | "confused" | "saved")[];
-  /** 정렬용: 가장 최근 활동 시각 */
   lastAt: string;
 };
 
 export type WeakSummary = {
-  /** 저장된 문제 (틀림·헷갈림 자동 + 직접 저장, '빼기' 한 것은 제외) */
   items: SavedItem[];
   wrongIds: string[];
   confusedIds: string[];
+  /** 최상위 묶음별 (예: 콜로케이션 / 어휘) */
+  byGroup: GroupStat[];
   byUnit: GroupStat[];
   byTopic: GroupStat[];
   byDifficulty: GroupStat[];
-  /** 함정 유형별: 그 함정이 있는 문항을 틀린 비율 */
   byTrap: GroupStat[];
   bySet: GroupStat[];
   byTag: GroupStat[];
   totalAttempts: number;
   accuracy: number;
+  /** 문항별 풀이 횟수 (N회 미만 필터용) */
+  attemptCounts: Record<string, number>;
 };
 
-/** 주제 안의 내 풀이 기록 + 표시 + 문항 메타 */
+/** 주제의 문항 메타 + 내 기록 집계. 기록은 DB 함수가 문항 단위로 요약해 돌려준다. */
 async function loadProgress(subjectId: string) {
   const user = await getCurrentUser();
   if (!user) return null;
   const db = await createClient();
-  const [qs, { data: units }, { data: sets }] = await Promise.all([
+  const [qs, statsRes, { data: units }, { data: sets }] = await Promise.all([
     allRows<QMeta>((f, t) => db.from("questions").select("id, unit_id, set_id, tags, topic, difficulty, trap_types").eq("subject_id", subjectId).range(f, t)),
-    db.from("units").select("id, title, no").eq("subject_id", subjectId),
+    db.rpc("my_question_stats", { p_subject: subjectId }),
+    db.from("units").select("id, title, no, parent_id, sort").eq("subject_id", subjectId),
     db.from("question_sets").select("id, title").eq("subject_id", subjectId),
   ]);
   const meta = new Map<string, QMeta>(qs.map((q) => [q.id, q]));
-  const attempts: Attempt[] = [];
-  const marks: Mark[] = [];
-  const ids = [...meta.keys()];
-  for (let i = 0; i < ids.length; i += 500) {
-    const chunk = ids.slice(i, i + 500);
-    const [{ data: a }, { data: m }] = await Promise.all([
-      db.from("attempts").select("*").eq("user_id", user.id).in("question_id", chunk).order("created_at"),
-      db.from("question_marks").select("question_id, kind, at").eq("user_id", user.id).in("question_id", chunk),
-    ]);
-    attempts.push(...(a ?? []));
-    marks.push(...(m ?? []));
-  }
-  return { user, db, meta, attempts, marks, units: units ?? [], sets: sets ?? [] };
+  const stats = new Map<string, Stat>(((statsRes.data ?? []) as Stat[]).map((s) => [s.question_id, s]));
+  return { user, db, meta, stats, units: units ?? [], sets: sets ?? [] };
 }
 
-function latestByQuestion(attempts: Attempt[]) {
-  const latest = new Map<string, Attempt>();
-  for (const a of attempts) if (a.selected_ord !== null) latest.set(a.question_id, a); // created_at 오름차순 → 마지막이 최신
-  return latest;
+function buildSavedItems(stats: Map<string, Stat>): SavedItem[] {
+  const out: SavedItem[] = [];
+  for (const s of stats.values()) {
+    const reasons: SavedItem["reasons"] = [];
+    if (s.wrong_after) reasons.push("wrong");
+    if (s.confused_after) reasons.push("confused");
+    if (s.saved) reasons.push("saved");
+    if (reasons.length === 0) continue;
+    out.push({
+      questionId: s.question_id,
+      wrongCount: s.wrong_count,
+      lastResult: s.last_correct,
+      confused: s.confused_after,
+      saved: s.saved,
+      reasons,
+      lastAt: s.last_weak_at ?? "",
+    });
+  }
+  return out.sort((a, b) => b.wrongCount - a.wrongCount || (b.lastAt > a.lastAt ? 1 : -1));
 }
 
-/** 저장된 문제 목록 계산: 빼기(dismissed) 이후에 새로 틀리거나 헷갈림·저장한 것만 다시 들어온다 */
-function buildSavedItems(attempts: Attempt[], marks: Mark[]): SavedItem[] {
-  const dismissedAt = new Map<string, string>();
-  const savedAt = new Map<string, string>();
-  for (const m of marks) {
-    if (m.kind === "dismissed") dismissedAt.set(m.question_id, m.at);
-    if (m.kind === "saved") savedAt.set(m.question_id, m.at);
-  }
-  const acc = new Map<string, SavedItem>();
-  const get = (qid: string) => {
-    let it = acc.get(qid);
-    if (!it) {
-      it = { questionId: qid, wrongCount: 0, lastResult: null, confused: false, saved: false, reasons: [], lastAt: "" };
-      acc.set(qid, it);
-    }
-    return it;
-  };
-  const after = (qid: string, at: string) => {
-    const d = dismissedAt.get(qid);
-    return !d || at > d;
-  };
-  for (const a of attempts) {
-    const it = get(a.question_id);
-    if (a.is_correct === false) it.wrongCount++;
-    if (a.selected_ord !== null && a.is_correct !== null) it.lastResult = a.is_correct;
-    if (after(a.question_id, a.created_at)) {
-      if (a.is_correct === false && !it.reasons.includes("wrong")) it.reasons.push("wrong");
-      if (a.confused) {
-        it.confused = true;
-        if (!it.reasons.includes("confused")) it.reasons.push("confused");
-      }
-      if (a.is_correct === false || a.confused) it.lastAt = a.created_at > it.lastAt ? a.created_at : it.lastAt;
-    }
-  }
-  for (const [qid, at] of savedAt) {
-    if (!after(qid, at)) continue;
-    const it = get(qid);
-    it.saved = true;
-    it.reasons.push("saved");
-    it.lastAt = at > it.lastAt ? at : it.lastAt;
-  }
-  return [...acc.values()]
-    .filter((it) => it.reasons.length > 0)
-    .sort((a, b) => b.wrongCount - a.wrongCount || (b.lastAt > a.lastAt ? 1 : -1));
+/** 풀이 횟수만 필요할 때 (퀴즈 범위 필터) */
+export async function getAttemptCounts(subjectId: string): Promise<Record<string, number>> {
+  const user = await getCurrentUser();
+  if (!user) return {};
+  const db = await createClient();
+  const { data } = await db.rpc("my_question_stats", { p_subject: subjectId });
+  const out: Record<string, number> = {};
+  for (const s of (data ?? []) as Stat[]) out[s.question_id] = s.attempt_count;
+  return out;
 }
 
 export async function getWeakSummary(subjectId: string): Promise<WeakSummary | null> {
   const p = await loadProgress(subjectId);
   if (!p) return null;
-  const latest = latestByQuestion(p.attempts);
-  const items = buildSavedItems(p.attempts, p.marks);
+  const items = buildSavedItems(p.stats);
 
-  const unitTitle = new Map(p.units.map((u) => [u.id, u.no ? `${u.no}. ${u.title}` : u.title]));
+  // 단원 라벨과 최상위 묶음
+  const unitById = new Map(p.units.map((u) => [u.id, u]));
+  const topOf = (unitId: string | null): string | null => {
+    let cur = unitId ? unitById.get(unitId) : undefined;
+    while (cur && cur.parent_id) cur = unitById.get(cur.parent_id);
+    return cur?.id ?? null;
+  };
+  const unitLabel = (id: string) => {
+    const u = unitById.get(id);
+    if (!u) return "단원 미지정";
+    const own = u.no !== null ? `${u.no}. ${u.title}` : u.title;
+    const parent = u.parent_id ? unitById.get(u.parent_id) : null;
+    return parent ? `${parent.title} › ${own}` : own;
+  };
   const setTitle = new Map(p.sets.map((s) => [s.id, s.title]));
+
   const agg = (keyOf: (m: QMeta) => string[], labelOf: (k: string) => string): GroupStat[] => {
     const acc = new Map<string, { total: number; correct: number; weak: number }>();
     const get = (k: string) => {
@@ -135,43 +126,43 @@ export async function getWeakSummary(subjectId: string): Promise<WeakSummary | n
       acc.set(k, s);
       return s;
     };
-    for (const a of latest.values()) {
-      const m = p.meta.get(a.question_id);
+    for (const s of p.stats.values()) {
+      const m = p.meta.get(s.question_id);
       if (!m) continue;
       for (const k of keyOf(m)) {
-        const s = get(k);
-        s.total++;
-        if (a.is_correct) s.correct++;
+        const g = get(k);
+        if (s.attempt_count > 0) {
+          g.total++;
+          if (s.last_correct) g.correct++;
+        }
+        g.weak += s.wrong_count + (s.confused_after ? 1 : 0);
       }
     }
-    // 오답·헷갈림은 모든 시도를 센다 (여러 번 틀리면 여러 번)
-    for (const a of p.attempts) {
-      if (a.is_correct !== false && !a.confused) continue;
-      const m = p.meta.get(a.question_id);
-      if (!m) continue;
-      for (const k of keyOf(m)) get(k).weak++;
-    }
     return [...acc.entries()]
+      .filter(([, s]) => s.total > 0 || s.weak > 0)
       .map(([key, s]) => ({ key, label: labelOf(key), total: s.total, correct: s.correct, accuracy: s.total ? s.correct / s.total : 0, weak: s.weak }))
       .sort((a, b) => b.weak - a.weak || a.accuracy - b.accuracy || b.total - a.total);
   };
-  const graded = [...latest.values()];
+  const graded = [...p.stats.values()].filter((s) => s.attempt_count > 0);
+  const attemptCounts: Record<string, number> = {};
+  for (const s of p.stats.values()) attemptCounts[s.question_id] = s.attempt_count;
   return {
     items,
     wrongIds: items.filter((i) => i.reasons.includes("wrong")).map((i) => i.questionId),
     confusedIds: items.filter((i) => i.reasons.includes("confused")).map((i) => i.questionId),
-    byUnit: agg((m) => [m.unit_id ?? "__none__"], (k) => unitTitle.get(k) ?? "단원 미지정"),
+    byGroup: agg((m) => [topOf(m.unit_id) ?? "__none__"], (k) => unitById.get(k)?.title ?? "단원 미지정"),
+    byUnit: agg((m) => [m.unit_id ?? "__none__"], (k) => (k === "__none__" ? "단원 미지정" : unitLabel(k))),
     byTopic: agg((m) => (m.topic ? [m.topic] : []), (k) => k),
     byDifficulty: agg((m) => (m.difficulty ? [m.difficulty] : []), (k) => difficultyLabel(k) ?? k),
     byTrap: agg((m) => m.trap_types, (k) => trapLabel(k)),
     bySet: agg((m) => [m.set_id], (k) => setTitle.get(k) ?? "세트"),
     byTag: agg((m) => m.tags, (k) => `#${k}`),
     totalAttempts: graded.length,
-    accuracy: graded.length ? graded.filter((a) => a.is_correct).length / graded.length : 0,
+    accuracy: graded.length ? graded.filter((s) => s.last_correct).length / graded.length : 0,
+    attemptCounts,
   };
 }
 
-/** 저장된 문제 전체 / 틀림만 / 헷갈림만 */
 export async function getSavedIds(subjectId: string, mode: "saved" | "wrong" | "confused"): Promise<string[]> {
   const s = await getWeakSummary(subjectId);
   if (!s) return [];
@@ -182,51 +173,39 @@ export async function getSavedIds(subjectId: string, mode: "saved" | "wrong" | "
 
 /**
  * 약점 섞어 풀기: 약한 단원·세트·태그(정답률 70% 미만)에서 아직 안 푼 문항 60% + 저장된 문제 40%.
- * 모자라는 쪽은 다른 쪽으로 채운다.
  */
 export async function buildWeakMix(subjectId: string, n: number): Promise<string[]> {
   const p = await loadProgress(subjectId);
   if (!p) return [];
-  const latest = latestByQuestion(p.attempts);
   const seed = Date.now() & 0xffff;
-
-  const weakUnits = new Set<string>();
-  const weakSets = new Set<string>();
-  const weakTags = new Set<string>();
   const stat = new Map<string, { t: number; c: number }>();
-  for (const a of latest.values()) {
-    const m = p.meta.get(a.question_id);
+  for (const s of p.stats.values()) {
+    if (s.attempt_count === 0) continue;
+    const m = p.meta.get(s.question_id);
     if (!m) continue;
     for (const k of [`u:${m.unit_id}`, `s:${m.set_id}`, ...m.tags.map((t) => `t:${t}`)]) {
-      const s = stat.get(k) ?? { t: 0, c: 0 };
-      s.t++;
-      if (a.is_correct) s.c++;
-      stat.set(k, s);
+      const x = stat.get(k) ?? { t: 0, c: 0 };
+      x.t++;
+      if (s.last_correct) x.c++;
+      stat.set(k, x);
     }
   }
-  for (const [k, s] of stat) {
-    if (s.c / s.t < 0.7) {
-      if (k.startsWith("u:")) weakUnits.add(k.slice(2));
-      else if (k.startsWith("s:")) weakSets.add(k.slice(2));
-      else weakTags.add(k.slice(2));
-    }
-  }
+  const weakKeys = new Set([...stat].filter(([, x]) => x.c / x.t < 0.7).map(([k]) => k));
+  const seen = new Set([...p.stats.values()].filter((s) => s.attempt_count > 0).map((s) => s.question_id));
+  const unseenAny = [...p.meta.values()].filter((m) => !seen.has(m.id)).map((m) => m.id);
   const unseenWeak = [...p.meta.values()]
-    .filter((m) => !latest.has(m.id))
-    .filter((m) => weakUnits.has(String(m.unit_id)) || weakSets.has(m.set_id) || m.tags.some((t) => weakTags.has(t)))
+    .filter((m) => !seen.has(m.id))
+    .filter((m) => weakKeys.has(`u:${m.unit_id}`) || weakKeys.has(`s:${m.set_id}`) || m.tags.some((t) => weakKeys.has(`t:${t}`)))
     .map((m) => m.id);
-  const unseenAny = [...p.meta.values()].filter((m) => !latest.has(m.id)).map((m) => m.id);
-  const past = buildSavedItems(p.attempts, p.marks).map((i) => i.questionId);
+  const past = buildSavedItems(p.stats).map((i) => i.questionId);
 
   const wantNew = Math.round(n * 0.6);
-  const wantPast = n - wantNew;
   const pickNew = shuffled(unseenWeak.length ? unseenWeak : unseenAny, seed).slice(0, wantNew);
-  const pickPast = shuffled(past, seed + 1).slice(0, wantPast);
+  const pickPast = shuffled(past, seed + 1).slice(0, n - wantNew);
   let out = [...pickNew, ...pickPast];
   if (out.length < n) {
     const used = new Set(out);
-    const filler = shuffled([...unseenAny, ...past, ...p.meta.keys()].filter((id) => !used.has(id)), seed + 2);
-    out = [...out, ...filler.slice(0, n - out.length)];
+    out = [...out, ...shuffled([...unseenAny, ...past, ...p.meta.keys()].filter((id) => !used.has(id)), seed + 2).slice(0, n - out.length)];
   }
   return shuffled([...new Set(out)], seed + 3);
 }

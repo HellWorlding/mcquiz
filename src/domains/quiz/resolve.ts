@@ -1,6 +1,6 @@
 import "server-only";
 import { getQuestionsByIds, listQuestionIds } from "@/domains/questions/queries";
-import { buildWeakMix, getSavedIds } from "@/domains/progress/queries";
+import { buildWeakMix, getAttemptCounts, getSavedIds } from "@/domains/progress/queries";
 import { hashString, shuffled } from "./shuffle";
 import type { QuestionWithChoices } from "@/domains/shared/types";
 import { createClient } from "@/domains/auth/supabase/server";
@@ -21,6 +21,8 @@ export type QuizParams = {
   ids?: string; // 쉼표 구분 (다시 풀기)
   session?: string; // 이어서 풀기
   difficulty?: string; // easy|medium|hard|very_hard
+  /** 풀이 횟수가 이 값 미만인 문항만 (예: 2 → 두 번 이상 안 푼 것) */
+  under?: string;
 };
 
 export type ResumeState = { id: string; position: number; answers: Record<string, SessionAnswer> };
@@ -93,6 +95,13 @@ export async function resolveQuiz(p: QuizParams): Promise<ResolvedQuiz> {
     }
     ids = ids.filter((id) => keep.has(id));
     title += ` · 난이도 ${difficultyLabel(p.difficulty) ?? p.difficulty}`;
+  }
+
+  const under = Number(p.under);
+  if (Number.isInteger(under) && under > 0 && ids.length && p.subject) {
+    const counts = await getAttemptCounts(p.subject);
+    ids = ids.filter((id) => (counts[id] ?? 0) < under);
+    title += ` · ${under}회 미만`;
   }
 
   const total = ids.length;
