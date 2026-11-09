@@ -12,11 +12,20 @@ import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
 
 type Filter = "all" | "wrong" | "confused" | "saved";
 
-/** 단원 라벨: "1강 학교 경영" */
-export function unitLabelOf(units: Unit[], unitId: string | null): { key: string; label: string; sort: number } {
+/** 단원 라벨: "1강 학교 경영" / "파트3" */
+export function unitLabelOf(units: Unit[], unitId: string | null): { key: string; label: string; sort: number; groupKey: string } {
   const u = units.find((x) => x.id === unitId);
-  if (!u) return { key: "__none__", label: "단원 미지정", sort: 99999 };
-  return { key: u.id, label: u.no !== null ? `${u.no}강 ${u.title}` : u.title, sort: u.no ?? u.sort };
+  if (!u) return { key: "__none__", label: "단원 미지정", sort: 99999, groupKey: "__none__" };
+  // 최상위 조상 = 대단원
+  let top = u;
+  while (top.parent_id) {
+    const parent = units.find((x) => x.id === top.parent_id);
+    if (!parent) break;
+    top = parent;
+  }
+  const isLeafOfTree = top.id !== u.id;
+  const label = isLeafOfTree ? (u.no !== null ? `${u.no}. ${u.title}` : u.title) : u.no !== null ? `${u.no}강 ${u.title}` : u.title;
+  return { key: u.id, label, sort: u.no ?? u.sort, groupKey: isLeafOfTree ? top.id : "__top__" };
 }
 
 /** 문항 번호 라벨: "1강 7번" */
@@ -29,22 +38,40 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
   const [tab, setTab] = useState<"list" | "stats">("list");
   const [filter, setFilter] = useState<Filter>("all");
   const [unitFilter, setUnitFilter] = useState<string | null>(null); // null = 전체
+  const [groupFilter, setGroupFilter] = useState<string | null>(null); // 대단원 (콜로케이션/어휘). null = 전체
   const byId = new Map(questions.map((q) => [q.id, q]));
   const byReason = summary.items.filter((it) => filter === "all" || it.reasons.includes(filter)).filter((it) => byId.has(it.questionId));
   // 단원별 묶음 (단원 순 → 문항 번호 순)
-  const groups = new Map<string, { label: string; sort: number; items: SavedItem[] }>();
+  const groups = new Map<string, { label: string; sort: number; groupKey: string; items: SavedItem[] }>();
   for (const it of byReason) {
     const q = byId.get(it.questionId)!;
     const u = unitLabelOf(units, q.unit_id);
-    const g = groups.get(u.key) ?? { label: u.label, sort: u.sort, items: [] };
+    const g = groups.get(u.key) ?? { label: u.label, sort: u.sort, groupKey: u.groupKey, items: [] };
     g.items.push(it);
     groups.set(u.key, g);
   }
-  const groupList = [...groups.entries()]
+  const allGroupList = [...groups.entries()]
     .map(([key, g]) => ({ key, ...g, items: [...g.items].sort((a, b) => byId.get(a.questionId)!.ord - byId.get(b.questionId)!.ord) }))
     .sort((a, b) => a.sort - b.sort);
+  // 대단원(최상위 단원) 목록: 트리 구조인 주제에서만 보인다
+  const topGroups = (() => {
+    const m = new Map<string, { label: string; count: number; sort: number }>();
+    for (const g of allGroupList) {
+      if (g.groupKey === "__top__" || g.groupKey === "__none__") continue;
+      const top = units.find((u) => u.id === g.groupKey);
+      const cur = m.get(g.groupKey) ?? { label: top?.title ?? "", count: 0, sort: top?.no ?? top?.sort ?? 0 };
+      cur.count += g.items.length;
+      m.set(g.groupKey, cur);
+    }
+    return [...m.entries()].map(([key, v]) => ({ key, ...v })).sort((a, b) => a.sort - b.sort);
+  })();
+  const groupList = groupFilter ? allGroupList.filter((g) => g.groupKey === groupFilter) : allGroupList;
   const visibleGroups = unitFilter ? groupList.filter((g) => g.key === unitFilter) : groupList;
   const items = visibleGroups.flatMap((g) => g.items);
+  // 상단 요약: 대단원을 골랐으면 그 대단원 기준
+  const headStat = groupFilter ? summary.byGroup.find((g) => g.key === groupFilter) : null;
+  const headTotal = headStat ? headStat.total : summary.totalAttempts;
+  const headAcc = headStat ? headStat.accuracy : summary.accuracy;
   const counts = {
     all: summary.items.length,
     wrong: summary.items.filter((i) => i.reasons.includes("wrong")).length,
@@ -56,8 +83,10 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
     <div className="flex flex-col gap-4">
       <div className="card flex flex-wrap items-center gap-3">
         <div>
-          <div className="text-sm text-muted">푼 문항 {summary.totalAttempts}개</div>
-          <div className="text-2xl font-bold">{Math.round(summary.accuracy * 100)}% 정답</div>
+          <div className="text-sm text-muted">
+            {headStat ? `${headStat.label} · ` : ""}푼 문항 {headTotal}개
+          </div>
+          <div className="text-2xl font-bold">{Math.round(headAcc * 100)}% 정답</div>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           <Link href={`/quiz?subject=${subject.id}&mode=saved&count=all&order=random`} className="btn-secondary btn-sm">
@@ -106,14 +135,40 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
               </button>
             ))}
           </div>
+          {topGroups.length > 0 && (
+            <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
+              <span className="w-full text-xs font-semibold text-muted">대단원</span>
+              <button
+                onClick={() => {
+                  setGroupFilter(null);
+                  setUnitFilter(null);
+                }}
+                className={`rounded-full border px-3 py-1 text-sm ${groupFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+              >
+                전체 {byReason.length}
+              </button>
+              {topGroups.map((g) => (
+                <button
+                  key={g.key}
+                  onClick={() => {
+                    setGroupFilter(g.key);
+                    setUnitFilter(null);
+                  }}
+                  className={`rounded-full border px-3 py-1 text-sm ${groupFilter === g.key ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+                >
+                  {g.label} {g.count}
+                </button>
+              ))}
+            </div>
+          )}
           {groupList.length > 0 && (
             <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
-              <span className="w-full text-xs font-semibold text-muted">단원</span>
+              <span className="w-full text-xs font-semibold text-muted">{topGroups.length ? "소단원" : "단원"}</span>
               <button
                 onClick={() => setUnitFilter(null)}
                 className={`rounded-full border px-3 py-1 text-sm ${unitFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
               >
-                전체 보기 {byReason.length}
+                전체 보기 {groupList.reduce((n, g) => n + g.items.length, 0)}
               </button>
               {groupList.map((g) => (
                 <button

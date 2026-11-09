@@ -27,6 +27,9 @@ export type NoteItem = {
   subjectId: string;
   unitId: string | null;
   unitLabel: string;
+  /** 대단원(최상위 단원) id·이름. 트리가 아니면 null */
+  groupId: string | null;
+  groupLabel: string | null;
   /** "1강 7번" */
   noLabel: string;
   topic: string | null;
@@ -62,11 +65,18 @@ export async function listMyNotes(subjectId: string | null): Promise<NoteItem[]>
     qs.push(...(data ?? []));
   }
   const unitIds = [...new Set(qs.map((q) => q.unit_id).filter((x): x is string => !!x))];
-  const units = new Map<string, { no: number | null; title: string; sort: number }>();
+  const units = new Map<string, { id: string; no: number | null; title: string; sort: number; parent_id: string | null }>();
   if (unitIds.length) {
-    const { data } = await db.from("units").select("id, no, title, sort").in("id", unitIds);
+    // 조상까지 필요하므로 관련 주제의 단원을 모두 읽는다 (단원 수는 작다)
+    const subjectIds = [...new Set(qs.map((q) => q.subject_id))];
+    const { data } = await db.from("units").select("id, no, title, sort, parent_id").in("subject_id", subjectIds);
     for (const u of data ?? []) units.set(u.id, u);
   }
+  const topOf = (id: string | null) => {
+    let cur = id ? units.get(id) : undefined;
+    while (cur && cur.parent_id) cur = units.get(cur.parent_id);
+    return cur ?? null;
+  };
   const byId = new Map(qs.map((q) => [q.id, q]));
   return notes
     .map((n) => {
@@ -74,6 +84,8 @@ export async function listMyNotes(subjectId: string | null): Promise<NoteItem[]>
       if (!q) return null;
       if (subjectId && q.subject_id !== subjectId) return null;
       const u = q.unit_id ? units.get(q.unit_id) : null;
+      const top = topOf(q.unit_id);
+      const isTree = !!(u && top && top.id !== u.id);
       return {
         questionId: n.question_id,
         content: n.content,
@@ -81,8 +93,10 @@ export async function listMyNotes(subjectId: string | null): Promise<NoteItem[]>
         prompt: q.prompt,
         subjectId: q.subject_id,
         unitId: q.unit_id,
-        unitLabel: u ? (u.no !== null ? `${u.no}강 ${u.title}` : u.title) : "단원 없음",
-        noLabel: u && u.no !== null ? `${u.no}강 ${q.ord}번` : `${q.ord}번`,
+        unitLabel: u ? (isTree ? `${top!.title} › ${u.no !== null ? `${u.no}. ` : ""}${u.title}` : u.no !== null ? `${u.no}강 ${u.title}` : u.title) : "단원 없음",
+        groupId: isTree ? top!.id : null,
+        groupLabel: isTree ? top!.title : null,
+        noLabel: u && u.no !== null ? (isTree ? `${u.title} ${q.ord}번` : `${u.no}강 ${q.ord}번`) : `${q.ord}번`,
         topic: q.topic,
         correctText: q.choices.find((c) => c.ord === q.correct_choice)?.text ?? null,
         correctExplanation: q.choices.find((c) => c.ord === q.correct_choice)?.explanation ?? null,

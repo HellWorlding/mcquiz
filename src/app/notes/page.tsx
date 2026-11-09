@@ -7,23 +7,34 @@ import { cleanExplanation } from "@/domains/shared/labels";
 
 export const metadata = { title: "필기" };
 
-export default async function NotesPage({ searchParams }: { searchParams: Promise<{ subject?: string; unit?: string }> }) {
+export default async function NotesPage({ searchParams }: { searchParams: Promise<{ subject?: string; unit?: string; group?: string }> }) {
   await requireUser("/notes");
-  const { subject, unit } = await searchParams;
+  const { subject, unit, group } = await searchParams;
   const subjects = await listSubjects();
   const current = subjects.find((s) => s.id === subject) ?? subjects[0] ?? null;
   const allNotes = await listMyNotes(current?.id ?? null);
 
+  // 대단원(최상위) 목록 + 선택
+  const groupOptions: { key: string; label: string; count: number }[] = [];
+  for (const n of allNotes) {
+    if (!n.groupId) continue;
+    const o = groupOptions.find((x) => x.key === n.groupId);
+    if (o) o.count++;
+    else groupOptions.push({ key: n.groupId, label: n.groupLabel ?? "", count: 1 });
+  }
+  const groupFilter = group && groupOptions.some((o) => o.key === group) ? group : null;
+  const inGroup = groupFilter ? allNotes.filter((n) => n.groupId === groupFilter) : allNotes;
   // 단원 목록 (메모가 있는 단원만) + 선택
   const unitOptions: { key: string; label: string; count: number }[] = [];
-  for (const n of allNotes) {
+  for (const n of inGroup) {
     const key = n.unitId ?? "__none__";
     const o = unitOptions.find((x) => x.key === key);
     if (o) o.count++;
     else unitOptions.push({ key, label: n.unitLabel, count: 1 });
   }
   const unitFilter = unit && unitOptions.some((o) => o.key === unit) ? unit : null;
-  const notes = unitFilter ? allNotes.filter((n) => (n.unitId ?? "__none__") === unitFilter) : allNotes;
+  const notes = unitFilter ? inGroup.filter((n) => (n.unitId ?? "__none__") === unitFilter) : inGroup;
+  const base = current ? `/notes?subject=${current.id}${groupFilter ? `&group=${groupFilter}` : ""}` : "/notes";
 
   // 단원별로 묶기
   const groups = new Map<string, typeof notes>();
@@ -53,19 +64,39 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
           </Link>
         ))}
       </div>
-      {unitOptions.length > 0 && current && (
+      {groupOptions.length > 0 && current && (
         <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
-          <span className="w-full text-xs font-semibold text-muted">단원</span>
+          <span className="w-full text-xs font-semibold text-muted">대단원</span>
           <Link
             href={`/notes?subject=${current.id}`}
+            className={`rounded-full border px-3 py-1 text-sm ${groupFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+          >
+            전체 {allNotes.length}
+          </Link>
+          {groupOptions.map((o) => (
+            <Link
+              key={o.key}
+              href={`/notes?subject=${current.id}&group=${o.key}`}
+              className={`rounded-full border px-3 py-1 text-sm ${groupFilter === o.key ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+            >
+              {o.label} {o.count}
+            </Link>
+          ))}
+        </div>
+      )}
+      {unitOptions.length > 0 && current && (
+        <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
+          <span className="w-full text-xs font-semibold text-muted">{groupOptions.length ? "소단원" : "단원"}</span>
+          <Link
+            href={base}
             className={`rounded-full border px-3 py-1 text-sm ${unitFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
           >
-            전체 보기 {allNotes.length}
+            전체 보기 {inGroup.length}
           </Link>
           {unitOptions.map((o) => (
             <Link
               key={o.key}
-              href={`/notes?subject=${current.id}&unit=${o.key}`}
+              href={`${base}&unit=${o.key}`}
               className={`rounded-full border px-3 py-1 text-sm ${unitFilter === o.key ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
             >
               {o.label} {o.count}

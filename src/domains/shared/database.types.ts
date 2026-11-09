@@ -426,7 +426,12 @@ isOneToOne: false
                            },
 "my_question_stats":
 { Args: { "p_subject": string }; Returns: {
-              "attempt_count": number,"confused_after": boolean,"last_correct": boolean,"last_graded_at": string,"last_weak_at": string,"question_id": string,"saved": boolean,"wrong_after": boolean,"wrong_count": number
+              "attempt_count": number,"confused_after": boolean,"difficulty": string,"last_correct": boolean,"last_graded_at": string,"last_weak_at": string,"question_id": string,"saved": boolean,"set_id": string,"tags": (string)[],"topic": string,"trap_types": (string)[],"unit_id": string,"wrong_after": boolean,"wrong_count": number
+            }[]
+                           },
+"my_unseen_questions":
+{ Args: { "p_subject": string }; Returns: {
+              "id": string,"set_id": string,"tags": (string)[],"unit_id": string
             }[]
                            },
 "question_counts_by_unit":
