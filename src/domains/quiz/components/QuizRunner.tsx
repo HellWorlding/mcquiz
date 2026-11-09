@@ -95,7 +95,6 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     },
     [isGuest, subjectId, title],
   );
-  const [showNav, setShowNav] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -223,7 +222,6 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   const jump = (i: number) => {
     goTo(i);
     persist(questions, i, answers, false);
-    setShowNav(false);
   };
   const navGrid = (
     <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8 lg:grid-cols-5">
@@ -262,14 +260,11 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           {idx + 1} / {questions.length}
           {sessionId && <span className="ml-1 text-xs text-muted">{t("quiz.saved_badge")}</span>}
         </span>
-        <button className={`btn-sm rounded-full border px-3 lg:hidden ${showNav ? "border-accent bg-accent-soft text-accent" : "border-border"}`} onClick={() => setShowNav(!showNav)}>
-          {t("quiz.nav")}
-        </button>
+        <span className="w-16" />
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
         <div className="h-full bg-accent transition-all" style={{ width: `${((idx + (answered ? 1 : 0)) / questions.length) * 100}%` }} />
       </div>
-      {showNav && <div className="card lg:hidden">{navGrid}</div>}
 
       {(
         <div className="card">
@@ -386,6 +381,15 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         </div>
       </div>
       {showHint && q.hint && <p className="card whitespace-pre-wrap text-base">{q.hint}</p>}
+      <div className="card lg:hidden">
+        <div className="mb-2 flex items-center justify-between text-xs text-muted">
+          <span>{t("quiz.nav")}</span>
+          <span>
+            {Object.values(answers).filter((a) => a.selectedOrd !== null).length}/{questions.length}
+          </span>
+        </div>
+        {navGrid}
+      </div>
     </section>
     <aside className="sticky top-20 hidden w-56 shrink-0 lg:block">
       <div className="card">
