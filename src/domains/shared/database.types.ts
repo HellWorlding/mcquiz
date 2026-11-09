@@ -429,6 +429,11 @@ isOneToOne: false
               "attempt_count": number,"confused_after": boolean,"difficulty": string,"last_correct": boolean,"last_graded_at": string,"last_weak_at": string,"question_id": string,"saved": boolean,"set_id": string,"tags": (string)[],"topic": string,"trap_types": (string)[],"unit_id": string,"wrong_after": boolean,"wrong_count": number
             }[]
                            },
+"my_subject_activity":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "attempt_count": number,"last_at": string,"subject_id": string,"weak_count": number
+            }[]
+                           },
 "my_unseen_questions":
 { Args: { "p_subject": string }; Returns: {
               "id": string,"set_id": string,"tags": (string)[],"unit_id": string

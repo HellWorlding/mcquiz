@@ -19,12 +19,20 @@ export async function getReadClient() {
   return { db: await createClient(), user: null, guest: true as const };
 }
 
+/** 주제 목록. 로그인 사용자는 내 활동(틀림·저장)이 많은 주제가 먼저, 같으면 최근 활동 순. */
 export async function listSubjects(): Promise<Subject[]> {
-  const { db, guest } = await getReadClient();
+  const { db, guest, user } = await getReadClient();
   let q = db.from("subjects").select("*").order("created_at");
   if (guest) q = q.eq("visibility", "public");
-  const { data } = await q;
-  return data ?? [];
+  const [{ data }, act] = await Promise.all([q, user ? db.rpc("my_subject_activity") : Promise.resolve({ data: null })]);
+  const list = data ?? [];
+  const score = new Map<string, { weak: number; last: string }>();
+  for (const r of act.data ?? []) score.set(r.subject_id, { weak: Number(r.weak_count), last: r.last_at ?? "" });
+  return [...list].sort((a, b) => {
+    const sa = score.get(a.id) ?? { weak: 0, last: "" };
+    const sb = score.get(b.id) ?? { weak: 0, last: "" };
+    return sb.weak - sa.weak || (sb.last > sa.last ? 1 : sb.last < sa.last ? -1 : 0) || a.created_at.localeCompare(b.created_at);
+  });
 }
 
 export async function getSubject(id: string): Promise<Subject | null> {
