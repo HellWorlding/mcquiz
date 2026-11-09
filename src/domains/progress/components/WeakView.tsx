@@ -195,7 +195,7 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
         <div className="flex flex-col gap-4">
           <StatTable title={t("saved.stat_group")} rows={summary.byGroup} />
           <StatTable title={t("saved.stat_unit")} rows={summary.byUnit} />
-          <StatTable title={t("saved.stat_topic")} rows={summary.byTopic} />
+          <StatTable title={t("saved.stat_topic")} rows={summary.byTopic.filter((r) => r.weak > 0)} empty={t("saved.no_weak_topic")} />
           <StatTable title={t("saved.stat_difficulty")} rows={summary.byDifficulty} />
           <StatTable title={t("saved.stat_trap")} rows={summary.byTrap} />
           <StatTable title={t("saved.stat_set")} rows={summary.bySet} />
@@ -298,13 +298,13 @@ function SavedList({
   );
 }
 
-function StatTable({ title, rows }: { title: string; rows: GroupStat[] }) {
+function StatTable({ title, rows, empty }: { title: string; rows: GroupStat[]; empty?: string }) {
   const t = useT();
   return (
     <div className="card">
       <h3 className="mb-2 font-bold">{title}</h3>
       {rows.length === 0 ? (
-        <p className="text-sm text-muted">{t("saved.no_stats")}</p>
+        <p className="text-sm text-muted">{empty ?? t("saved.no_stats")}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((r) => (
