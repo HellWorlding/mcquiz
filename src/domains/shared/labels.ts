@@ -27,5 +27,20 @@ export const TRAP_TYPES = Object.keys(TRAP_LABELS);
 export const cleanExplanation = (text: string | null | undefined) =>
   text ? text.replace(/\(\s*정답\s*\)\s*/g, "").replace(/\s{2,}/g, " ").trim() : null;
 
-export const difficultyLabel = (d: string | null | undefined) => (d ? (DIFFICULTY_LABELS[d] ?? d) : null);
-export const trapLabel = (t: string) => TRAP_LABELS[t] ?? t;
+export const DIFFICULTY_LABELS_EN: Record<string, string> = { easy: "easy", medium: "medium", hard: "hard", very_hard: "very hard" };
+export const TRAP_LABELS_EN: Record<string, string> = {
+  concept_swap: "concept swap",
+  number_change: "number change",
+  scope_change: "scope change",
+  subject_change: "subject change",
+  modality_change: "may ↔ must",
+  partial_truth: "partly true",
+  reversal: "reversed order/relation",
+  stage_mixup: "wrong stage",
+  law_article_mixup: "article/law mix-up",
+  plausible_synonym: "look-alike term",
+  missing_add_on: "missing condition",
+};
+export const difficultyLabel = (d: string | null | undefined, lang: "ko" | "en" = "ko") =>
+  d ? ((lang === "en" ? DIFFICULTY_LABELS_EN[d] : DIFFICULTY_LABELS[d]) ?? d) : null;
+export const trapLabel = (t: string, lang: "ko" | "en" = "ko") => (lang === "en" ? TRAP_LABELS_EN[t] : TRAP_LABELS[t]) ?? t;

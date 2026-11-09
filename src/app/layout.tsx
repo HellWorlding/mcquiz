@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/domains/auth/components/Nav";
+import { LangProvider } from "@/domains/shared/i18n-client";
+import { getLang } from "@/domains/shared/i18n-server";
 
 const font = Noto_Sans_KR({ variable: "--font-app", subsets: ["latin"], weight: ["400", "500", "700"] });
 
@@ -16,12 +18,15 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const lang = await getLang();
   return (
-    <html lang="ko" className={`${font.variable} h-full antialiased`}>
+    <html lang={lang} className={`${font.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
-        <Nav />
-        <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16 pt-4">{children}</main>
+        <LangProvider lang={lang}>
+          <Nav />
+          <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16 pt-4">{children}</main>
+        </LangProvider>
       </body>
     </html>
   );

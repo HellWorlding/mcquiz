@@ -1,5 +1,8 @@
 /** 페이지 데이터가 오기 전에 먼저 보이는 틀. 탭을 누르자마자 반응이 있게 한다. */
-export default function Loading() {
+import { getT } from "@/domains/shared/i18n-server";
+
+export default async function Loading() {
+  const t = await getT();
   return (
     <div className="flex animate-pulse flex-col gap-4" aria-busy="true" aria-label="불러오는 중">
       <div className="h-8 w-40 rounded-lg bg-border" />
@@ -9,7 +12,7 @@ export default function Loading() {
       </div>
       <div className="card h-24" />
       <div className="card h-40" />
-      <p className="text-center text-sm text-muted">불러오는 중…</p>
+      <p className="text-center text-sm text-muted">{t("common.loading")}</p>
     </div>
   );
 }

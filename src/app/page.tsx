@@ -2,21 +2,22 @@ import Link from "next/link";
 import { getCurrentUser } from "@/domains/auth/session";
 import { listSubjects } from "@/domains/subjects/queries";
 import { env } from "@/domains/shared/env";
+import { getT } from "@/domains/shared/i18n-server";
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
-  const user = await getCurrentUser();
+  const [user, t] = await Promise.all([getCurrentUser(), getT()]);
   if (!user && !env.publicGuestAccess) {
     return (
       <section className="mt-10 text-center">
         <h1 className="text-3xl font-bold">mcquiz</h1>
-        <p className="mt-3 text-muted">문제 파일을 올리면 바로 풀 수 있는 객관식 퀴즈 앱</p>
+        <p className="mt-3 text-muted">{t("home.tagline")}</p>
         <div className="mt-8 flex justify-center gap-3">
           <Link href="/login" className="btn-primary">
-            로그인
+            {t("auth.login")}
           </Link>
           <Link href="/signup" className="btn-secondary">
-            회원가입
+            {t("auth.signup")}
           </Link>
         </div>
       </section>
@@ -25,10 +26,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const subjects = await listSubjects();
   return (
     <section>
-      {error === "forbidden" && <p className="mb-4 rounded-lg bg-bad-soft px-3 py-2 text-sm text-bad">접근 권한이 없습니다.</p>}
-      <h1 className="mb-4 text-2xl font-bold">주제</h1>
+      {error === "forbidden" && <p className="mb-4 rounded-lg bg-bad-soft px-3 py-2 text-sm text-bad">{t("home.forbidden")}</p>}
+      <h1 className="mb-4 text-2xl font-bold">{t("home.title")}</h1>
       {subjects.length === 0 ? (
-        <p className="card text-muted">아직 볼 수 있는 주제가 없습니다. 관리자에게 권한을 요청하세요.</p>
+        <p className="card text-muted">{t("home.empty")}</p>
       ) : (
         <ul className="grid gap-3">
           {subjects.map((s) => (
@@ -36,7 +37,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <Link href={`/subjects/${s.id}`} className="card flex items-center justify-between hover:border-accent">
                 <span className="text-lg font-semibold">{s.name}</span>
                 <span className={`badge ${s.visibility === "restricted" ? "bg-warn-soft text-warn" : "bg-accent-soft text-accent"}`}>
-                  {s.visibility === "restricted" ? "제한" : "공개"}
+                  {s.visibility === "restricted" ? t("home.restricted") : t("home.public")}
                 </span>
               </Link>
             </li>

@@ -4,6 +4,7 @@ import { requireUser } from "@/domains/auth/session";
 import { env, hasOpenAI } from "@/domains/shared/env";
 import type { ActionResult } from "@/domains/shared/types";
 import { findEvidence, type EvidenceHit } from "./search";
+import { getLang } from "@/domains/shared/i18n-server";
 
 export type EvidenceResult = { hits: EvidenceHit[]; unitTitle: string | null };
 
@@ -52,7 +53,9 @@ export async function chatAction(input: { subjectId: string; questionId: string 
 
   const { default: OpenAI } = await import("openai");
   const client = new OpenAI({ apiKey: env.openaiApiKey });
-  const system = `너는 학습 도우미다. 아래 [자료] 에 있는 내용만 근거로 한국어로 답한다. 자료에 없는 내용은 "자료에서 찾지 못했다"고 말하고 추측하지 않는다.
+  const lang = await getLang();
+  const langRule = lang === "en" ? "Answer in English (the materials may be in Korean; translate what you cite)." : "한국어로 답한다.";
+  const system = `너는 학습 도우미다. 아래 [자료] 에 있는 내용만 근거로 답한다. ${langRule} 자료에 없는 내용은 "자료에서 찾지 못했다"고 말하고 추측하지 않는다.
 답할 때 근거로 쓴 자료를 문장 끝에 대괄호 번호로 표시한다 (예: … 입니다 [2]). 같은 번호의 출처 이름(예: 40강 스크립트, 책 p.292)을 답 마지막 줄에 "출처: [1] 40강 스크립트, [2] 책 p.292" 형식으로 정리한다. 간결하게, 시험 공부에 바로 쓸 수 있게 핵심만 답한다.`;
   const userContext = `${context ? `[문항 맥락]\n${context}\n\n` : ""}[자료]\n${passages || "(관련 자료를 찾지 못함)"}`;
 

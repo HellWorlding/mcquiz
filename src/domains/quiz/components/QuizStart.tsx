@@ -7,7 +7,8 @@ import { subtreeIds, type TreeNode } from "@/domains/shared/tree";
 import { createCollectionAction, deleteCollectionAction } from "@/domains/subjects/collection-actions";
 import { deleteSessionAction } from "@/domains/quiz/actions";
 import type { UnfinishedSession } from "@/domains/quiz/sessions";
-import { DIFFICULTIES, DIFFICULTY_LABELS } from "@/domains/shared/labels";
+import { DIFFICULTIES, difficultyLabel } from "@/domains/shared/labels";
+import { useLang, useT } from "@/domains/shared/i18n-client";
 
 type Props = {
   subject: Subject;
@@ -25,6 +26,8 @@ const COUNTS = ["10", "20", "40", "all"] as const;
 
 export function QuizStart({ subject, units, sets, collections, unitCounts, collectionCounts, user, sessions }: Props) {
   const router = useRouter();
+  const t = useT();
+  const lang = useLang();
   const [sessionPending, startSessionTransition] = useTransition();
   const [tab, setTab] = useState<Tab>(units.length ? "units" : sets.length ? "sets" : "collections");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -130,17 +133,17 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
         <h1 className="text-2xl font-bold">{subject.name}</h1>
         <div className="flex gap-1">
           <Link href={`/chat?subject=${subject.id}`} target="_blank" rel="noopener" className="btn-ghost btn-sm">
-            AI에게 묻기 ↗
+            {t("start.ask_ai")}
           </Link>
           <Link href={`/weak?subject=${subject.id}`} className="btn-ghost btn-sm">
-            저장된 문제
+            {t("start.saved_link")}
           </Link>
         </div>
       </div>
 
       {sessions.length > 0 && (
         <div className="card flex flex-col gap-2">
-          <div className="font-semibold">이어서 풀기</div>
+          <div className="font-semibold">{t("start.resume")}</div>
           {sessions.map((s) => (
             <div key={s.id} className="flex items-center gap-2 text-sm">
               <Link href={`/quiz?session=${s.id}`} className="btn-primary btn-sm">
@@ -157,7 +160,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
                   })
                 }
               >
-                버리기
+                {t("start.discard")}
               </button>
             </div>
           ))}
@@ -167,9 +170,9 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
       <div className="flex gap-1 rounded-xl bg-card p-1">
         {(
           [
-            ["units", "단원"],
-            ["collections", "묶음"],
-            ["sets", "세트"],
+            ["units", t("start.tab_units")],
+            ["collections", t("start.tab_collections")],
+            ["sets", t("start.tab_sets")],
           ] as [Tab, string][]
         ).map(([k, label]) => (
           <button
@@ -185,7 +188,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
       {tab === "units" && (
         <div className="card">
           {units.length === 0 ? (
-            <p className="text-muted">아직 단원이 없습니다. 세트 탭에서 바로 풀 수 있습니다.</p>
+            <p className="text-muted">{t("start.no_units")}</p>
           ) : (
             <ul className="flex flex-col gap-1">
               {units.map((u) => (
@@ -209,9 +212,9 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
             </ul>
           )}
           <div className="mt-4 flex items-center justify-between text-sm text-muted">
-            <span>선택한 문항 {selectedTotal}개</span>
+            <span>{t("start.selected", { n: selectedTotal })}</span>
             <button className="btn-ghost btn-sm" onClick={() => setSelected(new Set())}>
-              선택 해제
+              {t("start.clear")}
             </button>
           </div>
         </div>
@@ -219,19 +222,19 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
 
       {tab === "sets" && (
         <ul className="flex flex-col gap-2">
-          {sets.length === 0 && <li className="card text-muted">아직 업로드된 세트가 없습니다.</li>}
+          {sets.length === 0 && <li className="card text-muted">{t("start.no_sets")}</li>}
           {sets.map((s) => (
             <li key={s.id} className="card flex items-center justify-between gap-3">
               <div>
                 <div className="font-semibold">{s.title}</div>
-                <div className="text-sm text-muted">{s.question_count}문항</div>
+                <div className="text-sm text-muted">{t("common.count_questions", { n: s.question_count })}</div>
               </div>
               <div className="flex gap-2">
                 <Link href={`/quiz?set=${s.id}&count=all&order=seq`} className="btn-secondary btn-sm">
-                  순서대로
+                  {t("start.in_order")}
                 </Link>
                 <Link href={`/quiz?set=${s.id}&count=all&order=random`} className="btn-primary btn-sm">
-                  무작위
+                  {t("start.random")}
                 </Link>
               </div>
             </li>
@@ -246,7 +249,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
       {tab === "units" && (
         <div className="card flex flex-col gap-4">
           <div>
-            <div className="label">문항 수</div>
+            <div className="label">{t("start.count")}</div>
             <div className="flex gap-2">
               {COUNTS.map((c) => (
                 <button
@@ -257,18 +260,18 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
                   }}
                   className={`flex-1 rounded-xl border py-2 font-semibold ${count === c ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
                 >
-                  {c === "all" ? "전체" : c}
+                  {c === "all" ? t("common.all") : c}
                 </button>
               ))}
             </div>
           </div>
           <div>
-            <div className="label">순서</div>
+            <div className="label">{t("start.order")}</div>
             <div className="flex gap-2">
               {(
                 [
-                  ["seq", "순서대로"],
-                  ["random", "무작위"],
+                  ["seq", t("start.in_order")],
+                  ["random", t("start.random")],
                 ] as const
               ).map(([k, label]) => (
                 <button
@@ -282,7 +285,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
             </div>
           </div>
           <div>
-            <div className="label">난이도</div>
+            <div className="label">{t("start.difficulty")}</div>
             <div className="flex flex-wrap gap-2">
               {["", ...DIFFICULTIES].map((d) => (
                 <button
@@ -290,14 +293,14 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
                   onClick={() => setDifficulty(d)}
                   className={`rounded-full border px-3 py-1 text-sm ${difficulty === d ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
                 >
-                  {d ? DIFFICULTY_LABELS[d] : "전체"}
+                  {d ? difficultyLabel(d, lang) : t("common.all")}
                 </button>
               ))}
             </div>
           </div>
           {chunks.length > 1 && (
             <div>
-              <div className="label">구간</div>
+              <div className="label">{t("start.range")}</div>
               <div className="flex flex-wrap gap-2">
                 {chunks.map((c) => (
                   <button
@@ -312,13 +315,13 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
             </div>
           )}
           <div>
-            <div className="label">풀이 횟수로 거르기 (선택)</div>
+            <div className="label">{t("start.under")}</div>
             <div className="flex flex-wrap gap-2">
               {[
-                ["", "전부"],
-                ["1", "안 푼 것만"],
-                ["2", "2회 미만"],
-                ["3", "3회 미만"],
+                ["", t("start.under_all")],
+                ["1", t("start.under_unseen")],
+                ["2", t("start.under_n", { n: 2 })],
+                ["3", t("start.under_n", { n: 3 })],
               ].map(([v, label]) => (
                 <button
                   key={v || "all"}
@@ -329,10 +332,10 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-xs text-muted">내가 그 횟수보다 적게 푼 문항만 냅니다. 번호 구간과 함께 쓰면 구간을 먼저 자른 뒤 거릅니다.</p>
+            <p className="mt-1 text-xs text-muted">{t("start.under_desc")}</p>
           </div>
           <div>
-            <div className="label">번호로 직접 고르기 (선택)</div>
+            <div className="label">{t("start.pick_numbers")}</div>
             <div className="flex items-center gap-2">
               <input
                 className="input w-24 text-center"
@@ -341,7 +344,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
                 value={rangeFrom}
                 onChange={(e) => setRangeFrom(e.target.value.replace(/\D/g, ""))}
               />
-              <span className="text-muted">번부터</span>
+              <span className="text-muted">{t("start.from")}</span>
               <input
                 className="input w-24 text-center"
                 inputMode="numeric"
@@ -349,7 +352,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
                 value={rangeTo}
                 onChange={(e) => setRangeTo(e.target.value.replace(/\D/g, ""))}
               />
-              <span className="text-muted">번까지</span>
+              <span className="text-muted">{t("start.to")}</span>
               {(rangeFrom || rangeTo) && (
                 <button
                   className="btn-ghost btn-sm"
@@ -358,20 +361,20 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
                     setRangeTo("");
                   }}
                 >
-                  지우기
+                  {t("start.clear_range")}
                 </button>
               )}
             </div>
             <p className="mt-1 text-xs text-muted">
               {customRange
-                ? `${customRange.from}~${customRange.to}번, ${customRange.to - customRange.from + 1}문항을 순서대로 풉니다.`
+                ? t("start.range_ok", { from: customRange.from, to: customRange.to, n: customRange.to - customRange.from + 1 })
                 : (rangeFrom || rangeTo)
-                  ? "번호가 올바르지 않습니다."
-                  : "단원 안 번호 기준입니다. 여러 단원을 고르면 이어 붙인 순서의 번호입니다."}
+                  ? t("start.range_bad")
+                  : t("start.range_desc")}
             </p>
           </div>
           <button className="btn-primary text-lg" disabled={selectedTotal === 0 || (!!(rangeFrom || rangeTo) && !customRange)} onClick={start}>
-            {selectedTotal === 0 ? "단원을 고르세요" : customRange ? `${customRange.from}~${customRange.to}번 시작` : "시작"}
+            {selectedTotal === 0 ? t("start.choose_unit") : customRange ? t("start.start_range", { from: customRange.from, to: customRange.to }) : t("common.start")}
           </button>
         </div>
       )}
@@ -439,6 +442,7 @@ function CollectionsPanel({
   user: { id: string; isAdmin: boolean } | null;
 }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
   const [parentId, setParentId] = useState<string>("");
@@ -468,7 +472,7 @@ function CollectionsPanel({
   return (
     <div className="flex flex-col gap-3">
       {flat.length === 0 && (
-        <p className="card text-muted">묶음이 없습니다. 퀴즈 결과나 약점 화면에서 &quot;묶음에 추가&quot;로 문제를 모을 수 있습니다.</p>
+        <p className="card text-muted">{t("start.no_collections")}</p>
       )}
       {flat.map((c) => (
         <div key={c.id} className="card flex items-center justify-between gap-2" style={{ marginLeft: c.depth * 12 }}>
@@ -476,19 +480,19 @@ function CollectionsPanel({
             <div className="font-semibold">
               {c.title}{" "}
               <span className={`badge ${c.scope === "shared" ? "bg-accent-soft text-accent" : "bg-warn-soft text-warn"}`}>
-                {c.scope === "shared" ? "공용" : "개인"}
+                {c.scope === "shared" ? t("start.shared") : t("start.private")}
               </span>
             </div>
             <div className="text-sm text-muted">
-              {counts[c.id] ?? 0}문항{c.children.length ? ` (+하위 ${c.children.length})` : ""}
+              {t("common.count_questions", { n: counts[c.id] ?? 0 })}{c.children.length ? ` (+${c.children.length})` : ""}
             </div>
           </div>
           <div className="flex gap-1">
             <Link href={`/collections/${c.id}`} className="btn-secondary btn-sm">
-              보기
+              {t("start.view")}
             </Link>
             <Link href={`/quiz?collection=${c.id}&count=all&order=random`} className="btn-primary btn-sm">
-              풀기
+              {t("common.solve")}
             </Link>
             {user && (user.isAdmin || c.created_by === user.id) && (
               <button
@@ -501,7 +505,7 @@ function CollectionsPanel({
                   })
                 }
               >
-                삭제
+                {t("common.delete")}
               </button>
             )}
           </div>
@@ -509,10 +513,10 @@ function CollectionsPanel({
       ))}
       {user && (
         <div className="card flex flex-col gap-2">
-          <div className="font-semibold">새 묶음</div>
-          <input className="input" placeholder="묶음 이름 (예: 약점 모음)" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <div className="font-semibold">{t("start.new_collection")}</div>
+          <input className="input" placeholder={t("start.collection_name")} value={title} onChange={(e) => setTitle(e.target.value)} />
           <select className="input" value={parentId} onChange={(e) => setParentId(e.target.value)}>
-            <option value="">최상위</option>
+            <option value="">{t("start.top_level")}</option>
             {flat.map((c) => (
               <option key={c.id} value={c.id}>
                 {"　".repeat(c.depth)}
@@ -522,13 +526,13 @@ function CollectionsPanel({
           </select>
           {user.isAdmin && (
             <select className="input" value={scope} onChange={(e) => setScope(e.target.value as "private" | "shared")}>
-              <option value="private">개인 묶음 (나만 보기)</option>
-              <option value="shared">공용 묶음 (주제를 볼 수 있는 모두)</option>
+              <option value="private">{t("start.private_opt")}</option>
+              <option value="shared">{t("start.shared_opt")}</option>
             </select>
           )}
           {error && <p className="text-sm text-bad">{error}</p>}
           <button className="btn-secondary" disabled={pending || !title.trim()} onClick={create}>
-            만들기
+            {t("start.create")}
           </button>
         </div>
       )}

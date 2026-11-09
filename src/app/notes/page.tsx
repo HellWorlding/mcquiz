@@ -4,11 +4,13 @@ import { listSubjects } from "@/domains/subjects/queries";
 import { listMyNotes } from "@/domains/notes/queries";
 import { FontSizeControl, NoteBox } from "@/domains/notes/components/NoteBox";
 import { cleanExplanation } from "@/domains/shared/labels";
+import { getT } from "@/domains/shared/i18n-server";
 
 export const metadata = { title: "필기" };
 
 export default async function NotesPage({ searchParams }: { searchParams: Promise<{ subject?: string; unit?: string; group?: string }> }) {
   await requireUser("/notes");
+  const t = await getT();
   const { subject, unit, group } = await searchParams;
   const subjects = await listSubjects();
   const current = subjects.find((s) => s.id === subject) ?? subjects[0] ?? null;
@@ -47,9 +49,9 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">필기</h1>
+        <h1 className="text-2xl font-bold">{t("notes.title")}</h1>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted">{notes.length}개</span>
+          <span className="text-sm text-muted">{t("notes.count", { n: notes.length })}</span>
           <FontSizeControl />
         </div>
       </div>
@@ -66,12 +68,12 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       </div>
       {groupOptions.length > 0 && current && (
         <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
-          <span className="w-full text-xs font-semibold text-muted">대단원</span>
+          <span className="w-full text-xs font-semibold text-muted">{t("saved.group")}</span>
           <Link
             href={`/notes?subject=${current.id}`}
             className={`rounded-full border px-3 py-1 text-sm ${groupFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
           >
-            전체 {allNotes.length}
+            {t("common.all")} {allNotes.length}
           </Link>
           {groupOptions.map((o) => (
             <Link
@@ -86,12 +88,12 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
       )}
       {unitOptions.length > 0 && current && (
         <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
-          <span className="w-full text-xs font-semibold text-muted">{groupOptions.length ? "소단원" : "단원"}</span>
+          <span className="w-full text-xs font-semibold text-muted">{groupOptions.length ? t("saved.subunit") : t("common.unit")}</span>
           <Link
             href={base}
             className={`rounded-full border px-3 py-1 text-sm ${unitFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
           >
-            전체 보기 {inGroup.length}
+            {t("saved.all_units")} {inGroup.length}
           </Link>
           {unitOptions.map((o) => (
             <Link
@@ -105,7 +107,7 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
         </div>
       )}
       {notes.length === 0 ? (
-        <p className="card text-muted">아직 메모가 없습니다. 문제를 풀 때 아래 메모 칸에 적으면 여기에 모입니다.</p>
+        <p className="card text-muted">{t("notes.empty")}</p>
       ) : (
         [...groups.entries()].map(([unit, items]) => (
           <div key={unit} className="card flex flex-col gap-4">
@@ -119,24 +121,24 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
                     {n.prompt}
                   </p>
                   <Link href={`/quiz?ids=${n.questionId}`} className="btn-ghost btn-sm shrink-0">
-                    풀기
+                    {t("common.solve")}
                   </Link>
                 </div>
-                {n.correctText && <p className="text-xs text-ok">정답: {n.correctText}</p>}
+                {n.correctText && <p className="text-xs text-ok">{t("common.answer")}: {n.correctText}</p>}
                 <NoteBox
                   questionId={n.questionId}
                   initial={n.content}
                   showFontControl={false}
-                  importText={[n.explanation, n.sourceQuote ? `근거${n.sourcePage ? ` (책 p.${n.sourcePage})` : ""}: ${n.sourceQuote}` : null].filter(Boolean).join("\n\n") || null}
+                  importText={[n.explanation, n.sourceQuote ? `${t("quiz.evidence_label")}${n.sourcePage ? ` (${t("quiz.book_page", { n: n.sourcePage })})` : ""}: ${n.sourceQuote}` : null].filter(Boolean).join("\n\n") || null}
                 />
                 {(n.explanation || n.correctExplanation || n.sourceQuote) && (
                   <details className="rounded-lg bg-background px-3 py-2 text-sm">
-                    <summary className="cursor-pointer text-muted">해설·근거 보기</summary>
+                    <summary className="cursor-pointer text-muted">{t("notes.show_explanation")}</summary>
                     {n.correctExplanation && <p className="mt-2 whitespace-pre-wrap text-ok">{cleanExplanation(n.correctExplanation)}</p>}
                     {n.explanation && <p className="mt-2 whitespace-pre-wrap">{n.explanation}</p>}
                     {n.sourceQuote && (
                       <p className="mt-2 whitespace-pre-wrap text-muted">
-                        근거{n.sourcePage ? ` · 책 p.${n.sourcePage}` : ""}: {n.sourceQuote}
+                        {t("quiz.evidence_label")}{n.sourcePage ? ` · ${t("quiz.book_page", { n: n.sourcePage })}` : ""}: {n.sourceQuote}
                       </p>
                     )}
                   </details>

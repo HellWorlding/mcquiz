@@ -9,6 +9,7 @@ import { dismissQuestionAction } from "@/domains/progress/actions";
 import { AddToCollection } from "@/domains/quiz/components/AddToCollection";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
+import { useT } from "@/domains/shared/i18n-client";
 
 type Filter = "all" | "wrong" | "confused" | "saved";
 
@@ -35,6 +36,7 @@ export function questionNoLabel(units: Unit[], q: { unit_id: string | null; ord:
 }
 
 export function WeakView({ subject, summary, questions, units }: { subject: Subject; summary: WeakSummary; questions: QuestionWithChoices[]; units: Unit[] }) {
+  const t = useT();
   const [tab, setTab] = useState<"list" | "stats">("list");
   const [filter, setFilter] = useState<Filter>("all");
   const [unitFilter, setUnitFilter] = useState<string | null>(null); // null = 전체
@@ -84,16 +86,16 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
       <div className="card flex flex-wrap items-center gap-3">
         <div>
           <div className="text-sm text-muted">
-            {headStat ? `${headStat.label} · ` : ""}푼 문항 {headTotal}개
+            {headStat ? `${headStat.label} · ` : ""}{t("saved.practiced", { n: headTotal })}
           </div>
-          <div className="text-2xl font-bold">{Math.round(headAcc * 100)}% 정답</div>
+          <div className="text-2xl font-bold">{t("saved.accuracy", { pct: Math.round(headAcc * 100) })}</div>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           <Link href={`/quiz?subject=${subject.id}&mode=saved&count=all&order=random`} className="btn-secondary btn-sm">
-            저장된 문제 풀기 ({counts.all})
+            {t("saved.practice_saved", { n: counts.all })}
           </Link>
           <Link href={`/quiz?subject=${subject.id}&mode=weakmix&count=20`} className="btn-primary btn-sm">
-            약점 섞어 풀기 (20)
+            {t("saved.weak_mix")}
           </Link>
         </div>
       </div>
@@ -101,8 +103,8 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
       <div className="flex gap-1 rounded-xl bg-card p-1">
         {(
           [
-            ["list", `저장된 문제 ${counts.all}`],
-            ["stats", "통계"],
+            ["list", t("saved.tab_list", { n: counts.all })],
+            ["stats", t("saved.tab_stats")],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -120,10 +122,10 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
           <div className="flex flex-wrap gap-2">
             {(
               [
-                ["all", "전체"],
-                ["wrong", "틀림"],
-                ["confused", "헷갈림"],
-                ["saved", "직접 저장"],
+                ["all", t("saved.f_all")],
+                ["wrong", t("saved.f_wrong")],
+                ["confused", t("saved.f_confused")],
+                ["saved", t("saved.f_saved")],
               ] as [Filter, string][]
             ).map(([k, label]) => (
               <button
@@ -137,7 +139,7 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
           </div>
           {topGroups.length > 0 && (
             <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
-              <span className="w-full text-xs font-semibold text-muted">대단원</span>
+              <span className="w-full text-xs font-semibold text-muted">{t("saved.group")}</span>
               <button
                 onClick={() => {
                   setGroupFilter(null);
@@ -145,7 +147,7 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
                 }}
                 className={`rounded-full border px-3 py-1 text-sm ${groupFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
               >
-                전체 {byReason.length}
+                {t("common.all")} {byReason.length}
               </button>
               {topGroups.map((g) => (
                 <button
@@ -163,12 +165,12 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
           )}
           {groupList.length > 0 && (
             <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
-              <span className="w-full text-xs font-semibold text-muted">{topGroups.length ? "소단원" : "단원"}</span>
+              <span className="w-full text-xs font-semibold text-muted">{topGroups.length ? t("saved.subunit") : t("common.unit")}</span>
               <button
                 onClick={() => setUnitFilter(null)}
                 className={`rounded-full border px-3 py-1 text-sm ${unitFilter === null ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
               >
-                전체 보기 {groupList.reduce((n, g) => n + g.items.length, 0)}
+                {t("saved.all_units")} {groupList.reduce((n, g) => n + g.items.length, 0)}
               </button>
               {groupList.map((g) => (
                 <button
@@ -186,13 +188,13 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
       )}
       {tab === "stats" && (
         <div className="flex flex-col gap-4">
-          <StatTable title="묶음별 (콜로케이션 / 어휘 등)" rows={summary.byGroup} />
-          <StatTable title="단원·파트별" rows={summary.byUnit} />
-          <StatTable title="세부 주제별" rows={summary.byTopic} />
-          <StatTable title="난이도별" rows={summary.byDifficulty} />
-          <StatTable title="함정 유형별 (틀린 문항의 함정)" rows={summary.byTrap} />
-          <StatTable title="세트별" rows={summary.bySet} />
-          <StatTable title="태그별" rows={summary.byTag} />
+          <StatTable title={t("saved.stat_group")} rows={summary.byGroup} />
+          <StatTable title={t("saved.stat_unit")} rows={summary.byUnit} />
+          <StatTable title={t("saved.stat_topic")} rows={summary.byTopic} />
+          <StatTable title={t("saved.stat_difficulty")} rows={summary.byDifficulty} />
+          <StatTable title={t("saved.stat_trap")} rows={summary.byTrap} />
+          <StatTable title={t("saved.stat_set")} rows={summary.bySet} />
+          <StatTable title={t("saved.stat_tag")} rows={summary.byTag} />
         </div>
       )}
     </div>
@@ -213,10 +215,11 @@ function SavedList({
   units: Unit[];
 }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [removing, setRemoving] = useState<string | null>(null);
   if (items.length === 0) {
-    return <p className="card text-muted">저장된 문제가 없습니다. 틀리거나 헷갈림 체크한 문제는 자동으로 들어오고, 퀴즈 중 &quot;저장&quot;으로 직접 넣을 수도 있습니다.</p>;
+    return <p className="card text-muted">{t("saved.empty")}</p>;
   }
   const remove = (qid: string) => {
     setRemoving(qid);
@@ -230,11 +233,11 @@ function SavedList({
   return (
     <div className="card">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-sm text-muted">{items.length}문항</span>
+        <span className="text-sm text-muted">{t("common.count_questions", { n: items.length })}</span>
         <div className="flex gap-2">
           <AddToCollection subjectId={subjectId} questionIds={ids} />
           <Link href={`/quiz?ids=${ids.join(",")}`} className="btn-primary btn-sm">
-            이 목록 풀기
+            {t("saved.practice_list")}
           </Link>
         </div>
       </div>
@@ -243,7 +246,7 @@ function SavedList({
           <section key={g.key}>
             <h3 className="mb-2 flex items-center gap-2 border-b border-border pb-1 font-bold">
               {g.label}
-              <span className="text-sm font-normal text-muted">{g.items.length}문항</span>
+              <span className="text-sm font-normal text-muted">{t("common.count_questions", { n: g.items.length })}</span>
             </h3>
             <ol className="flex flex-col gap-3">
         {g.items.map((it) => {
@@ -257,18 +260,18 @@ function SavedList({
                   {q.prompt}
                 </p>
                 <button className="btn-ghost btn-sm shrink-0 text-bad" disabled={pending && removing === q.id} onClick={() => remove(q.id)}>
-                  {removing === q.id ? "빼는 중…" : "빼기"}
+                  {removing === q.id ? t("saved.removing") : t("common.remove")}
                 </button>
               </div>
               <p className="mt-1 flex flex-wrap gap-2 text-xs">
-                {it.wrongCount > 0 && <span className="badge bg-bad-soft text-bad">{it.wrongCount}회 틀림</span>}
-                {it.confused && <span className="badge bg-warn-soft text-warn">헷갈림</span>}
-                {it.saved && <span className="badge bg-accent-soft text-accent">직접 저장</span>}
+                {it.wrongCount > 0 && <span className="badge bg-bad-soft text-bad">{t("saved.wrong_times", { n: it.wrongCount })}</span>}
+                {it.confused && <span className="badge bg-warn-soft text-warn">{t("saved.f_confused")}</span>}
+                {it.saved && <span className="badge bg-accent-soft text-accent">{t("saved.f_saved")}</span>}
                 {it.lastResult !== null && (
-                  <span className={`badge ${it.lastResult ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad"}`}>최근 {it.lastResult ? "정답" : "오답"}</span>
+                  <span className={`badge ${it.lastResult ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad"}`}>{it.lastResult ? t("saved.last_correct") : t("saved.last_wrong")}</span>
                 )}
               </p>
-              {correct && <p className="mt-1 text-sm text-ok">정답: {correct.text}</p>}
+              {correct && <p className="mt-1 text-sm text-ok">{t("common.answer")}: {correct.text}</p>}
               {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{cleanExplanation(correct.explanation)}</p>}
               {q.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{q.explanation}</p>}
               <SourceQuote q={q} className="mt-1" />
@@ -290,11 +293,12 @@ function SavedList({
 }
 
 function StatTable({ title, rows }: { title: string; rows: GroupStat[] }) {
+  const t = useT();
   return (
     <div className="card">
       <h3 className="mb-2 font-bold">{title}</h3>
       {rows.length === 0 ? (
-        <p className="text-sm text-muted">아직 기록이 없습니다.</p>
+        <p className="text-sm text-muted">{t("saved.no_stats")}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((r) => (
@@ -305,7 +309,7 @@ function StatTable({ title, rows }: { title: string; rows: GroupStat[] }) {
               </div>
               <span className="w-28 shrink-0 text-right text-muted">
                 {r.correct}/{r.total} ({Math.round(r.accuracy * 100)}%)
-                {r.weak > 0 && <span className="ml-1 text-bad">약점 {r.weak}</span>}
+                {r.weak > 0 && <span className="ml-1 text-bad">{t("saved.weak", { n: r.weak })}</span>}
               </span>
             </li>
           ))}

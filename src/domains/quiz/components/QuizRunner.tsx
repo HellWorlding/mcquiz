@@ -10,6 +10,7 @@ import { QuestionBadges, SourceQuote } from "@/domains/shared/components/Questio
 import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
 import { cleanExplanation } from "@/domains/shared/labels";
 import { NoteBox } from "@/domains/notes/components/NoteBox";
+import { useT } from "@/domains/shared/i18n-client";
 
 const pts = (q: QuestionWithChoices) => (q.points && q.points > 0 ? q.points : 1);
 
@@ -51,6 +52,7 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
 }
 
 export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAdmin = false, backHref, seed, resume, notes = {} }: Props) {
+  const t = useT();
   const [questions, setQuestions] = useState(initial);
   const [idx, setIdx] = useState(resume?.position ?? 0);
   const [answers, setAnswers] = useState<Record<string, Answer>>(() => {
@@ -177,9 +179,9 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   if (questions.length === 0) {
     return (
       <div className="card mt-6 text-center">
-        <p className="text-muted">풀 문항이 없습니다.</p>
+        <p className="text-muted">{t("quiz.empty")}</p>
         <Link href={backHref} className="btn-secondary mt-4">
-          돌아가기
+          {t("quiz.back")}
         </Link>
       </div>
     );
@@ -197,26 +199,24 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       <section className="flex flex-col gap-4">
         <div className="card text-center">
           <div className="text-sm text-muted">{title}</div>
-          <div className="mt-1 text-4xl font-bold">
-            {fmt(gotPts)} / {fmt(totalPts)}점
-          </div>
+          <div className="mt-1 text-4xl font-bold">{t("quiz.score_pts", { got: fmt(gotPts), total: fmt(totalPts) })}</div>
           <div className="mt-1 text-muted">
-            {correct.length} / {graded.length}문항 · {totalPts ? Math.round((gotPts / totalPts) * 100) : 0}%
+            {t("quiz.score_count", { correct: correct.length, total: graded.length, pct: totalPts ? Math.round((gotPts / totalPts) * 100) : 0 })}
           </div>
-          {isGuest && <p className="mt-2 text-sm text-warn">로그인하지 않아 풀이 기록이 저장되지 않았습니다.</p>}
+          {isGuest && <p className="mt-2 text-sm text-warn">{t("quiz.guest_warn")}</p>}
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {wrong.length > 0 && (
               <button className="btn-primary" onClick={retryWrong}>
-                틀린 것만 다시 풀기 ({wrong.length})
+                {t("quiz.retry_wrong", { n: wrong.length })}
               </button>
             )}
             <Link href={backHref} className="btn-secondary">
-              처음으로
+              {t("quiz.home")}
             </Link>
           </div>
         </div>
-        <ResultList title="틀린 문항" items={wrong} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="bad" />
-        <ResultList title="헷갈림 체크한 문항" items={confused} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="warn" />
+        <ResultList title={t("quiz.wrong_list")} items={wrong} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="bad" />
+        <ResultList title={t("quiz.confused_list")} items={confused} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="warn" />
       </section>
     );
   }
@@ -227,17 +227,17 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between text-sm text-muted">
         <Link href={backHref} className="btn-ghost btn-sm">
-          ← 나가기
+          {t("quiz.exit")}
         </Link>
         <span>
           {idx + 1} / {questions.length}
-          {sessionId && <span className="ml-1 text-xs text-muted">· 저장됨</span>}
+          {sessionId && <span className="ml-1 text-xs text-muted">{t("quiz.saved_badge")}</span>}
         </span>
         <button
           className={`btn-sm rounded-full border px-3 ${flashcard ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
           onClick={() => setFlashcard(!flashcard)}
         >
-          플래시카드 {flashcard ? "ON" : "OFF"}
+          {t("quiz.flashcard")} {flashcard ? "ON" : "OFF"}
         </button>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
@@ -248,7 +248,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         <div className="card min-h-[40vh] cursor-pointer select-none" onClick={() => setFlipped(!flipped)}>
           {!flipped ? (
             <>
-              <div className="text-xs font-semibold text-muted">문제 · 탭하면 정답</div>
+              <div className="text-xs font-semibold text-muted">{t("quiz.flip_hint")}</div>
               <p className="mt-2 whitespace-pre-wrap text-xl font-semibold leading-relaxed">{q.prompt}</p>
               <ol className="mt-4 flex flex-col gap-1 text-base text-muted">
                 {order.map((c, i) => (
@@ -260,16 +260,16 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
             </>
           ) : (
             <>
-              <div className="text-xs font-semibold text-ok">정답</div>
+              <div className="text-xs font-semibold text-ok">{t("common.answer")}</div>
               {correctChoice ? (
                 <p className="mt-2 text-xl font-semibold">{correctChoice.text}</p>
               ) : (
-                <p className="mt-2 text-warn">정답이 아직 지정되지 않은 문항입니다.</p>
+                <p className="mt-2 text-warn">{t("quiz.no_answer_set")}</p>
               )}
               {correctChoice?.explanation && <p className="mt-3 whitespace-pre-wrap text-base">{cleanExplanation(correctChoice.explanation)}</p>}
               {q.explanation && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-background p-3 text-base">{q.explanation}</p>}
               <SourceQuote q={q} className="mt-3" />
-              {q.hint && <p className="mt-3 text-sm text-muted">힌트: {q.hint}</p>}
+              {q.hint && <p className="mt-3 text-sm text-muted">{t("common.hint")}: {q.hint}</p>}
             </>
           )}
         </div>
@@ -277,7 +277,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         <div className="card">
           <QuestionBadges q={{ ...q, topic: answered ? q.topic : null }} showTraps={false} />
           <p className="mt-1 whitespace-pre-wrap text-xl font-semibold leading-relaxed">{q.prompt}</p>
-          {q.needs_review && <p className="mt-2 text-sm text-warn">정답이 지정되지 않은 문항입니다. 선택은 기록되지만 채점되지 않습니다.</p>}
+          {q.needs_review && <p className="mt-2 text-sm text-warn">{t("quiz.no_answer_warn")}</p>}
           <ul className="mt-4 flex flex-col gap-2">
             {order.map((c, i) => {
               const picked = a?.selectedOrd === c.ord;
@@ -305,20 +305,20 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           {answered && (
             <div className="mt-3 flex flex-col gap-2">
               <div className={`text-lg font-bold ${a?.isCorrect ? "text-ok" : a?.isCorrect === false ? "text-bad" : "text-warn"}`}>
-                {a?.isCorrect ? "정답!" : a?.isCorrect === false ? "오답" : "채점 불가"}
+                {a?.isCorrect ? t("quiz.correct") : a?.isCorrect === false ? t("quiz.wrong") : t("quiz.ungraded")}
               </div>
               {q.explanation && (
                 <div className="rounded-xl bg-background p-3">
-                  <div className="mb-1 text-xs font-semibold text-muted">해설</div>
+                  <div className="mb-1 text-xs font-semibold text-muted">{t("common.explanation")}</div>
                   <p className="whitespace-pre-wrap text-base">{q.explanation}</p>
                 </div>
               )}
               {q.choices.some((c) => c.explanation) && (
                 <div className="rounded-xl bg-background p-3">
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-muted">선지별 해설</span>
+                    <span className="text-xs font-semibold text-muted">{t("quiz.choice_explanations")}</span>
                     <button className="text-xs text-accent" onClick={() => setShowAll(!showAll)}>
-                      {showAll ? "접기" : "펼치기"}
+                      {showAll ? t("common.close") : t("common.expand")}
                     </button>
                   </div>
                   <ul className="flex flex-col gap-1.5">
@@ -350,14 +350,14 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       <div className="flex flex-wrap items-center gap-2">
         {q.hint && !flashcard && (
           <button className="btn-secondary btn-sm" onClick={() => setShowHint(!showHint)}>
-            힌트 {showHint ? "숨기기" : "보기"}
+            {showHint ? t("quiz.hint_hide") : t("quiz.hint_show")}
           </button>
         )}
         <button
           className={`btn-sm rounded-xl border px-3 py-2 font-semibold ${a?.confused ? "border-warn bg-warn-soft text-warn" : "border-border"}`}
           onClick={toggleConfused}
         >
-          {a?.confused ? "✓ 헷갈림" : "헷갈림 체크"}
+          {a?.confused ? t("quiz.confused_on") : t("quiz.confused")}
         </button>
         {!isGuest && (
           <button
@@ -373,18 +373,18 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
               void saveQuestionAction(q.id, next);
             }}
           >
-            {savedIds.has(q.id) ? "✓ 저장됨" : "저장"}
+            {savedIds.has(q.id) ? t("quiz.saved") : t("quiz.save")}
           </button>
         )}
         <div className="ml-auto flex gap-2">
           {idx > 0 && (
             <button className="btn-secondary btn-sm" onClick={() => goTo(idx - 1)}>
-              이전
+              {t("common.prev")}
             </button>
           )}
           {(answered || flashcard) && (
             <button className="btn-primary" onClick={goNext}>
-              {idx + 1 >= questions.length ? "결과 보기" : "다음"}
+              {idx + 1 >= questions.length ? t("quiz.results") : t("common.next")}
             </button>
           )}
         </div>
@@ -409,6 +409,7 @@ function ResultList({
   isGuest: boolean;
   tone: "bad" | "warn";
 }) {
+  const t = useT();
   if (items.length === 0) return null;
   return (
     <div className="card">
@@ -428,8 +429,8 @@ function ResultList({
               <p className="font-semibold">
                 {i + 1}. {q.prompt}
               </p>
-              {picked && ans?.isCorrect === false && <p className="mt-1 text-sm text-bad">내 답: {picked.text}</p>}
-              {correct && <p className="mt-1 text-sm text-ok">정답: {correct.text}</p>}
+              {picked && ans?.isCorrect === false && <p className="mt-1 text-sm text-bad">{t("quiz.my_answer")}: {picked.text}</p>}
+              {correct && <p className="mt-1 text-sm text-ok">{t("common.answer")}: {correct.text}</p>}
               {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{cleanExplanation(correct.explanation)}</p>}
               {q.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{q.explanation}</p>}
               <SourceQuote q={q} className="mt-1" />

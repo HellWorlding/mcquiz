@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { saveNoteAction } from "@/domains/notes/actions";
+import { useT } from "@/domains/shared/i18n-client";
 
 const FONT_KEY = "mcquiz.noteFontSize";
 const FONT_MIN = 14;
@@ -43,13 +44,14 @@ export function useNoteFontSize() {
 
 export function FontSizeControl() {
   const { size, change } = useNoteFontSize();
+  const t = useT();
   return (
     <span className="inline-flex items-center gap-1 text-sm text-muted">
-      <button type="button" className="btn-secondary btn-sm px-2" onClick={() => change(-2)} aria-label="글자 작게">
+      <button type="button" className="btn-secondary btn-sm px-2" onClick={() => change(-2)} aria-label={t("notes.font_small")}>
         A−
       </button>
       <span className="w-8 text-center text-xs">{size}</span>
-      <button type="button" className="btn-secondary btn-sm px-2" onClick={() => change(2)} aria-label="글자 크게">
+      <button type="button" className="btn-secondary btn-sm px-2" onClick={() => change(2)} aria-label={t("notes.font_big")}>
         A+
       </button>
     </span>
@@ -78,6 +80,7 @@ export function NoteBox({
   const latest = useRef(initial);
   const areaRef = useRef<HTMLTextAreaElement | null>(null);
   const { size } = useNoteFontSize();
+  const t = useT();
 
   const autosize = useCallback(() => {
     const el = areaRef.current;
@@ -117,7 +120,7 @@ export function NoteBox({
   if (compact && !open) {
     return (
       <button className="btn-ghost btn-sm self-start" onClick={() => setOpen(true)}>
-        메모
+        {t("quiz.memo")}
       </button>
     );
   }
@@ -127,18 +130,18 @@ export function NoteBox({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-muted">메모</span>
+        <span className="text-xs font-semibold text-muted">{t("quiz.memo")}</span>
         <span className="flex items-center gap-2 text-xs text-muted">
-          {state === "saving" && "저장 중…"}
-          {state === "saved" && "저장됨"}
-          {state === "dirty" && "입력 중"}
-          {state === "error" && <span className="text-bad">저장 실패</span>}
+          {state === "saving" && t("quiz.memo_saving")}
+          {state === "saved" && t("quiz.memo_saved")}
+          {state === "dirty" && t("quiz.memo_typing")}
+          {state === "error" && <span className="text-bad">{t("quiz.memo_error")}</span>}
           {showFontControl && <FontSizeControl />}
         </span>
       </div>
       {canImport && (
         <button type="button" className="btn-ghost btn-sm self-start" onClick={() => onChange(text ? `${text}\n\n${importText}` : importText!)}>
-          해설·근거 가져오기
+          {t("quiz.memo_import")}
         </button>
       )}
       <textarea
@@ -146,7 +149,7 @@ export function NoteBox({
         rows={2}
         className="input resize-none overflow-hidden leading-relaxed"
         style={{ fontSize: `${size}px`, minHeight: "3.5em" }}
-        placeholder="이 문제에 대한 메모 (자동 저장)"
+        placeholder={t("quiz.memo_placeholder")}
         value={text}
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => {

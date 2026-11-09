@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { chatAction, type ChatMessage, type ChatReply } from "@/domains/evidence/actions";
+import { useT } from "@/domains/shared/i18n-client";
 
 type Turn = ChatMessage & { sources?: ChatReply["sources"] };
 
@@ -17,6 +18,7 @@ export function ChatPanel({
   questionPrompt: string | null;
   aiEnabled: boolean;
 }) {
+  const t = useT();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -39,28 +41,26 @@ export function ChatPanel({
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h1 className="text-2xl font-bold">AI에게 묻기</h1>
-        <p className="text-sm text-muted">
-          {subjectName}의 강의 스크립트와 책에서 찾은 내용만 근거로 답하고, 출처(예: 40강 스크립트, 책 p.292)를 표시합니다.
-        </p>
+        <h1 className="text-2xl font-bold">{t("chat.title")}</h1>
+        <p className="text-sm text-muted">{t("chat.desc", { subject: subjectName })}</p>
       </div>
       {questionPrompt && (
         <div className="card text-sm">
-          <div className="mb-1 text-xs font-semibold text-muted">문항 맥락</div>
+          <div className="mb-1 text-xs font-semibold text-muted">{t("chat.context")}</div>
           <p className="whitespace-pre-wrap">{questionPrompt}</p>
         </div>
       )}
-      {!aiEnabled && <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">AI 기능이 꺼져 있습니다. 관리자가 OPENAI_API_KEY 를 설정하면 켜집니다.</p>}
+      {!aiEnabled && <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{t("chat.disabled")}</p>}
 
       <div className="flex flex-col gap-3">
-        {turns.map((t, i) => (
-          <div key={i} className={`max-w-[92%] rounded-2xl px-4 py-3 ${t.role === "user" ? "self-end bg-accent text-white" : "self-start bg-card border border-border"}`}>
-            <p className="whitespace-pre-wrap leading-relaxed">{t.content}</p>
-            {t.sources && t.sources.length > 0 && (
+        {turns.map((turn, i) => (
+          <div key={i} className={`max-w-[92%] rounded-2xl px-4 py-3 ${turn.role === "user" ? "self-end bg-accent text-white" : "self-start bg-card border border-border"}`}>
+            <p className="whitespace-pre-wrap leading-relaxed">{turn.content}</p>
+            {turn.sources && turn.sources.length > 0 && (
               <details className="mt-2 text-sm">
-                <summary className="cursor-pointer text-muted">참고한 자료 {t.sources.length}건</summary>
+                <summary className="cursor-pointer text-muted">{t("chat.sources", { n: turn.sources.length })}</summary>
                 <ul className="mt-1 flex flex-col gap-1">
-                  {t.sources.map((s, j) => (
+                  {turn.sources.map((s, j) => (
                     <li key={j} className="rounded-lg bg-background p-2">
                       <span className="badge mr-1 bg-accent-soft text-accent">
                         [{j + 1}] {s.label}
@@ -73,7 +73,7 @@ export function ChatPanel({
             )}
           </div>
         ))}
-        {pending && <div className="self-start rounded-2xl border border-border bg-card px-4 py-3 text-muted">자료를 찾고 답을 쓰는 중…</div>}
+        {pending && <div className="self-start rounded-2xl border border-border bg-card px-4 py-3 text-muted">{t("chat.thinking")}</div>}
         {error && <p className="text-sm text-bad">{error}</p>}
       </div>
 
@@ -86,13 +86,13 @@ export function ChatPanel({
       >
         <input
           className="input"
-          placeholder={questionId ? "이 문제에 대해 물어보세요 (예: 왜 3번이 틀렸어?)" : "궁금한 내용을 물어보세요"}
+          placeholder={questionId ? t("chat.placeholder_q") : t("chat.placeholder")}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={pending || !aiEnabled}
         />
         <button className="btn-primary shrink-0" type="submit" disabled={pending || !aiEnabled || !input.trim()}>
-          보내기
+          {t("chat.send")}
         </button>
       </form>
     </section>
