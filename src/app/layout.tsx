@@ -8,7 +8,7 @@ import { getLang } from "@/domains/shared/i18n-server";
 const font = Noto_Sans_KR({ variable: "--font-app", subsets: ["latin"], weight: ["400", "500", "700"] });
 
 export const metadata: Metadata = {
-  title: { default: "mcquiz", template: "%s · mcquiz" },
+  title: { default: "MCQuiz", template: "%s · MCQuiz" },
   description: "객관식(4지·5지선다) 문제를 올리면 바로 퀴즈로 풀 수 있는 앱",
 };
 

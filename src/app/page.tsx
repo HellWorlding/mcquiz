@@ -10,7 +10,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   if (!user && !env.publicGuestAccess) {
     return (
       <section className="mt-10 text-center">
-        <h1 className="text-3xl font-bold">mcquiz</h1>
+        <h1 className="text-3xl font-bold">MCQuiz</h1>
         <p className="mt-3 text-muted">{t("home.tagline")}</p>
         <div className="mt-8 flex justify-center gap-3">
           <Link href="/login" className="btn-primary">

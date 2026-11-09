@@ -13,7 +13,7 @@ export async function Nav() {
     <header className="sticky top-0 z-20 border-b border-border bg-card/90 backdrop-blur">
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
         <Link href="/" className="text-lg font-bold tracking-tight">
-          mcquiz
+          MCQuiz
         </Link>
         <nav className="flex items-center gap-1 text-sm">
           {user ? (
