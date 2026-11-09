@@ -3,7 +3,19 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PROTECTED_PREFIXES = ["/subjects", "/quiz", "/weak", "/admin", "/collections", "/account", "/chat", "/notes"];
 
+const CANONICAL_HOST = process.env.NEXT_PUBLIC_CANONICAL_HOST || "mcquiz.site";
+
 export async function proxy(request: NextRequest) {
+  // 예전 주소(*.vercel.app)나 www 로 들어오면 대표 도메인의 같은 경로로 보낸다
+  const host = request.headers.get("host") ?? "";
+  if (host && host !== CANONICAL_HOST && (host.endsWith(".vercel.app") || host === `www.${CANONICAL_HOST}`)) {
+    const url = request.nextUrl.clone();
+    url.protocol = "https:";
+    url.host = CANONICAL_HOST;
+    url.port = "";
+    return NextResponse.redirect(url, 308);
+  }
+
   let response = NextResponse.next({ request });
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
