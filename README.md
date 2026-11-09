@@ -128,3 +128,7 @@ npm run typecheck && npm run lint && npm test
 ```
 
 스키마는 `supabase/migrations/` 에 있고, 바꾸면 `supabase gen types typescript --local > src/domains/shared/database.types.ts` 로 타입을 다시 만듭니다.
+
+## 아이콘
+
+`src/app/icon.svg` 가 원본이다. 바꾼 뒤 `npm run icons` 를 실행하면 파비콘(`favicon.ico`), 애플 홈 화면 아이콘, 매니페스트용 PNG(`public/icons/`), 링크 공유 미리보기(`opengraph-image.png`)가 다시 만들어진다.

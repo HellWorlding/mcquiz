@@ -10,11 +10,15 @@ import { env } from "@/domains/shared/env";
 const font = Noto_Sans_KR({ variable: "--font-app", subsets: ["latin"], weight: ["400", "500", "700"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(`https://${process.env.NEXT_PUBLIC_CANONICAL_HOST || "mcquiz.site"}`),
   title: { default: "MCQuiz", template: "%s · MCQuiz" },
   description: "객관식(4지·5지선다) 문제를 올리면 바로 퀴즈로 풀 수 있는 앱",
+  applicationName: "MCQuiz",
+  appleWebApp: { title: "MCQuiz", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
+  themeColor: "#2563eb",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

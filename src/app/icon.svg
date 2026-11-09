@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <title id="title">MCQ 로고</title>
+  <desc id="desc">흰색 둥근 사각형 위에 파란색 굵은 MCQ와 Q에 겹친 빨간 펜 체크 표시</desc>
+  <rect width="320" height="320" rx="64" fill="#ffffff"/>
+  <!-- All lettering is vector geometry, independent of installed fonts. -->
+  <g fill="none" stroke="#2563eb" stroke-width="17" stroke-linecap="square" stroke-linejoin="round">
+    <path d="M42 202V118L72 161L102 118V202"/>
+    <path d="M181 128C171 115 151 113 138 125C120 142 120 178 138 195C151 207 171 205 181 192" stroke-linecap="round"/>
+    <ellipse cx="231" cy="160" rx="29" ry="43"/>
+    <path d="M238 184L267 210" stroke-linecap="round"/>
+  </g>
+  <!-- A vivid, slightly asymmetric pen-like check over the Q. -->
+  <path d="M224 153L242 173L279 125" fill="none" stroke="#ff2525" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

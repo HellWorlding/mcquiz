@@ -15,7 +15,8 @@
     "upload:sources": "tsx scripts/upload-sources.ts",
     "upload:questions": "tsx scripts/upload-questions.ts",
     "admin:grant": "tsx scripts/grant-subject.ts",
-    "import:questions": "tsx scripts/import-questions.ts"
+    "import:questions": "tsx scripts/import-questions.ts",
+    "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
