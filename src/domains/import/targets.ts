@@ -10,12 +10,27 @@ async function insertUnit(db: Db, row: UnitInsert): Promise<{ data: Unit | null;
   return { data: data ?? null, error: error ? { message: error.message } : null };
 }
 
+/** 예전 파일에 적힌 한글 주제 이름 → 지금 쓰는 이름 */
+const SUBJECT_ALIASES: Record<string, string> = { 토익: "TOEIC" };
+export const normalizeSubjectName = (name: string) => SUBJECT_ALIASES[name.trim()] ?? name.trim();
+
+/** 예전 파일에 적힌 한글 단원 이름 → 지금 쓰는 영어 이름 ("콜로케이션"→"Collocation", "파트3"→"Part 3", "세트07"→"Set 7") */
+const UNIT_ALIASES: Record<string, string> = { 콜로케이션: "Collocation", 어휘: "Vocabulary", 문법: "Grammar", 듣기: "Listening", 독해: "Reading" };
+export function normalizeUnitTitle(title: string): string {
+  const t = title.trim();
+  if (UNIT_ALIASES[t]) return UNIT_ALIASES[t];
+  const m = /^(파트|세트)\s*0*(\d{1,3})$/.exec(t);
+  if (m) return `${m[1] === "파트" ? "Part" : "Set"} ${m[2]}`;
+  return t;
+}
+
 /** 주제 이름으로 주제를 찾는다 (관리자/서비스 롤에서만 자동 생성 가능) */
 export async function resolveSubjectByName(
   db: Db,
-  name: string,
+  rawName: string,
   opts: { createIfMissing?: boolean; visibility?: "public" | "restricted" } = {},
 ): Promise<{ id: string; name: string } | null> {
+  const name = normalizeSubjectName(rawName);
   const { data } = await db.from("subjects").select("id, name").eq("name", name.trim()).maybeSingle();
   if (data) return data;
   if (!opts.createIfMissing) return null;
@@ -43,7 +58,7 @@ export function unitNoFromTitle(title: string): number | null {
 export async function ensureUnitPath(db: Db, subjectId: string, path: string[], units: Unit[]): Promise<string | null> {
   let parentId: string | null = null;
   for (const rawTitle of path) {
-    const title = rawTitle.trim();
+    const title = normalizeUnitTitle(rawTitle);
     if (!title) continue;
     const existing = units.find((u) => u.subject_id === subjectId && u.parent_id === parentId && u.title === title);
     if (existing) {
@@ -73,18 +88,18 @@ export async function ensureUnitPath(db: Db, subjectId: string, path: string[], 
 
 /**
  * 파일명으로 주제·단원 경로를 추정한다.
- *  toeic_collocation_part3.json → { subject: "토익", unitPath: ["콜로케이션", "파트3"] }
+ *  toeic_collocation_part3.json → { subject: "TOEIC", unitPath: ["Collocation", "Part 3"] }
  */
 const TOEIC_GROUPS: Record<string, string> = {
-  collocation: "콜로케이션",
-  collocations: "콜로케이션",
-  part5: "파트5 단어",
-  vocab: "어휘",
-  vocabulary: "어휘",
-  hackers: "해커스 단어",
-  grammar: "문법",
-  listening: "듣기",
-  reading: "독해",
+  collocation: "Collocation",
+  collocations: "Collocation",
+  part5: "Part 5 Words",
+  vocab: "Vocabulary",
+  vocabulary: "Vocabulary",
+  hackers: "Hackers Words",
+  grammar: "Grammar",
+  listening: "Listening",
+  reading: "Reading",
 };
 
 export function targetFromFilename(filename: string): { subject: string; unitPath: string[] | null } | null {
@@ -96,6 +111,6 @@ export function targetFromFilename(filename: string): { subject: string; unitPat
   const isSet = /[_-]set[_-]?\d/i.test(base);
   const path: string[] = [];
   if (group) path.push(group);
-  if (n !== null) path.push(isSet ? `세트${n}` : `파트${n}`);
-  return { subject: "토익", unitPath: path.length ? path : null };
+  if (n !== null) path.push(isSet ? `Set ${n}` : `Part ${n}`);
+  return { subject: "TOEIC", unitPath: path.length ? path : null };
 }

@@ -7,7 +7,7 @@ import { subtreeIds, type TreeNode } from "@/domains/shared/tree";
 import { createCollectionAction, deleteCollectionAction } from "@/domains/subjects/collection-actions";
 import { deleteSessionAction } from "@/domains/quiz/actions";
 import type { UnfinishedSession } from "@/domains/quiz/sessions";
-import { DIFFICULTIES, difficultyLabel } from "@/domains/shared/labels";
+import { DIFFICULTIES, difficultyLabel, isKoreanTitle, rangeLabel } from "@/domains/shared/labels";
 import { useLang, useT } from "@/domains/shared/i18n-client";
 
 type Props = {
@@ -123,9 +123,9 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
     if (count === "all" || order !== "seq" || selectedTotal === 0) return [];
     const n = Number(count);
     const out: { offset: number; label: string }[] = [];
-    for (let o = 0; o < selectedTotal; o += n) out.push({ offset: o, label: `${o + 1}~${Math.min(o + n, selectedTotal)}번` });
+    for (let o = 0; o < selectedTotal; o += n) out.push({ offset: o, label: rangeLabel(o + 1, Math.min(o + n, selectedTotal), isKoreanTitle(subject.name)) });
     return out;
-  }, [count, order, selectedTotal]);
+  }, [count, order, selectedTotal, subject.name]);
 
   return (
     <section className="flex flex-col gap-4">

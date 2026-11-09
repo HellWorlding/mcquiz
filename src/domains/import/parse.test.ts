@@ -242,8 +242,20 @@ describe("단원 제목/파일명에서 번호·경로", () => {
     expect(unitNoFromTitle("Set 12")).toBe(12);
     expect(unitNoFromTitle("파트30")).toBe(30);
     expect(unitNoFromTitle("콜로케이션")).toBeNull();
-    expect(targetFromFilename("toeic_vocab_set5.json")).toEqual({ subject: "토익", unitPath: ["어휘", "세트5"] });
-    expect(targetFromFilename("toeic_collocation_part3.json")).toEqual({ subject: "토익", unitPath: ["콜로케이션", "파트3"] });
+    expect(targetFromFilename("toeic_vocab_set5.json")).toEqual({ subject: "TOEIC", unitPath: ["Vocabulary", "Set 5"] });
+    expect(targetFromFilename("toeic_collocation_part3.json")).toEqual({ subject: "TOEIC", unitPath: ["Collocation", "Part 3"] });
+  });
+
+  it("예전 한글 이름은 영어 이름으로 정규화한다", async () => {
+    const { normalizeUnitTitle, normalizeSubjectName } = await import("./targets");
+    expect(normalizeSubjectName("토익")).toBe("TOEIC");
+    expect(normalizeSubjectName("교직실무")).toBe("교직실무");
+    expect(normalizeUnitTitle("콜로케이션")).toBe("Collocation");
+    expect(normalizeUnitTitle("어휘")).toBe("Vocabulary");
+    expect(normalizeUnitTitle("파트3")).toBe("Part 3");
+    expect(normalizeUnitTitle("세트07")).toBe("Set 7");
+    expect(normalizeUnitTitle("Unit 3")).toBe("Unit 3");
+    expect(normalizeUnitTitle("학교 경영")).toBe("학교 경영");
   });
 });
 

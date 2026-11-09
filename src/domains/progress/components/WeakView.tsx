@@ -10,6 +10,7 @@ import { AddToCollection } from "@/domains/quiz/components/AddToCollection";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
 import { useT } from "@/domains/shared/i18n-client";
+import { isKoreanTitle, qNoLabel } from "@/domains/shared/labels";
 import { ReportButton } from "@/domains/questions/components/ReportModal";
 
 type Filter = "all" | "wrong" | "confused" | "saved";
@@ -33,7 +34,9 @@ export function unitLabelOf(units: Unit[], unitId: string | null): { key: string
 /** 문항 번호 라벨: "1강 7번" */
 export function questionNoLabel(units: Unit[], q: { unit_id: string | null; ord: number }): string {
   const u = units.find((x) => x.id === q.unit_id);
-  return u && u.no !== null ? `${u.no}강 ${q.ord}번` : `${q.ord}번`;
+  if (!u) return qNoLabel(q.ord, true);
+  const korean = isKoreanTitle(u.title);
+  return u.no !== null && korean ? `${u.no}강 ${q.ord}번` : qNoLabel(q.ord, korean);
 }
 
 export function WeakView({ subject, summary, questions, units }: { subject: Subject; summary: WeakSummary; questions: QuestionWithChoices[]; units: Unit[] }) {

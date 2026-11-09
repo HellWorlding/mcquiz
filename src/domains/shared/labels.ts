@@ -44,3 +44,8 @@ export const TRAP_LABELS_EN: Record<string, string> = {
 export const difficultyLabel = (d: string | null | undefined, lang: "ko" | "en" = "ko") =>
   d ? ((lang === "en" ? DIFFICULTY_LABELS_EN[d] : DIFFICULTY_LABELS[d]) ?? d) : null;
 export const trapLabel = (t: string, lang: "ko" | "en" = "ko") => (lang === "en" ? TRAP_LABELS_EN[t] : TRAP_LABELS[t]) ?? t;
+
+/** 한글 단원(예: 교직실무)은 "7번" / "1~20번", 영문 단원(TOEIC 등)은 "No. 7" / "No. 1–20" */
+export const isKoreanTitle = (title: string | null | undefined) => /[가-힣]/.test(title ?? "");
+export const qNoLabel = (ord: number, korean: boolean) => (korean ? `${ord}번` : `No. ${ord}`);
+export const rangeLabel = (from: number, to: number, korean: boolean) => (korean ? `${from}~${to}번` : `No. ${from}–${to}`);
