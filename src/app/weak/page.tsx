@@ -14,9 +14,10 @@ export default async function WeakPage({ searchParams }: { searchParams: Promise
   const subjects = await listSubjects();
   const current = subjects.find((s) => s.id === subject) ?? subjects[0];
   if (!current) return <p className="card text-muted">볼 수 있는 주제가 없습니다.</p>;
-  const summary = await getWeakSummary(current.id);
+  // 요약과 단원 목록은 서로 독립이라 동시에 요청한다
+  const [summary, units] = await Promise.all([getWeakSummary(current.id), listUnits(current.id)]);
   const ids = (summary?.items ?? []).map((i) => i.questionId);
-  const [questions, units] = await Promise.all([getQuestionsByIds(ids), listUnits(current.id)]);
+  const questions = await getQuestionsByIds(ids);
   return (
     <section className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold">저장된 문제</h1>
