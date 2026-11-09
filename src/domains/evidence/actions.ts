@@ -5,6 +5,7 @@ import { env, hasOpenAI } from "@/domains/shared/env";
 import type { ActionResult } from "@/domains/shared/types";
 import { findEvidence, type EvidenceHit } from "./search";
 import { getLang } from "@/domains/shared/i18n-server";
+import { getAiQuota, type AiQuota } from "./quota";
 
 export type EvidenceResult = { hits: EvidenceHit[]; unitTitle: string | null };
 
@@ -26,16 +27,23 @@ export async function findEvidenceAction(questionId: string): Promise<ActionResu
 }
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
-export type ChatReply = { answer: string; sources: { label: string; sourceId: string; page: number | null; snippet: string }[] };
+export type ChatReply = { answer: string; sources: { label: string; sourceId: string; page: number | null; snippet: string }[]; quota: AiQuota };
 
 /**
  * 챗봇: 질문(과 문항 맥락)으로 자료를 검색한 뒤, 찾은 조각만 근거로 답한다. 출처를 함께 돌려준다.
  */
 export async function chatAction(input: { subjectId: string; questionId: string | null; messages: ChatMessage[] }): Promise<ActionResult<ChatReply>> {
-  await requireUser();
+  const user = await requireUser();
   if (!hasOpenAI()) return { ok: false, error: "AI 기능이 꺼져 있습니다 (OPENAI_API_KEY 없음). 근거 찾기는 AI 없이도 됩니다." };
   const last = [...input.messages].reverse().find((m) => m.role === "user");
   if (!last?.content.trim()) return { ok: false, error: "질문을 입력하세요." };
+  if (last.content.length > 2000) return { ok: false, error: "질문이 너무 깁니다 (2,000자 이내)." };
+  // 사용량 제한: 지난 12시간 기준, 관리자 100회 / 일반 10회
+  const quota = await getAiQuota(user);
+  if (quota.remaining <= 0) {
+    const reset = quota.resetAt ? new Date(quota.resetAt).toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" }) : "";
+    return { ok: false, error: `AI 질문 한도(${quota.windowHours}시간에 ${quota.limit}회)를 다 썼습니다. ${reset ? `${reset} 이후에 다시 할 수 있습니다.` : ""}` };
+  }
   const db = await createClient();
 
   let context = "";
@@ -69,10 +77,16 @@ export async function chatAction(input: { subjectId: string; questionId: string 
       ],
     });
     const answer = res.output_text?.trim() || "답을 만들지 못했습니다.";
-    return {
-      ok: true,
-      data: { answer, sources: hits.map((h) => ({ label: h.label, sourceId: h.sourceId, page: h.page, snippet: h.snippet })) },
-    };
+    const sources = hits.map((h) => ({ label: h.label, sourceId: h.sourceId, page: h.page, snippet: h.snippet }));
+    await db.from("ai_questions").insert({
+      user_id: user.id,
+      subject_id: input.subjectId,
+      question_id: input.questionId,
+      question: last.content.trim(),
+      answer,
+      sources: sources.map((s) => ({ label: s.label, page: s.page })),
+    });
+    return { ok: true, data: { answer, sources, quota: { ...quota, used: quota.used + 1, remaining: quota.remaining - 1 } } };
   } catch (e) {
     return { ok: false, error: `AI 호출 실패: ${(e as Error).message}` };
   }

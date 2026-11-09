@@ -219,6 +219,7 @@ const M = {
   "chat.placeholder_q": ["이 문제에 대해 물어보세요 (예: 왜 3번이 틀렸어?)", "Ask about this question (e.g. why is 3 wrong?)"],
   "chat.placeholder": ["궁금한 내용을 물어보세요", "Ask anything about the material"],
   "chat.send": ["보내기", "Send"],
+  "chat.quota": ["남은 질문 {remaining}/{limit} (최근 {hours}시간 기준)", "{remaining}/{limit} questions left (rolling {hours}h)"],
 } as const satisfies Record<string, readonly [string, string]>;
 
 export type MsgKey = keyof typeof M;

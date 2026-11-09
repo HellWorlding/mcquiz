@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { chatAction, type ChatMessage, type ChatReply } from "@/domains/evidence/actions";
 import { useT } from "@/domains/shared/i18n-client";
+import type { AiQuota } from "@/domains/evidence/quota";
 
 type Turn = ChatMessage & { sources?: ChatReply["sources"] };
 
@@ -11,14 +12,17 @@ export function ChatPanel({
   questionId,
   questionPrompt,
   aiEnabled,
+  initialQuota,
 }: {
   subjectId: string;
   subjectName: string;
   questionId: string | null;
   questionPrompt: string | null;
   aiEnabled: boolean;
+  initialQuota: AiQuota;
 }) {
   const t = useT();
+  const [quota, setQuota] = useState<AiQuota>(initialQuota);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +37,10 @@ export function ChatPanel({
     setError(null);
     startTransition(async () => {
       const r = await chatAction({ subjectId, questionId, messages: next.map(({ role, content }) => ({ role, content })) });
-      if (r.ok) setTurns([...next, { role: "assistant", content: r.data.answer, sources: r.data.sources }]);
-      else setError(r.error);
+      if (r.ok) {
+        setTurns([...next, { role: "assistant", content: r.data.answer, sources: r.data.sources }]);
+        setQuota(r.data.quota);
+      } else setError(r.error);
     });
   };
 
@@ -43,6 +49,9 @@ export function ChatPanel({
       <div>
         <h1 className="text-2xl font-bold">{t("chat.title")}</h1>
         <p className="text-sm text-muted">{t("chat.desc", { subject: subjectName })}</p>
+        <p className={`mt-1 text-xs ${quota.remaining === 0 ? "text-bad" : "text-muted"}`}>
+          {t("chat.quota", { remaining: quota.remaining, limit: quota.limit, hours: quota.windowHours })}
+        </p>
       </div>
       {questionPrompt && (
         <div className="card text-sm">
@@ -89,9 +98,9 @@ export function ChatPanel({
           placeholder={questionId ? t("chat.placeholder_q") : t("chat.placeholder")}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          disabled={pending || !aiEnabled}
+          disabled={pending || !aiEnabled || quota.remaining === 0}
         />
-        <button className="btn-primary shrink-0" type="submit" disabled={pending || !aiEnabled || !input.trim()}>
+        <button className="btn-primary shrink-0" type="submit" disabled={pending || !aiEnabled || !input.trim() || quota.remaining === 0}>
           {t("chat.send")}
         </button>
       </form>

@@ -23,7 +23,39 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "attempts": {
+            "ai_questions": {
+                  Row: {
+                    "answer": string | null,"created_at": string,"id": string,"question": string,"question_id": string | null,"sources": NonNullable<Json>,"subject_id": string | null,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "answer"?: string | null,"created_at"?: string,"id"?: string,"question": string,"question_id"?: string | null,"sources"?: NonNullable<Json>,"subject_id"?: string | null,"user_id": string
+                  }
+                  Update: {
+                    "answer"?: string | null,"created_at"?: string,"id"?: string,"question"?: string,"question_id"?: string | null,"sources"?: NonNullable<Json>,"subject_id"?: string | null,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "ai_questions_question_id_fkey"
+      columns: ["question_id"]
+isOneToOne: false
+      referencedRelation: "questions"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "ai_questions_subject_id_fkey"
+      columns: ["subject_id"]
+isOneToOne: false
+      referencedRelation: "subjects"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "ai_questions_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"attempts": {
                   Row: {
                     "confused": boolean,"created_at": string,"id": string,"is_correct": boolean | null,"question_id": string,"selected_ord": number | null,"user_id": string
                   }
