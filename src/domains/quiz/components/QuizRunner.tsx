@@ -95,8 +95,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     },
     [isGuest, subjectId, title],
   );
-  const [flashcard, setFlashcard] = useState(false);
-  const [flipped, setFlipped] = useState(false);
+  const [showNav, setShowNav] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -110,7 +109,6 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   const goTo = (i: number) => {
     setShowHint(false);
     setShowAll(false);
-    setFlipped(false);
     setIdx(i);
   };
 
@@ -221,10 +219,41 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     );
   }
 
-  const correctChoice = q.correct_choice !== null ? q.choices.find((c) => c.ord === q.correct_choice) : null;
+
+  const jump = (i: number) => {
+    goTo(i);
+    persist(questions, i, answers, false);
+    setShowNav(false);
+  };
+  const navGrid = (
+    <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8 lg:grid-cols-5">
+      {questions.map((x, i) => {
+        const an = answers[x.id];
+        const done = an?.selectedOrd !== null && an?.selectedOrd !== undefined;
+        const cls = !done
+          ? "bg-card border-border"
+          : an?.isCorrect
+            ? "bg-ok-soft border-ok/40 text-ok"
+            : an?.isCorrect === false
+              ? "bg-bad-soft border-bad/40 text-bad"
+              : "bg-warn-soft border-warn/40 text-warn";
+        return (
+          <button
+            key={x.id}
+            onClick={() => jump(i)}
+            aria-current={i === idx ? "step" : undefined}
+            className={`h-9 rounded-lg border text-sm font-semibold ${cls} ${i === idx ? "ring-2 ring-accent" : ""}`}
+          >
+            {i + 1}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
-    <section className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+    <section className="flex min-w-0 flex-1 flex-col gap-3">
       <div className="flex items-center justify-between text-sm text-muted">
         <Link href={backHref} className="btn-ghost btn-sm">
           {t("quiz.exit")}
@@ -233,47 +262,16 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           {idx + 1} / {questions.length}
           {sessionId && <span className="ml-1 text-xs text-muted">{t("quiz.saved_badge")}</span>}
         </span>
-        <button
-          className={`btn-sm rounded-full border px-3 ${flashcard ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
-          onClick={() => setFlashcard(!flashcard)}
-        >
-          {t("quiz.flashcard")} {flashcard ? "ON" : "OFF"}
+        <button className={`btn-sm rounded-full border px-3 lg:hidden ${showNav ? "border-accent bg-accent-soft text-accent" : "border-border"}`} onClick={() => setShowNav(!showNav)}>
+          {t("quiz.nav")}
         </button>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
         <div className="h-full bg-accent transition-all" style={{ width: `${((idx + (answered ? 1 : 0)) / questions.length) * 100}%` }} />
       </div>
+      {showNav && <div className="card lg:hidden">{navGrid}</div>}
 
-      {flashcard ? (
-        <div className="card min-h-[40vh] cursor-pointer select-none" onClick={() => setFlipped(!flipped)}>
-          {!flipped ? (
-            <>
-              <div className="text-xs font-semibold text-muted">{t("quiz.flip_hint")}</div>
-              <p className="mt-2 whitespace-pre-wrap text-xl font-semibold leading-relaxed">{q.prompt}</p>
-              <ol className="mt-4 flex flex-col gap-1 text-base text-muted">
-                {order.map((c, i) => (
-                  <li key={c.id}>
-                    {i + 1}. {c.text}
-                  </li>
-                ))}
-              </ol>
-            </>
-          ) : (
-            <>
-              <div className="text-xs font-semibold text-ok">{t("common.answer")}</div>
-              {correctChoice ? (
-                <p className="mt-2 text-xl font-semibold">{correctChoice.text}</p>
-              ) : (
-                <p className="mt-2 text-warn">{t("quiz.no_answer_set")}</p>
-              )}
-              {correctChoice?.explanation && <p className="mt-3 whitespace-pre-wrap text-base">{cleanExplanation(correctChoice.explanation)}</p>}
-              {q.explanation && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-background p-3 text-base">{q.explanation}</p>}
-              <SourceQuote q={q} className="mt-3" />
-              {q.hint && <p className="mt-3 text-sm text-muted">{t("common.hint")}: {q.hint}</p>}
-            </>
-          )}
-        </div>
-      ) : (
+      {(
         <div className="card">
           <QuestionBadges q={{ ...q, topic: answered ? q.topic : null }} showTraps={false} />
           <p className="mt-1 whitespace-pre-wrap text-xl font-semibold leading-relaxed">{q.prompt}</p>
@@ -348,7 +346,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        {q.hint && !flashcard && (
+        {q.hint && (
           <button className="btn-secondary btn-sm" onClick={() => setShowHint(!showHint)}>
             {showHint ? t("quiz.hint_hide") : t("quiz.hint_show")}
           </button>
@@ -382,15 +380,25 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
               {t("common.prev")}
             </button>
           )}
-          {(answered || flashcard) && (
-            <button className="btn-primary" onClick={goNext}>
-              {idx + 1 >= questions.length ? t("quiz.results") : t("common.next")}
-            </button>
-          )}
+          <button className={answered ? "btn-primary" : "btn-secondary"} onClick={goNext}>
+            {idx + 1 >= questions.length ? t("quiz.results") : answered ? t("common.next") : t("quiz.skip")}
+          </button>
         </div>
       </div>
       {showHint && q.hint && <p className="card whitespace-pre-wrap text-base">{q.hint}</p>}
     </section>
+    <aside className="sticky top-20 hidden w-56 shrink-0 lg:block">
+      <div className="card">
+        <div className="mb-2 flex items-center justify-between text-xs text-muted">
+          <span>{t("quiz.nav")}</span>
+          <span>
+            {Object.values(answers).filter((a) => a.selectedOrd !== null).length}/{questions.length}
+          </span>
+        </div>
+        {navGrid}
+      </div>
+    </aside>
+    </div>
   );
 }
 

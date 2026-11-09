@@ -111,7 +111,8 @@ const M = {
   // 퀴즈 풀이
   "quiz.exit": ["← 나가기", "← Exit"],
   "quiz.saved_badge": ["· 저장됨", "· saved"],
-  "quiz.flashcard": ["플래시카드", "Flashcards"],
+  "quiz.nav": ["번호", "Questions"],
+  "quiz.skip": ["건너뛰기", "Skip"],
   "quiz.flip_hint": ["문제 · 탭하면 정답", "Question · tap to reveal"],
   "quiz.no_answer_set": ["정답이 아직 지정되지 않은 문항입니다.", "This question has no answer set yet."],
   "quiz.no_answer_warn": ["정답이 지정되지 않은 문항입니다. 선택은 기록되지만 채점되지 않습니다.", "No answer is set for this question. Your choice is recorded but not graded."],
