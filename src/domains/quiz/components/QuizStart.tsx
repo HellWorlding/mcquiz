@@ -38,7 +38,8 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
   const [offset, setOffset] = useState(0);
   const [difficulty, setDifficulty] = useState<string>("");
   const [under, setUnder] = useState<string>(""); // 풀이 횟수 N회 미만만
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(units.map((u) => u.id)));
+  // 처음에는 첫 대단원만 펼친다 (스크롤 줄이기)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(units.length ? [units[0].id] : []));
 
   // 단원별 누적 문항 수 (하위 포함)
   const unitTotal = useMemo(() => {
