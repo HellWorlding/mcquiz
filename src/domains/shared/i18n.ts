@@ -213,6 +213,9 @@ const M = {
   // AI
   "chat.title": ["AI에게 묻기", "Ask AI"],
   "chat.desc": ["{subject}의 강의 스크립트와 책에서 찾은 내용만 근거로 답하고, 출처(예: 40강 스크립트, 책 p.292)를 표시합니다.", "Answers are based only on {subject} materials (scripts and book) and cite sources."],
+  "chat.desc_open": ["{subject}에는 올려 둔 자료가 없어 AI의 일반 지식으로 답합니다. 관련 규칙·예문·비슷한 표현도 함께 알려 줍니다. 틀릴 수 있으니 중요한 내용은 확인하세요.", "{subject} has no uploaded materials, so the AI answers from general knowledge, with related rules, examples and similar expressions. It can be wrong, so double-check important points."],
+  "chat.thinking_open": ["답을 쓰는 중…", "Writing…"],
+  "chat.placeholder_open": ["궁금한 표현·문법·단어를 물어보세요", "Ask about any expression, grammar point or word"],
   "chat.context": ["문항 맥락", "Question context"],
   "chat.disabled": ["AI 기능이 꺼져 있습니다. 관리자가 OPENAI_API_KEY 를 설정하면 켜집니다.", "AI is turned off. The admin can enable it by setting OPENAI_API_KEY."],
   "chat.sources": ["참고한 자료 {n}건", "{n} sources used"],

@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { chatAction, type ChatMessage, type ChatReply } from "@/domains/evidence/actions";
 import { useT } from "@/domains/shared/i18n-client";
 import type { AiQuota } from "@/domains/evidence/quota";
+import type { AiMode } from "@/domains/evidence/mode";
 
 type Turn = ChatMessage & { sources?: ChatReply["sources"] };
 
@@ -13,6 +14,7 @@ export function ChatPanel({
   questionPrompt,
   aiEnabled,
   initialQuota,
+  mode,
 }: {
   subjectId: string;
   subjectName: string;
@@ -20,6 +22,7 @@ export function ChatPanel({
   questionPrompt: string | null;
   aiEnabled: boolean;
   initialQuota: AiQuota;
+  mode: AiMode;
 }) {
   const t = useT();
   const [quota, setQuota] = useState<AiQuota>(initialQuota);
@@ -48,7 +51,7 @@ export function ChatPanel({
     <section className="flex flex-col gap-3">
       <div>
         <h1 className="text-2xl font-bold">{t("chat.title")}</h1>
-        <p className="text-sm text-muted">{t("chat.desc", { subject: subjectName })}</p>
+        <p className="text-sm text-muted">{t(mode === "grounded" ? "chat.desc" : "chat.desc_open", { subject: subjectName })}</p>
         <p className={`mt-1 text-xs ${quota.remaining === 0 ? "text-bad" : "text-muted"}`}>
           {t("chat.quota", { remaining: quota.remaining, limit: quota.limit, hours: quota.windowHours })}
         </p>
@@ -82,7 +85,7 @@ export function ChatPanel({
             )}
           </div>
         ))}
-        {pending && <div className="self-start rounded-2xl border border-border bg-card px-4 py-3 text-muted">{t("chat.thinking")}</div>}
+        {pending && <div className="self-start rounded-2xl border border-border bg-card px-4 py-3 text-muted">{t(mode === "grounded" ? "chat.thinking" : "chat.thinking_open")}</div>}
         {error && <p className="text-sm text-bad">{error}</p>}
       </div>
 
@@ -95,7 +98,7 @@ export function ChatPanel({
       >
         <input
           className="input"
-          placeholder={questionId ? t("chat.placeholder_q") : t("chat.placeholder")}
+          placeholder={questionId ? t("chat.placeholder_q") : t(mode === "grounded" ? "chat.placeholder" : "chat.placeholder_open")}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={pending || !aiEnabled || quota.remaining === 0}
