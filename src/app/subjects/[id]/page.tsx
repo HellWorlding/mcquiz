@@ -5,12 +5,13 @@ import { getCurrentUser } from "@/domains/auth/session";
 import { QuizStart } from "@/domains/quiz/components/QuizStart";
 import { buildTree } from "@/domains/shared/tree";
 import { listUnfinishedSessions } from "@/domains/quiz/sessions";
+import { getUnitRounds } from "@/domains/progress/queries";
 
 export default async function SubjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const subject = await getSubject(id);
   if (!subject) notFound();
-  const [units, sets, collections, unitCounts, collectionCounts, user, sessions] = await Promise.all([
+  const [units, sets, collections, unitCounts, collectionCounts, user, sessions, unitRounds] = await Promise.all([
     getUnitTree(id),
     listSets(id),
     listCollections(id),
@@ -18,6 +19,7 @@ export default async function SubjectPage({ params }: { params: Promise<{ id: st
     countQuestionsByCollection(id),
     getCurrentUser(),
     listUnfinishedSessions(id),
+    getUnitRounds(id),
   ]);
   return (
     <QuizStart
@@ -26,6 +28,7 @@ export default async function SubjectPage({ params }: { params: Promise<{ id: st
       sets={sets}
       collections={buildTree(collections)}
       unitCounts={unitCounts}
+      unitRounds={unitRounds}
       collectionCounts={collectionCounts}
       user={user ? { id: user.id, isAdmin: user.isAdmin } : null}
       sessions={sessions}

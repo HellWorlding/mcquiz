@@ -8,6 +8,7 @@ import { createCollectionAction, deleteCollectionAction } from "@/domains/subjec
 import { deleteSessionAction } from "@/domains/quiz/actions";
 import type { UnfinishedSession } from "@/domains/quiz/sessions";
 import { DIFFICULTIES, difficultyLabel, isKoreanTitle, rangeLabel } from "@/domains/shared/labels";
+import type { UnitRounds } from "@/domains/progress/queries";
 import { useLang, useT } from "@/domains/shared/i18n-client";
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
   sets: (QuestionSet & { question_count: number })[];
   collections: TreeNode<Collection>[];
   unitCounts: Record<string, number>;
+  unitRounds: UnitRounds;
   collectionCounts: Record<string, number>;
   user: { id: string; isAdmin: boolean } | null;
   sessions: UnfinishedSession[];
@@ -24,7 +26,7 @@ type Props = {
 type Tab = "units" | "collections" | "sets";
 const COUNTS = ["10", "20", "40", "all"] as const;
 
-export function QuizStart({ subject, units, sets, collections, unitCounts, collectionCounts, user, sessions }: Props) {
+export function QuizStart({ subject, units, sets, collections, unitCounts, unitRounds, collectionCounts, user, sessions }: Props) {
   const router = useRouter();
   const t = useT();
   const lang = useLang();
@@ -49,6 +51,25 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
     units.forEach(walk);
     return m;
   }, [units, unitCounts]);
+
+  // 단원별(하위 포함) 회독 상태: 모든 문항을 k회 풀었으면 k회독, 그 다음 바퀴에서 p/N 진행
+  const unitRound = useMemo(() => {
+    const m = new Map<string, RoundInfo>();
+    const walk = (n: TreeNode<Unit>): Record<number, number> => {
+      const h: Record<number, number> = { ...(unitRounds[n.id] ?? {}) };
+      for (const c of n.children) for (const [k, v] of Object.entries(walk(c))) h[+k] = (h[+k] ?? 0) + v;
+      const keys = Object.keys(h).map(Number).filter((k) => h[k] > 0);
+      if (keys.length) {
+        const min = Math.min(...keys);
+        const total = keys.reduce((s, k) => s + h[k], 0);
+        const progressed = keys.filter((k) => k > min).reduce((s, k) => s + h[k], 0);
+        m.set(n.id, { rounds: min, progressed, total });
+      }
+      return h;
+    };
+    units.forEach(walk);
+    return m;
+  }, [units, unitRounds]);
 
   const allUnits = useMemo(() => {
     const out: TreeNode<Unit>[] = [];
@@ -198,6 +219,7 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
                   selected={selected}
                   expanded={expanded}
                   total={unitTotal}
+                  round={unitRound}
                   onToggle={toggleUnit}
                   onExpand={(id) =>
                     setExpanded((prev) => {
@@ -382,11 +404,22 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, colle
   );
 }
 
+type RoundInfo = { rounds: number; progressed: number; total: number };
+
+/** "1회독" / "2회독 중 21/25" 배지. 아직 한 번도 안 풀었으면 없음 */
+function RoundBadge({ info }: { info: RoundInfo | undefined }) {
+  const t = useT();
+  if (!info || (info.rounds === 0 && info.progressed === 0)) return null;
+  if (info.progressed === 0) return <span className="badge bg-ok-soft text-ok">{t("start.round_done", { k: info.rounds })}</span>;
+  return <span className="badge bg-accent-soft text-accent">{t("start.round_in", { k: info.rounds + 1, p: info.progressed, n: info.total })}</span>;
+}
+
 function UnitRow({
   node,
   selected,
   expanded,
   total,
+  round,
   onToggle,
   onExpand,
 }: {
@@ -394,6 +427,7 @@ function UnitRow({
   selected: Set<string>;
   expanded: Set<string>;
   total: Map<string, number>;
+  round: Map<string, RoundInfo>;
   onToggle: (n: TreeNode<Unit>) => void;
   onExpand: (id: string) => void;
 }) {
@@ -416,13 +450,16 @@ function UnitRow({
             {node.no !== null ? `${node.no}. ` : ""}
             {node.title}
           </span>
-          <span className="ml-auto text-sm text-muted">{total.get(node.id) ?? 0}</span>
+          <span className="ml-auto flex items-center gap-2 text-sm text-muted">
+            <RoundBadge info={round.get(node.id)} />
+            {total.get(node.id) ?? 0}
+          </span>
         </label>
       </div>
       {hasKids && open && (
         <ul>
           {node.children.map((c) => (
-            <UnitRow key={c.id} node={c} selected={selected} expanded={expanded} total={total} onToggle={onToggle} onExpand={onExpand} />
+            <UnitRow key={c.id} node={c} selected={selected} expanded={expanded} total={total} round={round} onToggle={onToggle} onExpand={onExpand} />
           ))}
         </ul>
       )}

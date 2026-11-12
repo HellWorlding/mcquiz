@@ -71,6 +71,8 @@ const M = {
   "start.resume": ["이어서 풀기", "Resume"],
   "start.discard": ["버리기", "Discard"],
   "start.tab_units": ["단원", "Units"],
+  "start.round_done": ["{k}회독", "Round {k} done"],
+  "start.round_in": ["{k}회독 중 {p}/{n}", "Round {k}: {p}/{n}"],
   "start.tab_collections": ["묶음", "Collections"],
   "start.tab_sets": ["세트", "Sets"],
   "start.no_units": ["아직 단원이 없습니다. 세트 탭에서 바로 풀 수 있습니다.", "No units yet. Use the Sets tab."],

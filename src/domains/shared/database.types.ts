@@ -526,6 +526,11 @@ isOneToOne: false
               "attempt_count": number,"last_at": string,"subject_id": string,"weak_count": number
             }[]
                            },
+"my_unit_rounds":
+{ Args: { "p_subject": string }; Returns: {
+              "attempts": number,"n": number,"unit_id": string
+            }[]
+                           },
 "my_unseen_questions":
 { Args: { "p_subject": string }; Returns: {
               "id": string,"set_id": string,"tags": (string)[],"unit_id": string

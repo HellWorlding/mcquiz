@@ -1,4 +1,5 @@
 import "server-only";
+import { getReadClient } from "@/domains/subjects/queries";
 import { createClient } from "@/domains/auth/supabase/server";
 import { getCurrentUser } from "@/domains/auth/session";
 import { shuffled } from "@/domains/quiz/shuffle";
@@ -198,4 +199,18 @@ export async function buildWeakMix(subjectId: string, n: number): Promise<string
     out = [...out, ...shuffled([...unseenAny, ...past].filter((id) => !used.has(id)), seed + 2).slice(0, n - out.length)];
   }
   return shuffled([...new Set(out)], seed + 3);
+}
+
+/** 단원별 회독 히스토그램: unitId → { 풀이 횟수: 문항 수 }. 비로그인은 빈 객체. */
+export type UnitRounds = Record<string, Record<number, number>>;
+export async function getUnitRounds(subjectId: string): Promise<UnitRounds> {
+  const { db, user } = await getReadClient();
+  if (!user) return {};
+  const { data } = await db.rpc("my_unit_rounds", { p_subject: subjectId });
+  const out: UnitRounds = {};
+  for (const r of data ?? []) {
+    const k = r.unit_id ?? "__none__";
+    (out[k] ??= {})[r.attempts] = Number(r.n);
+  }
+  return out;
 }
