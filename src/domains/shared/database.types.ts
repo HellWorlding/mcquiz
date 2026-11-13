@@ -415,14 +415,14 @@ isOneToOne: false
                   ]
                 },"subject_files": {
                   Row: {
-                    "created_at": string,"id": string,"name": string,"page_offset": number,"pages": number | null,"storage_path": string,"subject_id": string,"title": string | null
+                    "created_at": string,"id": string,"name": string,"page_from": number | null,"page_offset": number,"page_to": number | null,"pages": number | null,"storage_path": string,"subject_id": string,"title": string | null,"unit_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"name"?: string,"page_offset"?: number,"pages"?: number | null,"storage_path": string,"subject_id": string,"title"?: string | null
+                    "created_at"?: string,"id"?: string,"name"?: string,"page_from"?: number | null,"page_offset"?: number,"page_to"?: number | null,"pages"?: number | null,"storage_path": string,"subject_id": string,"title"?: string | null,"unit_id"?: string | null
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"name"?: string,"page_offset"?: number,"pages"?: number | null,"storage_path"?: string,"subject_id"?: string,"title"?: string | null
+                    "created_at"?: string,"id"?: string,"name"?: string,"page_from"?: number | null,"page_offset"?: number,"page_to"?: number | null,"pages"?: number | null,"storage_path"?: string,"subject_id"?: string,"title"?: string | null,"unit_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -430,6 +430,12 @@ isOneToOne: false
       columns: ["subject_id"]
 isOneToOne: false
       referencedRelation: "subjects"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "subject_files_unit_id_fkey"
+      columns: ["unit_id"]
+isOneToOne: false
+      referencedRelation: "units"
       referencedColumns: ["id"]
     }
                   ]

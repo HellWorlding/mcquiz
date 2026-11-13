@@ -87,7 +87,7 @@ npm run db:push
 4. `/admin/upload` 에서 문제 파일을 올리거나 텍스트를 붙여 넣고 미리보기에서 확인 후 저장합니다. CLI 도 있습니다.
    ```bash
    npm run upload:questions -- "<주제 이름>" content/questions/문제.txt content/questions/정답.txt
-   npm run upload:file -- "<주제 이름>" content/sources/book.pdf   # 교재 PDF (근거의 "원문 보기"가 해당 쪽을 연다)
+   npm run upload:file -- "<주제 이름>" content/sources/book.pdf --split   # 교재 PDF 를 단원별로 잘라 올림 (근거의 "원문 보기"가 그 단원 파일의 해당 쪽을 연다)
    ```
 
 ## 지원하는 문제 형식
