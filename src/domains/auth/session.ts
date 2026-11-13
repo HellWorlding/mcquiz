@@ -40,6 +40,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       email: user.email ?? null,
       display_name: null,
       is_admin: false,
+      ai_limit: null,
       created_at: new Date().toISOString(),
     };
   }

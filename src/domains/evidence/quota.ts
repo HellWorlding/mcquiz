@@ -18,7 +18,8 @@ export async function getAiQuota(user: CurrentUser): Promise<AiQuota> {
     .eq("user_id", user.id)
     .gte("created_at", since)
     .order("created_at", { ascending: true });
-  const limit = user.isAdmin ? AI_LIMIT_ADMIN : AI_LIMIT_USER;
+  // 계정별 한도(profiles.ai_limit)가 있으면 그것을, 없으면 역할 기본값
+  const limit = user.profile.ai_limit ?? (user.isAdmin ? AI_LIMIT_ADMIN : AI_LIMIT_USER);
   const used = data?.length ?? 0;
   const oldest = data?.[0]?.created_at ?? null;
   const resetAt = oldest ? new Date(new Date(oldest).getTime() + AI_WINDOW_HOURS * 3600 * 1000).toISOString() : null;

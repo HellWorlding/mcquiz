@@ -181,14 +181,14 @@ isOneToOne: false
                   ]
                 },"profiles": {
                   Row: {
-                    "created_at": string,"display_name": string | null,"email": string | null,"id": string,"is_admin": boolean
+                    "ai_limit": number | null,"created_at": string,"display_name": string | null,"email": string | null,"id": string,"is_admin": boolean
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"display_name"?: string | null,"email"?: string | null,"id": string,"is_admin"?: boolean
+                    "ai_limit"?: number | null,"created_at"?: string,"display_name"?: string | null,"email"?: string | null,"id": string,"is_admin"?: boolean
                   }
                   Update: {
-                    "created_at"?: string,"display_name"?: string | null,"email"?: string | null,"id"?: string,"is_admin"?: boolean
+                    "ai_limit"?: number | null,"created_at"?: string,"display_name"?: string | null,"email"?: string | null,"id"?: string,"is_admin"?: boolean
                   }
                   Relationships: [
                     

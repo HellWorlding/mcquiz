@@ -4,6 +4,7 @@
  *   npm run admin:grant -- --grant "<주제 이름>" <이메일>
  *   npm run admin:grant -- --revoke "<주제 이름>" <이메일>
  *   npm run admin:grant -- --admin <이메일>
+ *   npm run admin:grant -- --ai-limit <이메일> <횟수|default>   (12시간당 AI 질문 한도)
  */
 import { adminDb, findSubject } from "./_db";
 
@@ -41,11 +42,23 @@ async function main() {
     console.log(data?.length ? `${a} 관리자 지정` : `${a} 계정이 없습니다.`);
     return;
   }
+  if (cmd === "--ai-limit" && a && b) {
+    const ai_limit = b === "default" ? null : Number(b);
+    if (ai_limit !== null && (!Number.isInteger(ai_limit) || ai_limit < 0)) {
+      console.error("횟수는 0 이상의 정수 또는 default");
+      process.exit(1);
+    }
+    const { data, error } = await db.from("profiles").update({ ai_limit }).ilike("email", a).select("email, ai_limit");
+    if (error) throw error;
+    console.log(data?.length ? `${data[0].email} AI 한도 → ${data[0].ai_limit ?? "기본값"}` : `${a} 계정이 없습니다.`);
+    return;
+  }
   console.log(`사용법:
   --create-subject "<이름>" [public|restricted]
   --grant "<주제>" <이메일>
   --revoke "<주제>" <이메일>
-  --admin <이메일>`);
+  --admin <이메일>
+  --ai-limit <이메일> <횟수|default>`);
 }
 main().catch((e) => {
   console.error(e);
