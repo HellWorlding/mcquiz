@@ -413,6 +413,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"subject_files": {
+                  Row: {
+                    "created_at": string,"id": string,"name": string,"page_offset": number,"pages": number | null,"storage_path": string,"subject_id": string,"title": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"name"?: string,"page_offset"?: number,"pages"?: number | null,"storage_path": string,"subject_id": string,"title"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"name"?: string,"page_offset"?: number,"pages"?: number | null,"storage_path"?: string,"subject_id"?: string,"title"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "subject_files_subject_id_fkey"
+      columns: ["subject_id"]
+isOneToOne: false
+      referencedRelation: "subjects"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"subject_members": {
                   Row: {
                     "created_at": string,"subject_id": string,"user_id": string

@@ -29,7 +29,7 @@ export async function findEvidenceAction(questionId: string): Promise<ActionResu
 }
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
-export type ChatReply = { answer: string; sources: { label: string; sourceId: string; chunkId: string; page: number | null; snippet: string }[]; quota: AiQuota; mode: AiMode };
+export type ChatReply = { answer: string; sources: { label: string; sourceId: string; chunkId: string; kind: string; page: number | null; snippet: string }[]; quota: AiQuota; mode: AiMode };
 
 /**
  * 챗봇. 자료를 올린 주제(grounded)는 질문(과 문항 맥락)으로 자료를 검색한 뒤 찾은 조각만 근거로 답하고 출처를 돌려준다.
@@ -99,7 +99,7 @@ export async function chatAction(input: { subjectId: string; questionId: string 
       ],
     });
     const answer = res.output_text?.trim() || "답을 만들지 못했습니다.";
-    const sources = hits.map((h) => ({ label: h.label, sourceId: h.sourceId, chunkId: h.chunkId, page: h.page, snippet: h.snippet }));
+    const sources = hits.map((h) => ({ label: h.label, sourceId: h.sourceId, chunkId: h.chunkId, kind: h.kind, page: h.page, snippet: h.snippet }));
     await db.from("ai_questions").insert({
       user_id: user.id,
       subject_id: input.subjectId,

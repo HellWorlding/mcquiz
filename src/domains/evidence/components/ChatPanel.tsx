@@ -136,7 +136,7 @@ export function ChatThread({ subjectId, subjectName, questionId, question, aiEna
                   {turn.sources.map((s, j) => (
                     <li key={j} className="rounded-lg bg-background p-2">
                       <Link
-                        href={`/sources/${s.sourceId}?chunk=${s.chunkId}${s.page ? `&page=${s.page}` : ""}`}
+                        href={s.kind === "book" && s.page ? `/sources/pdf?subject=${subjectId}&page=${s.page}` : `/sources/${s.sourceId}?chunk=${s.chunkId}${s.page ? `&page=${s.page}` : ""}`}
                         target="_blank"
                         rel="noopener"
                         className="badge mr-1 bg-accent-soft text-accent hover:underline"

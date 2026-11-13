@@ -14,6 +14,7 @@
     "db:push": "supabase db push",
     "upload:sources": "tsx scripts/upload-sources.ts",
     "upload:questions": "tsx scripts/upload-questions.ts",
+    "upload:file": "tsx scripts/upload-file.ts",
     "admin:grant": "tsx scripts/grant-subject.ts",
     "import:questions": "tsx scripts/import-questions.ts",
     "icons": "node scripts/make-icons.mjs"

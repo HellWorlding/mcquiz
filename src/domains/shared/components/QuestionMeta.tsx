@@ -21,7 +21,8 @@ function sourceHref(q: Q): string | null {
   if (q.unit_id) p.set("unit", q.unit_id);
   if (q.source_page) p.set("page", String(q.source_page));
   if (q.source_quote) p.set("text", q.source_quote.slice(0, 200));
-  return `/sources/find?${p}`;
+  // 쪽수가 있으면 원본 PDF 의 그 쪽으로 (PDF 가 없는 주제는 텍스트 원문으로 넘어간다)
+  return q.source_page ? `/sources/pdf?${p}` : `/sources/find?${p}`;
 }
 
 /** 난이도·주제·함정 유형 배지 */

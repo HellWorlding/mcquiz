@@ -48,7 +48,7 @@ export function EvidencePanel({ questionId, subjectId, isAdmin = false, showChat
                 <li key={h.chunkId} className="rounded-lg bg-card p-2 text-sm">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <Link
-                      href={`/sources/${h.sourceId}?chunk=${h.chunkId}${h.page ? `&page=${h.page}` : ""}`}
+                      href={h.kind === "book" && h.page && subjectId ? `/sources/pdf?subject=${subjectId}&page=${h.page}` : `/sources/${h.sourceId}?chunk=${h.chunkId}${h.page ? `&page=${h.page}` : ""}`}
                       target="_blank"
                       rel="noopener"
                       title={t("source.open")}
