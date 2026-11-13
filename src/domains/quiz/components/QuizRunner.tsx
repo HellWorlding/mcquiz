@@ -422,7 +422,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         {navGrid}
       </div>
     </aside>
-    {!isGuest && subjectId && <ChatDock key={q.id} subjectId={subjectId} subjectName={title} question={q} revealed={answered} open={chatOpen} onOpenChange={setChatOpen} />}
+    {!isGuest && subjectId && <ChatDock key={q.id} subjectId={subjectId} subjectName={title} question={q} revealed={answered} open={chatOpen} onOpenChange={setChatOpen} displayOrder={order.map((c) => c.ord)} />}
     </div>
   );
 }

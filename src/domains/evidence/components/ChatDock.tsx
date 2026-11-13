@@ -5,11 +5,16 @@ import { openChatAction, type ChatOpenResult } from "@/domains/evidence/actions"
 import { useT } from "@/domains/shared/i18n-client";
 import { ChatThread, type ChatQuestion } from "./ChatPanel";
 
-function toChatQuestion(q: QuestionWithChoices): ChatQuestion {
+/** 화면에 보인 순서(displayOrder)대로 1번부터 다시 번호를 매긴다. 없으면 원본 순서 */
+function toChatQuestion(q: QuestionWithChoices, displayOrder?: number[]): ChatQuestion {
+  const byOrd = new Map(q.choices.map((c) => [c.ord, c]));
+  const ordered = displayOrder && displayOrder.length === q.choices.length && displayOrder.every((o) => byOrd.has(o))
+    ? displayOrder.map((o) => byOrd.get(o) as (typeof q.choices)[number])
+    : [...q.choices].sort((a, b) => a.ord - b.ord);
   return {
     prompt: q.prompt,
     explanation: q.explanation,
-    choices: [...q.choices].sort((a, b) => a.ord - b.ord).map((c) => ({ ord: c.ord, text: c.text, correct: c.ord === q.correct_choice })),
+    choices: ordered.map((c, i) => ({ ord: i + 1, text: c.text, correct: c.ord === q.correct_choice })),
   };
 }
 
@@ -24,6 +29,7 @@ export function ChatDock({
   revealed,
   open,
   onOpenChange,
+  displayOrder,
 }: {
   subjectId: string;
   subjectName: string;
@@ -31,6 +37,8 @@ export function ChatDock({
   revealed: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** 화면에 섞여 보인 선지의 원본 ord 순서 */
+  displayOrder?: number[];
 }) {
   const t = useT();
   const [ctx, setCtx] = useState<ChatOpenResult | null>(null);
@@ -98,7 +106,8 @@ export function ChatDock({
                   subjectId={subjectId}
                   subjectName={subjectName}
                   questionId={qid}
-                  question={question ? toChatQuestion(question) : null}
+                  question={question ? toChatQuestion(question, displayOrder) : null}
+                  choiceOrder={displayOrder}
                   aiEnabled={ctx.aiEnabled}
                   initialQuota={ctx.quota}
                   mode={ctx.mode}

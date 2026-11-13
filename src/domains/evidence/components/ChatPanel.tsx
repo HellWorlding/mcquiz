@@ -32,10 +32,12 @@ export type ChatThreadProps = {
   initialTurns?: Turn[];
   /** 모달 안에 들어갈 때 (제목·설명 생략) */
   embedded?: boolean;
+  /** 화면에 보인 선지 순서 (원본 ord 배열). AI 가 같은 번호로 말하게 한다 */
+  choiceOrder?: number[];
 };
 
 /** 채팅 본체: 문항 맥락 카드 + 대화 + 꼬리 질문 + 입력창 */
-export function ChatThread({ subjectId, subjectName, questionId, question, aiEnabled, initialQuota, mode, revealed = true, initialTurns = [], embedded = false }: ChatThreadProps) {
+export function ChatThread({ subjectId, subjectName, questionId, question, aiEnabled, initialQuota, mode, revealed = true, initialTurns = [], embedded = false, choiceOrder }: ChatThreadProps) {
   const t = useT();
   const [quota, setQuota] = useState<AiQuota>(initialQuota);
   const [turns, setTurns] = useState<Turn[]>(initialTurns);
@@ -59,7 +61,7 @@ export function ChatThread({ subjectId, subjectName, questionId, question, aiEna
     setInput("");
     setError(null);
     startTransition(async () => {
-      const r = await chatAction({ subjectId, questionId, revealAnswer: revealed, messages: next.map(({ role, content }) => ({ role, content })) });
+      const r = await chatAction({ subjectId, questionId, revealAnswer: revealed, choiceOrder, messages: next.map(({ role, content }) => ({ role, content })) });
       if (r.ok) {
         setTurns([...next, { role: "assistant", content: r.data.answer, sources: r.data.sources }]);
         setQuota(r.data.quota);

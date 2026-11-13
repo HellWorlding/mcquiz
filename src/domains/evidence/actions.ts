@@ -35,7 +35,7 @@ export type ChatReply = { answer: string; sources: { label: string; sourceId: st
  * 챗봇. 자료를 올린 주제(grounded)는 질문(과 문항 맥락)으로 자료를 검색한 뒤 찾은 조각만 근거로 답하고 출처를 돌려준다.
  * 자료가 없는 주제(open)는 AI 의 일반 지식으로 답하며, 관련 파생 정보(예문·유사 표현·흔한 오류)도 함께 준다.
  */
-export async function chatAction(input: { subjectId: string; questionId: string | null; messages: ChatMessage[]; revealAnswer?: boolean }): Promise<ActionResult<ChatReply>> {
+export async function chatAction(input: { subjectId: string; questionId: string | null; messages: ChatMessage[]; revealAnswer?: boolean; choiceOrder?: number[] }): Promise<ActionResult<ChatReply>> {
   const user = await requireUser();
   if (!hasOpenAI()) return { ok: false, error: "AI 기능이 꺼져 있습니다 (OPENAI_API_KEY 없음). 근거 찾기는 AI 없이도 됩니다." };
   const last = [...input.messages].reverse().find((m) => m.role === "user");
@@ -57,9 +57,13 @@ export async function chatAction(input: { subjectId: string; questionId: string 
   if (input.questionId) {
     const { data: q } = await db.from("questions").select("*, choices(*)").eq("id", input.questionId).maybeSingle();
     if (q) {
-      const choices = [...(q.choices ?? [])].sort((a, b) => a.ord - b.ord);
+      // 화면에는 선지가 섞여 보이므로, 학습자가 보는 순서(choiceOrder)대로 1번부터 번호를 매긴다
+      let choices = [...(q.choices ?? [])].sort((a, b) => a.ord - b.ord);
+      const byOrd = new Map(choices.map((c) => [c.ord, c]));
+      const co = input.choiceOrder;
+      if (co && co.length === choices.length && co.every((o) => byOrd.has(o))) choices = co.map((o) => byOrd.get(o) as (typeof choices)[number]);
       const mark = reveal ? " (정답)" : " (정답 — 학습자에게 아직 공개하지 말 것)";
-      context = `문항: ${q.prompt}\n${choices.map((c) => `${c.ord}) ${c.text}${c.ord === q.correct_choice ? mark : ""}`).join("\n")}${reveal && q.explanation ? `\n해설: ${q.explanation}` : ""}`;
+      context = `문항: ${q.prompt}\n${choices.map((c, i) => `${i + 1}) ${c.text}${c.ord === q.correct_choice ? mark : ""}`).join("\n")}${reveal && q.explanation ? `\n해설: ${q.explanation}` : ""}`;
       if (q.unit_id) unitIds = [q.unit_id];
     }
   }
