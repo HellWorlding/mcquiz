@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/domains/auth/session";
 import { createClient } from "@/domains/auth/supabase/server";
 import { findEvidence } from "@/domains/evidence/search";
+import { tokenize } from "@/domains/import/tokenize";
 import { getT } from "@/domains/shared/i18n-server";
 
 export const metadata = { title: "원문 보기" };
@@ -20,9 +21,12 @@ export default async function FindSourcePage({ searchParams }: { searchParams: P
     const db = await createClient();
     const q = text ? `&q=${encodeURIComponent(text.slice(0, 200))}` : "";
     if (page && /^\d+$/.test(page)) {
-      const { data } = await db.from("source_chunks").select("id, source_id, unit_id").eq("subject_id", subject).eq("page", Number(page)).order("ord").limit(30);
+      const { data } = await db.from("source_chunks").select("id, source_id, unit_id, content").eq("subject_id", subject).eq("page", Number(page)).order("ord").limit(30);
       if (data?.length) {
-        const hit = (unit && data.find((c) => c.unit_id === unit)) || data[0];
+        // 같은 쪽에 조각이 여럿이면: 단원이 맞고, 근거 문장의 단어가 가장 많이 들어 있는 조각
+        const toks = text ? tokenize(text) : [];
+        const score = (c: (typeof data)[number]) => (unit && c.unit_id === unit ? 1000 : 0) + toks.filter((tk) => c.content.includes(tk)).length;
+        const hit = [...data].sort((a, b) => score(b) - score(a))[0];
         redirect(`/sources/${hit.source_id}?chunk=${hit.id}&page=${page}${q}`);
       }
     }
