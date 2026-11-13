@@ -36,6 +36,7 @@
     "dotenv": "^18.0.9",
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
+    "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",

@@ -2,17 +2,16 @@
  * 주제의 원본 PDF(교재)를 비공개 저장소에 올리고 subject_files 에 등록한다.
  *
  *   npm run upload:file -- "<주제 이름>" <PDF 경로> --split [--offset 0]
- *     책 자료(sources.kind='book')의 page_range 대로 단원별 PDF 로 잘라 올린다 (poppler 의 pdfseparate/pdfunite 필요).
+ *     책 자료(sources.kind='book')의 page_range 대로 단원별 PDF 로 잘라 올린다 (pdf-lib, 필요한 쪽만 복사해 작게 만든다).
  *     "원문 보기"는 그 단원 파일만 받아서 교재 쪽수 자리로 연다. 통째 파일이 있었다면 지운다.
  *   npm run upload:file -- "<주제 이름>" <PDF 경로> [--name book] [--offset 0] [--title "제목"]
  *     통째로 올린다 (단원 파일이 없는 쪽수의 대비용).
  *
  * --offset: 교재에 인쇄된 쪽수 + offset = PDF 쪽 번호 (앞에 표지·목차가 끼어 있으면 그 장수)
  */
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { basename } from "node:path";
+import { PDFDocument } from "pdf-lib";
 import { adminDb, findSubject } from "./_db";
 
 const BUCKET = "sources";
@@ -62,18 +61,20 @@ async function main() {
     console.error("책 자료(kind=book)에 page_range 가 없습니다. 먼저 책 텍스트를 올리세요.");
     process.exit(1);
   }
-  const tmp = mkdtempSync(join(tmpdir(), "mcquiz-pdf-"));
-  try {
+  const src = await PDFDocument.load(readFileSync(file));
+  const total = src.getPageCount();
+  {
     for (const r of rows) {
       const first = r.from + page_offset;
-      const last = r.to + page_offset;
-      const dir = join(tmp, String(r.unitNo ?? r.id));
-      execFileSync("mkdir", ["-p", dir]);
-      execFileSync("pdfseparate", ["-f", String(first), "-l", String(last), file, join(dir, "p-%d.pdf")]);
-      const parts = Array.from({ length: last - first + 1 }, (_, i) => join(dir, `p-${first + i}.pdf`));
-      const out = join(dir, "unit.pdf");
-      execFileSync("pdfunite", [...parts, out]);
-      const buf = readFileSync(out);
+      const last = Math.min(r.to + page_offset, total);
+      if (first < 1 || first > last) {
+        console.error(`${r.unitTitle}: p.${r.from}-${r.to} 가 PDF 범위(1-${total}) 밖입니다. 건너뜀`);
+        continue;
+      }
+      const doc = await PDFDocument.create();
+      const pages = await doc.copyPages(src, Array.from({ length: last - first + 1 }, (_, i) => first - 1 + i));
+      for (const pg of pages) doc.addPage(pg);
+      const buf = Buffer.from(await doc.save());
       const key = r.unitNo !== null ? String(r.unitNo).padStart(3, "0") : r.id;
       const storage_path = `${subject.id}/book/${key}.pdf`;
       const { error: upErr } = await db.storage.from(BUCKET).upload(storage_path, buf, { contentType: "application/pdf", upsert: true });
@@ -85,8 +86,6 @@ async function main() {
       if (error) throw error;
       console.log(`${key} ${r.unitTitle} p.${r.from}-${r.to} → ${storage_path} (${(buf.length / 1024).toFixed(0)} KB)`);
     }
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
   }
   // 통째 파일은 지운다 (단원 파일만 쓴다)
   const { data: whole } = await db.from("subject_files").select("id, storage_path").eq("subject_id", subject.id).eq("name", "book").maybeSingle();
