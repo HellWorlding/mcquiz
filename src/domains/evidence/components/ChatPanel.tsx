@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { chatAction, type ChatMessage, type ChatReply } from "@/domains/evidence/actions";
 import { useT } from "@/domains/shared/i18n-client";
@@ -45,11 +46,23 @@ export function ChatThread({ subjectId, subjectName, questionId, question, aiEna
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const endRef = useRef<HTMLDivElement>(null);
+  const lastRef = useRef<HTMLDivElement>(null);
+  const firstRun = useRef(true);
 
-  // 새 턴이 생기면 맨 아래로
+  // 내가 보내면 맨 아래(생각 중…)로, 답이 오면 그 답의 첫 줄이 보이게 스크롤
   useEffect(() => {
-    if (turns.length) endRef.current?.scrollIntoView({ block: "end" });
-  }, [turns.length, pending]);
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    const last = turns[turns.length - 1];
+    if (!last) return;
+    const id = requestAnimationFrame(() => {
+      if (last.role === "assistant") lastRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+      else endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [turns, pending]);
 
   const canAsk = aiEnabled && quota.remaining > 0 && !pending;
 
@@ -110,7 +123,11 @@ export function ChatThread({ subjectId, subjectName, questionId, question, aiEna
       <div className="flex flex-col gap-3">
         {hasHistory && <div className="text-center text-xs text-muted">{t("chat.history")}</div>}
         {turns.map((turn, i) => (
-          <div key={i} className={`max-w-[92%] rounded-2xl px-4 py-3 ${turn.role === "user" ? "self-end bg-accent text-white" : "self-start bg-card border border-border"} ${turn.saved ? "opacity-80" : ""}`}>
+          <div
+            key={i}
+            ref={i === turns.length - 1 ? lastRef : undefined}
+            className={`max-w-[92%] scroll-mt-2 rounded-2xl px-4 py-3 ${turn.role === "user" ? "self-end bg-accent text-white" : "self-start bg-card border border-border"} ${turn.saved ? "opacity-80" : ""}`}
+          >
             <p className="whitespace-pre-wrap leading-relaxed">{turn.content}</p>
             {turn.sources && turn.sources.length > 0 && (
               <details className="mt-2 text-sm">
@@ -118,9 +135,15 @@ export function ChatThread({ subjectId, subjectName, questionId, question, aiEna
                 <ul className="mt-1 flex flex-col gap-1">
                   {turn.sources.map((s, j) => (
                     <li key={j} className="rounded-lg bg-background p-2">
-                      <span className="badge mr-1 bg-accent-soft text-accent">
-                        [{j + 1}] {s.label}
-                      </span>
+                      <Link
+                        href={`/sources/${s.sourceId}?chunk=${s.chunkId}${s.page ? `&page=${s.page}` : ""}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="badge mr-1 bg-accent-soft text-accent hover:underline"
+                        title={t("source.open")}
+                      >
+                        [{j + 1}] {s.label} ↗
+                      </Link>
                       <span className="text-muted">{s.snippet}</span>
                     </li>
                   ))}

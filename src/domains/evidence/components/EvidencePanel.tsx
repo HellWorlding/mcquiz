@@ -47,7 +47,15 @@ export function EvidencePanel({ questionId, subjectId, isAdmin = false, showChat
               {result.hits.map((h) => (
                 <li key={h.chunkId} className="rounded-lg bg-card p-2 text-sm">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <span className={`badge ${h.kind === "book" ? "bg-warn-soft text-warn" : "bg-accent-soft text-accent"}`}>{h.label}</span>
+                    <Link
+                      href={`/sources/${h.sourceId}?chunk=${h.chunkId}${h.page ? `&page=${h.page}` : ""}`}
+                      target="_blank"
+                      rel="noopener"
+                      title={t("source.open")}
+                      className={`badge hover:underline ${h.kind === "book" ? "bg-warn-soft text-warn" : "bg-accent-soft text-accent"}`}
+                    >
+                      {h.label} ↗
+                    </Link>
                     {h.scope === "all" && <span className="text-xs text-muted">{t("quiz.outside_unit")}</span>}
                     <button className="ml-auto text-xs text-accent" onClick={() => setOpen(open === h.chunkId ? null : h.chunkId)}>
                       {open === h.chunkId ? t("common.close") : t("quiz.show_full")}

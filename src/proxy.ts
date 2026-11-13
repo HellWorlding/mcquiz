@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/subjects", "/quiz", "/weak", "/admin", "/collections", "/account", "/chat", "/notes", "/board"];
+const PROTECTED_PREFIXES = ["/subjects", "/quiz", "/weak", "/admin", "/collections", "/account", "/chat", "/notes", "/board", "/sources"];
 
 const CANONICAL_HOST = process.env.NEXT_PUBLIC_CANONICAL_HOST || "mcquiz.site";
 
@@ -42,7 +42,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const guestAccess = (process.env.PUBLIC_GUEST_ACCESS ?? "false").toLowerCase() === "true";
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  const guestAllowed = guestAccess && !["/admin", "/weak", "/account", "/chat", "/notes", "/board"].some((p) => pathname.startsWith(p));
+  const guestAllowed = guestAccess && !["/admin", "/weak", "/account", "/chat", "/notes", "/board", "/sources"].some((p) => pathname.startsWith(p));
 
   if (!user && isProtected && !guestAllowed) {
     const url = request.nextUrl.clone();

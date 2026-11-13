@@ -360,7 +360,10 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
               {!isGuest && <EvidencePanel questionId={q.id} subjectId={subjectId} isAdmin={isAdmin} showChat={false} />}
               {!isGuest && (
                 <div className="flex flex-wrap items-start gap-2">
-                  <NoteBox key={q.id} questionId={q.id} initial={notes[q.id] ?? ""} compact importText={explanationText(q)} />
+                  {/* 메모는 카드 너비를 다 쓰게 (필기 화면처럼 넓게) */}
+                  <div className="min-w-0 flex-1 basis-[min(100%,26rem)]">
+                    <NoteBox key={q.id} questionId={q.id} initial={notes[q.id] ?? ""} compact importText={explanationText(q)} />
+                  </div>
                   <ReportButton questionId={q.id} />
                 </div>
               )}

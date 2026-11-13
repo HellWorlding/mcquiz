@@ -1,8 +1,28 @@
 "use client";
+import Link from "next/link";
 import { difficultyLabel, trapLabel } from "@/domains/shared/labels";
 import { useLang, useT } from "@/domains/shared/i18n-client";
 
-type Q = { difficulty: string | null; topic: string | null; trap_types: string[]; source_quote: string | null; points?: number | null; source_page?: number | null };
+type Q = {
+  difficulty: string | null;
+  topic: string | null;
+  trap_types: string[];
+  source_quote: string | null;
+  points?: number | null;
+  source_page?: number | null;
+  /** 있으면 "원문 보기" 링크를 만든다 (책 쪽수 또는 근거 문장으로 자료를 찾아간다) */
+  subject_id?: string | null;
+  unit_id?: string | null;
+};
+
+function sourceHref(q: Q): string | null {
+  if (!q.subject_id || (!q.source_page && !q.source_quote)) return null;
+  const p = new URLSearchParams({ subject: q.subject_id });
+  if (q.unit_id) p.set("unit", q.unit_id);
+  if (q.source_page) p.set("page", String(q.source_page));
+  if (q.source_quote) p.set("text", q.source_quote.slice(0, 200));
+  return `/sources/find?${p}`;
+}
 
 /** 난이도·주제·함정 유형 배지 */
 export function QuestionBadges({ q, showTraps = true }: { q: Q; showTraps?: boolean }) {
@@ -28,10 +48,16 @@ export function QuestionBadges({ q, showTraps = true }: { q: Q; showTraps?: bool
 export function SourceQuote({ q, className = "" }: { q: Q; className?: string }) {
   const t = useT();
   if (!q.source_quote && !q.source_page) return null;
+  const href = sourceHref(q);
   return (
     <blockquote className={`rounded-lg border-l-4 border-accent bg-accent-soft/30 px-3 py-2 text-sm ${className}`}>
       <span className="mr-1 text-xs font-semibold text-muted">{t("quiz.evidence_label")}{q.source_page ? ` · ${t("quiz.book_page", { n: q.source_page })}` : ""}</span>
       {q.source_quote && <span className="whitespace-pre-wrap">{q.source_quote}</span>}
+      {href && (
+        <Link href={href} target="_blank" rel="noopener" className="ml-2 inline-block text-xs font-semibold text-accent hover:underline">
+          {t("source.open")}
+        </Link>
+      )}
     </blockquote>
   );
 }
