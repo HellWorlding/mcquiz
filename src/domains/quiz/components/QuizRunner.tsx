@@ -63,6 +63,17 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   });
   const [sessionId, setSessionId] = useState<string | null>(resume?.id ?? null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  /** 저장함 토글 (풀이 화면·결과 화면 공용) */
+  const toggleSave = (id: string) => {
+    const next = !savedIds.has(id);
+    setSavedIds((s) => {
+      const n = new Set(s);
+      if (next) n.add(id);
+      else n.delete(id);
+      return n;
+    });
+    void saveQuestionAction(id, next);
+  };
   const sessionRef = useRef<string | null>(resume?.id ?? null);
   const saving = useRef<Promise<void> | null>(null);
 
@@ -213,8 +224,8 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
             </Link>
           </div>
         </div>
-        <ResultList title={t("quiz.wrong_list")} items={wrong} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="bad" />
-        <ResultList title={t("quiz.confused_list")} items={confused} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="warn" />
+        <ResultList title={t("quiz.wrong_list")} items={wrong} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="bad" savedIds={savedIds} onToggleSave={toggleSave} />
+        <ResultList title={t("quiz.confused_list")} items={confused} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="warn" savedIds={savedIds} onToggleSave={toggleSave} />
       </section>
     );
   }
@@ -361,16 +372,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         {!isGuest && (
           <button
             className={`btn-sm rounded-xl border px-3 py-2 font-semibold ${savedIds.has(q.id) ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
-            onClick={() => {
-              const next = !savedIds.has(q.id);
-              setSavedIds((s) => {
-                const n = new Set(s);
-                if (next) n.add(q.id);
-                else n.delete(q.id);
-                return n;
-              });
-              void saveQuestionAction(q.id, next);
-            }}
+            onClick={() => toggleSave(q.id)}
           >
             {savedIds.has(q.id) ? t("quiz.saved") : t("quiz.save")}
           </button>
@@ -419,6 +421,8 @@ function ResultList({
   subjectId,
   isGuest,
   tone,
+  savedIds,
+  onToggleSave,
 }: {
   title: string;
   items: QuestionWithChoices[];
@@ -426,6 +430,8 @@ function ResultList({
   subjectId: string | null;
   isGuest: boolean;
   tone: "bad" | "warn";
+  savedIds: Set<string>;
+  onToggleSave: (id: string) => void;
 }) {
   const t = useT();
   if (items.length === 0) return null;
@@ -452,8 +458,23 @@ function ResultList({
               {correct?.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{cleanExplanation(correct.explanation)}</p>}
               {q.explanation && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{q.explanation}</p>}
               <SourceQuote q={q} className="mt-1" />
-              <div className="mt-1">
+              <div className="mt-1 flex flex-wrap items-center gap-2">
                 <QuestionBadges q={q} />
+                {!isGuest && (
+                  <span className="ml-auto flex items-center gap-1">
+                    <button
+                      className={`btn-sm rounded-xl border px-3 py-1.5 text-sm font-semibold ${savedIds.has(q.id) ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+                      onClick={() => onToggleSave(q.id)}
+                    >
+                      {savedIds.has(q.id) ? t("quiz.saved") : t("quiz.save")}
+                    </button>
+                    {subjectId && (
+                      <Link href={`/chat?subject=${subjectId}&question=${q.id}`} target="_blank" rel="noopener" className="btn-ghost btn-sm">
+                        {t("start.ask_ai")}
+                      </Link>
+                    )}
+                  </span>
+                )}
               </div>
             </li>
           );

@@ -7,11 +7,20 @@ import type { AiMode } from "@/domains/evidence/mode";
 
 type Turn = ChatMessage & { sources?: ChatReply["sources"] };
 
+/** 채팅에 기본으로 깔아 두는 문항 (문제 + 선지 + 해설). 꼬리 질문은 이 맥락 위에서 이어진다 */
+export type ChatQuestion = {
+  prompt: string;
+  explanation: string | null;
+  choices: { ord: number; text: string; correct: boolean }[];
+};
+
+const FOLLOWUPS = ["chat.q_why", "chat.q_others", "chat.q_similar", "chat.q_examples", "chat.q_mistakes"] as const;
+
 export function ChatPanel({
   subjectId,
   subjectName,
   questionId,
-  questionPrompt,
+  question,
   aiEnabled,
   initialQuota,
   mode,
@@ -19,7 +28,7 @@ export function ChatPanel({
   subjectId: string;
   subjectName: string;
   questionId: string | null;
-  questionPrompt: string | null;
+  question: ChatQuestion | null;
   aiEnabled: boolean;
   initialQuota: AiQuota;
   mode: AiMode;
@@ -31,9 +40,11 @@ export function ChatPanel({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const send = () => {
-    const text = input.trim();
-    if (!text) return;
+  const canAsk = aiEnabled && quota.remaining > 0 && !pending;
+
+  const send = (preset?: string) => {
+    const text = (preset ?? input).trim();
+    if (!text || !canAsk) return;
     const next: Turn[] = [...turns, { role: "user", content: text }];
     setTurns(next);
     setInput("");
@@ -56,10 +67,25 @@ export function ChatPanel({
           {t("chat.quota", { remaining: quota.remaining, limit: quota.limit, hours: quota.windowHours })}
         </p>
       </div>
-      {questionPrompt && (
+      {question && (
         <div className="card text-sm">
           <div className="mb-1 text-xs font-semibold text-muted">{t("chat.context")}</div>
-          <p className="whitespace-pre-wrap">{questionPrompt}</p>
+          <p className="whitespace-pre-wrap font-semibold">{question.prompt}</p>
+          <ol className="mt-2 flex flex-col gap-1">
+            {question.choices.map((c) => (
+              <li key={c.ord} className={`flex gap-2 rounded-lg px-2 py-1 ${c.correct ? "bg-ok-soft text-ok" : ""}`}>
+                <span className="shrink-0 tabular-nums">{c.ord})</span>
+                <span className="whitespace-pre-wrap">{c.text}</span>
+                {c.correct && <span className="ml-auto shrink-0 text-xs font-semibold">✓ {t("chat.correct_mark")}</span>}
+              </li>
+            ))}
+          </ol>
+          {question.explanation && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-muted">{t("common.explanation")}</summary>
+              <p className="mt-1 whitespace-pre-wrap text-muted">{question.explanation}</p>
+            </details>
+          )}
         </div>
       )}
       {!aiEnabled && <p className="rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{t("chat.disabled")}</p>}
@@ -89,8 +115,19 @@ export function ChatPanel({
         {error && <p className="text-sm text-bad">{error}</p>}
       </div>
 
+      <div className="sticky bottom-0 flex flex-col gap-2 bg-background py-2">
+      {question && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <span className="shrink-0 self-center text-xs text-muted">{t("chat.followups")}</span>
+          {FOLLOWUPS.map((k) => (
+            <button key={k} type="button" className="btn-secondary btn-sm shrink-0 whitespace-nowrap" disabled={!canAsk} onClick={() => send(t(k))}>
+              {t(k)}
+            </button>
+          ))}
+        </div>
+      )}
       <form
-        className="sticky bottom-0 flex gap-2 bg-background py-2"
+        className="flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           send();
@@ -103,10 +140,11 @@ export function ChatPanel({
           onChange={(e) => setInput(e.target.value)}
           disabled={pending || !aiEnabled || quota.remaining === 0}
         />
-        <button className="btn-primary shrink-0" type="submit" disabled={pending || !aiEnabled || !input.trim() || quota.remaining === 0}>
+        <button className="btn-primary shrink-0" type="submit" disabled={!canAsk || !input.trim()}>
           {t("chat.send")}
         </button>
       </form>
+      </div>
     </section>
   );
 }

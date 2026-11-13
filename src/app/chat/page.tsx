@@ -2,7 +2,7 @@ import { requireUser } from "@/domains/auth/session";
 import { createClient } from "@/domains/auth/supabase/server";
 import { getSubject, listSubjects } from "@/domains/subjects/queries";
 import { hasOpenAI } from "@/domains/shared/env";
-import { ChatPanel } from "@/domains/evidence/components/ChatPanel";
+import { ChatPanel, type ChatQuestion } from "@/domains/evidence/components/ChatPanel";
 import { getAiQuota } from "@/domains/evidence/quota";
 import { getAiMode } from "@/domains/evidence/mode";
 
@@ -16,12 +16,15 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   if (!current) return <p className="card text-muted">볼 수 있는 주제가 없습니다.</p>;
   const db = await createClient();
   const mode = await getAiMode(db, current.id);
-  let prompt: string | null = null;
+  let q: ChatQuestion | null = null;
   if (question) {
-    const { data } = await db.from("questions").select("prompt").eq("id", question).maybeSingle();
-    prompt = data?.prompt ?? null;
+    const { data } = await db.from("questions").select("prompt, explanation, correct_choice, choices(ord, text)").eq("id", question).maybeSingle();
+    if (data)
+      q = {
+        prompt: data.prompt,
+        explanation: data.explanation,
+        choices: [...(data.choices ?? [])].sort((a, b) => a.ord - b.ord).map((c) => ({ ord: c.ord, text: c.text, correct: c.ord === data.correct_choice })),
+      };
   }
-  return (
-    <ChatPanel subjectId={current.id} subjectName={current.name} questionId={question ?? null} questionPrompt={prompt} aiEnabled={hasOpenAI()} initialQuota={quota} mode={mode} />
-  );
+  return <ChatPanel subjectId={current.id} subjectName={current.name} questionId={q ? question ?? null : null} question={q} aiEnabled={hasOpenAI()} initialQuota={quota} mode={mode} />;
 }

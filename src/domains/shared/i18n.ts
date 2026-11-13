@@ -225,6 +225,13 @@ const M = {
   "chat.placeholder_q": ["이 문제에 대해 물어보세요 (예: 왜 3번이 틀렸어?)", "Ask about this question (e.g. why is 3 wrong?)"],
   "chat.placeholder": ["궁금한 내용을 물어보세요", "Ask anything about the material"],
   "chat.send": ["보내기", "Send"],
+  "chat.followups": ["꼬리 질문", "Follow-ups"],
+  "chat.q_why": ["왜 이게 정답이야?", "Why is this the correct answer?"],
+  "chat.q_others": ["다른 보기는 왜 틀렸어?", "Why are the other options wrong?"],
+  "chat.q_similar": ["비슷한 표현·개념과 차이는?", "How is it different from similar expressions or concepts?"],
+  "chat.q_examples": ["예문 3개 더 보여 줘", "Show me 3 more examples"],
+  "chat.q_mistakes": ["자주 틀리는 포인트는?", "What are the common mistakes here?"],
+  "chat.correct_mark": ["정답", "answer"],
   "footer.disclaimer": [
     "문제와 해설은 AI가 만든 학습용 자료라 실제 시험·교재와 다를 수 있습니다. 틀린 곳은 문항의 \"신고\"나 게시판, 또는 {email} 로 알려 주세요.",
     "Questions and explanations are AI-generated study material and may differ from official exams or textbooks. Report errors via \"Report\" on a question, the board, or {email}.",
