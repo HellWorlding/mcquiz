@@ -20,6 +20,11 @@ export default async function FindSourcePage({ searchParams }: { searchParams: P
   if (subject) {
     const db = await createClient();
     const q = text ? `&q=${encodeURIComponent(text.slice(0, 200))}` : "";
+    // 그 쪽이 든 교재 PDF 파일이 있으면 PDF 로 (예전 링크로 들어와도 PDF 가 우선)
+    if (page && /^\d+$/.test(page)) {
+      const { data: f } = await db.from("subject_files").select("id").eq("subject_id", subject).lte("page_from", Number(page)).gte("page_to", Number(page)).limit(1).maybeSingle();
+      if (f) redirect(`/sources/pdf?${qs}`);
+    }
     if (page && /^\d+$/.test(page)) {
       const { data } = await db.from("source_chunks").select("id, source_id, unit_id, content").eq("subject_id", subject).eq("page", Number(page)).order("ord").limit(30);
       if (data?.length) {
