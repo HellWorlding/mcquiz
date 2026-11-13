@@ -1,6 +1,6 @@
 "use server";
 import { createClient } from "@/domains/auth/supabase/server";
-import { requireUser } from "@/domains/auth/session";
+import { getCurrentUser, requireUser } from "@/domains/auth/session";
 import { env, hasOpenAI } from "@/domains/shared/env";
 import type { ActionResult } from "@/domains/shared/types";
 import { findEvidence, type EvidenceHit } from "./search";
@@ -35,7 +35,7 @@ export type ChatReply = { answer: string; sources: { label: string; sourceId: st
  * 챗봇. 자료를 올린 주제(grounded)는 질문(과 문항 맥락)으로 자료를 검색한 뒤 찾은 조각만 근거로 답하고 출처를 돌려준다.
  * 자료가 없는 주제(open)는 AI 의 일반 지식으로 답하며, 관련 파생 정보(예문·유사 표현·흔한 오류)도 함께 준다.
  */
-export async function chatAction(input: { subjectId: string; questionId: string | null; messages: ChatMessage[] }): Promise<ActionResult<ChatReply>> {
+export async function chatAction(input: { subjectId: string; questionId: string | null; messages: ChatMessage[]; revealAnswer?: boolean }): Promise<ActionResult<ChatReply>> {
   const user = await requireUser();
   if (!hasOpenAI()) return { ok: false, error: "AI 기능이 꺼져 있습니다 (OPENAI_API_KEY 없음). 근거 찾기는 AI 없이도 됩니다." };
   const last = [...input.messages].reverse().find((m) => m.role === "user");
@@ -50,13 +50,16 @@ export async function chatAction(input: { subjectId: string; questionId: string 
   const db = await createClient();
   const mode = await getAiMode(db, input.subjectId);
 
+  // 아직 답을 고르기 전(revealAnswer=false)이면 정답을 직접 말하지 않고 힌트로만 돕는다
+  const reveal = input.revealAnswer !== false;
   let context = "";
   let unitIds: string[] | null = null;
   if (input.questionId) {
     const { data: q } = await db.from("questions").select("*, choices(*)").eq("id", input.questionId).maybeSingle();
     if (q) {
       const choices = [...(q.choices ?? [])].sort((a, b) => a.ord - b.ord);
-      context = `문항: ${q.prompt}\n${choices.map((c) => `${c.ord}) ${c.text}${c.ord === q.correct_choice ? " (정답)" : ""}`).join("\n")}${q.explanation ? `\n해설: ${q.explanation}` : ""}`;
+      const mark = reveal ? " (정답)" : " (정답 — 학습자에게 아직 공개하지 말 것)";
+      context = `문항: ${q.prompt}\n${choices.map((c) => `${c.ord}) ${c.text}${c.ord === q.correct_choice ? mark : ""}`).join("\n")}${reveal && q.explanation ? `\n해설: ${q.explanation}` : ""}`;
       if (q.unit_id) unitIds = [q.unit_id];
     }
   }
@@ -74,6 +77,9 @@ export async function chatAction(input: { subjectId: string; questionId: string 
       : `너는 학습 도우미(튜터)다. 이 주제에는 올려 둔 자료가 없으므로 네 일반 지식으로 답한다. ${langRule}
 질문에 바로 답한 뒤, 도움이 되는 파생 정보(핵심 규칙, 예문 2~3개, 비슷한 표현과의 차이, 학습자가 자주 틀리는 점)를 짧게 덧붙인다. 문항 맥락이 있으면 왜 정답이 맞고 다른 보기는 왜 틀리는지 설명한다.
 확실하지 않은 것은 그렇다고 말한다. 출처를 지어내지 않는다. 간결하게, 바로 공부에 쓸 수 있게 답한다.`;
+  const hintRule = reveal
+    ? ""
+    : "\n학습자는 아직 이 문항의 답을 고르지 않았다. 정답 번호나 정답 자체를 직접 말하지 말고, 개념 설명·접근 방법·힌트로 돕는다. 학습자가 분명하게 정답을 알려 달라고 하면 그때는 알려 준다.";
   const userContext =
     mode === "grounded"
       ? `${context ? `[문항 맥락]\n${context}\n\n` : ""}[자료]\n${passages || "(관련 자료를 찾지 못함)"}`
@@ -83,7 +89,7 @@ export async function chatAction(input: { subjectId: string; questionId: string 
     const res = await client.responses.create({
       model: env.openaiModel,
       input: [
-        { role: "system", content: system },
+        { role: "system", content: system + hintRule },
         { role: "user", content: userContext },
         ...input.messages.slice(-8).map((m) => ({ role: m.role, content: m.content })),
       ],
@@ -102,4 +108,28 @@ export async function chatAction(input: { subjectId: string; questionId: string 
   } catch (e) {
     return { ok: false, error: `AI 호출 실패: ${(e as Error).message}` };
   }
+}
+
+export type ChatOpenResult = { quota: AiQuota; mode: AiMode; aiEnabled: boolean; history: ChatMessage[] };
+
+/** 채팅 모달을 열 때: 남은 횟수, 주제의 AI 모드, 이 문항으로 전에 나눈 대화(최근 6건) */
+export async function openChatAction(subjectId: string, questionId: string | null): Promise<ActionResult<ChatOpenResult>> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "로그인이 필요합니다." };
+  const db = await createClient();
+  const [quota, mode] = await Promise.all([getAiQuota(user), getAiMode(db, subjectId)]);
+  let history: ChatMessage[] = [];
+  if (questionId) {
+    const { data } = await db
+      .from("ai_questions")
+      .select("question, answer, created_at")
+      .eq("user_id", user.id)
+      .eq("question_id", questionId)
+      .order("created_at", { ascending: false })
+      .limit(6);
+    history = (data ?? [])
+      .reverse()
+      .flatMap((r): ChatMessage[] => (r.answer ? [{ role: "user", content: r.question }, { role: "assistant", content: r.answer }] : [{ role: "user", content: r.question }]));
+  }
+  return { ok: true, data: { quota, mode, aiEnabled: hasOpenAI(), history } };
 }

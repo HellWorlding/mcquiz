@@ -232,6 +232,11 @@ const M = {
   "chat.q_examples": ["예문 3개 더 보여 줘", "Show me 3 more examples"],
   "chat.q_mistakes": ["자주 틀리는 포인트는?", "What are the common mistakes here?"],
   "chat.correct_mark": ["정답", "answer"],
+  "chat.fab": ["AI에게 질문하기", "Ask AI"],
+  "chat.hint_mode": ["아직 답을 고르기 전이라 정답은 직접 알려 주지 않고 힌트로 돕습니다.", "You haven't answered yet, so the AI gives hints instead of the answer."],
+  "chat.history": ["— 이 문제로 나눈 이전 대화 —", "— Earlier conversation about this question —"],
+  "chat.q_hint": ["힌트 줘 (정답 말고)", "Give me a hint (not the answer)"],
+  "chat.q_concept": ["이 문제의 핵심 개념은?", "What is the key concept here?"],
   "footer.disclaimer": [
     "문제와 해설은 AI가 만든 학습용 자료라 실제 시험·교재와 다를 수 있습니다. 틀린 곳은 문항의 \"신고\"나 게시판, 또는 {email} 로 알려 주세요.",
     "Questions and explanations are AI-generated study material and may differ from official exams or textbooks. Report errors via \"Report\" on a question, the board, or {email}.",

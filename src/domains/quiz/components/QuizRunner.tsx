@@ -12,6 +12,7 @@ import { cleanExplanation } from "@/domains/shared/labels";
 import { NoteBox } from "@/domains/notes/components/NoteBox";
 import { useT } from "@/domains/shared/i18n-client";
 import { ReportButton } from "@/domains/questions/components/ReportModal";
+import { ChatDock } from "@/domains/evidence/components/ChatDock";
 
 const pts = (q: QuestionWithChoices) => (q.points && q.points > 0 ? q.points : 1);
 
@@ -63,6 +64,13 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   });
   const [sessionId, setSessionId] = useState<string | null>(resume?.id ?? null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  // 우하단 AI 채팅 모달. 결과 화면에서는 고른 문항(chatTarget)으로 연다
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatTarget, setChatTarget] = useState<QuestionWithChoices | null>(null);
+  const askAbout = (x: QuestionWithChoices) => {
+    setChatTarget(x);
+    setChatOpen(true);
+  };
   /** 저장함 토글 (풀이 화면·결과 화면 공용) */
   const toggleSave = (id: string) => {
     const next = !savedIds.has(id);
@@ -120,6 +128,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   const goTo = (i: number) => {
     setShowHint(false);
     setShowAll(false);
+    setChatOpen(false); // 문항이 바뀌면 채팅은 접고 새 문항 맥락으로 다시 시작
     setIdx(i);
   };
 
@@ -205,7 +214,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     const gotPts = correct.reduce((s, x) => s + pts(x), 0);
     const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
     return (
-      <section className="flex flex-col gap-4">
+      <section className="flex flex-col gap-4 pb-20">
         <div className="card text-center">
           <div className="text-sm text-muted">{title}</div>
           <div className="mt-1 text-4xl font-bold">{t("quiz.score_pts", { got: fmt(gotPts), total: fmt(totalPts) })}</div>
@@ -224,8 +233,11 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
             </Link>
           </div>
         </div>
-        <ResultList title={t("quiz.wrong_list")} items={wrong} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="bad" savedIds={savedIds} onToggleSave={toggleSave} />
-        <ResultList title={t("quiz.confused_list")} items={confused} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="warn" savedIds={savedIds} onToggleSave={toggleSave} />
+        <ResultList title={t("quiz.wrong_list")} items={wrong} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="bad" savedIds={savedIds} onToggleSave={toggleSave} onAsk={askAbout} />
+        <ResultList title={t("quiz.confused_list")} items={confused} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="warn" savedIds={savedIds} onToggleSave={toggleSave} onAsk={askAbout} />
+        {!isGuest && subjectId && chatTarget && (
+          <ChatDock key={chatTarget.id} subjectId={subjectId} subjectName={title} question={chatTarget} revealed open={chatOpen} onOpenChange={setChatOpen} />
+        )}
       </section>
     );
   }
@@ -262,7 +274,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   );
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+    <div className="flex flex-col gap-3 pb-20 lg:flex-row lg:items-start">
     <section className="flex min-w-0 flex-1 flex-col gap-3">
       <div className="flex items-center justify-between text-sm text-muted">
         <Link href={backHref} className="btn-ghost btn-sm">
@@ -345,7 +357,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
               )}
               <SourceQuote q={q} />
               {q.trap_types.length > 0 && <QuestionBadges q={{ ...q, difficulty: null, topic: null, points: null }} />}
-              {!isGuest && <EvidencePanel questionId={q.id} subjectId={subjectId} isAdmin={isAdmin} />}
+              {!isGuest && <EvidencePanel questionId={q.id} subjectId={subjectId} isAdmin={isAdmin} showChat={false} />}
               {!isGuest && (
                 <div className="flex flex-wrap items-start gap-2">
                   <NoteBox key={q.id} questionId={q.id} initial={notes[q.id] ?? ""} compact importText={explanationText(q)} />
@@ -410,6 +422,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         {navGrid}
       </div>
     </aside>
+    {!isGuest && subjectId && <ChatDock key={q.id} subjectId={subjectId} subjectName={title} question={q} revealed={answered} open={chatOpen} onOpenChange={setChatOpen} />}
     </div>
   );
 }
@@ -423,6 +436,7 @@ function ResultList({
   tone,
   savedIds,
   onToggleSave,
+  onAsk,
 }: {
   title: string;
   items: QuestionWithChoices[];
@@ -432,6 +446,7 @@ function ResultList({
   tone: "bad" | "warn";
   savedIds: Set<string>;
   onToggleSave: (id: string) => void;
+  onAsk: (q: QuestionWithChoices) => void;
 }) {
   const t = useT();
   if (items.length === 0) return null;
@@ -469,9 +484,9 @@ function ResultList({
                       {savedIds.has(q.id) ? t("quiz.saved") : t("quiz.save")}
                     </button>
                     {subjectId && (
-                      <Link href={`/chat?subject=${subjectId}&question=${q.id}`} target="_blank" rel="noopener" className="btn-ghost btn-sm">
-                        {t("start.ask_ai")}
-                      </Link>
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => onAsk(q)}>
+                        {t("chat.fab")}
+                      </button>
                     )}
                   </span>
                 )}

@@ -5,7 +5,7 @@ import { findEvidenceAction, type EvidenceResult } from "@/domains/evidence/acti
 import { useT } from "@/domains/shared/i18n-client";
 
 /** 문항 아래 "근거 찾기" 버튼 + 결과 목록 (단원 자료 우선, 없으면 전체) */
-export function EvidencePanel({ questionId, subjectId, isAdmin = false }: { questionId: string; subjectId: string | null; isAdmin?: boolean }) {
+export function EvidencePanel({ questionId, subjectId, isAdmin = false, showChat = true }: { questionId: string; subjectId: string | null; isAdmin?: boolean; showChat?: boolean }) {
   const t = useT();
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<EvidenceResult | null>(null);
@@ -28,7 +28,7 @@ export function EvidencePanel({ questionId, subjectId, isAdmin = false }: { ques
             {pending ? t("quiz.evidence_searching") : t("quiz.evidence")}
           </button>
         )}
-        {subjectId && (
+        {showChat && subjectId && (
           <Link href={`/chat?subject=${subjectId}&question=${questionId}`} target="_blank" rel="noopener" className="btn-ghost btn-sm">
             {t("start.ask_ai")}
           </Link>
