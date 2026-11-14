@@ -135,7 +135,7 @@ export async function openChatAction(subjectId: string, questionId: string | nul
       .limit(6);
     history = (data ?? [])
       .reverse()
-      .flatMap((r): ChatMessage[] => (r.answer ? [{ role: "user", content: r.question }, { role: "assistant", content: r.answer }] : [{ role: "user", content: r.question }]));
+      .flatMap((r): ChatMessage[] => (r.answer ? [{ role: "user", content: r.question }, { role: "assistant", content: plainText(r.answer) }] : [{ role: "user", content: r.question }]));
   }
   return { ok: true, data: { quota, mode, aiEnabled: hasOpenAI(), history } };
 }

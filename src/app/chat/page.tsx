@@ -5,6 +5,7 @@ import { hasOpenAI } from "@/domains/shared/env";
 import { ChatPanel, type ChatQuestion, type Turn } from "@/domains/evidence/components/ChatPanel";
 import { getAiQuota } from "@/domains/evidence/quota";
 import { getAiMode } from "@/domains/evidence/mode";
+import { plainText } from "@/domains/evidence/plain";
 
 export const metadata = { title: "AI에게 묻기" };
 
@@ -28,7 +29,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
       .limit(6);
     history = (past ?? [])
       .reverse()
-      .flatMap((r): Turn[] => (r.answer ? [{ role: "user", content: r.question, saved: true }, { role: "assistant", content: r.answer, saved: true }] : [{ role: "user", content: r.question, saved: true }]));
+      .flatMap((r): Turn[] => (r.answer ? [{ role: "user", content: r.question, saved: true }, { role: "assistant", content: plainText(r.answer), saved: true }] : [{ role: "user", content: r.question, saved: true }]));
     const { data } = await db.from("questions").select("prompt, explanation, correct_choice, choices(ord, text)").eq("id", question).maybeSingle();
     if (data)
       q = {
