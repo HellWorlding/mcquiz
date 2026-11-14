@@ -59,9 +59,11 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
   // (틀린 것만 다시 풀기 같은 부분 풀이는 회독 진행으로 치지 않는다 → "3회독 중 1/20" 이 남는 현상 방지)
   const unitRound = useMemo(() => {
     const m = new Map<string, RoundInfo>();
-    type Acc = { hist: Record<number, number>; bySession: Map<string, { covered: number; answered: number }> };
+    type Cell = { n: number; correct: number };
+    type Acc = { hist: Record<number, Cell>; bySession: Map<string, { covered: number; answered: number }> };
     const walk = (n: TreeNode<Unit>): Acc => {
-      const hist: Record<number, number> = { ...(unitRounds[n.id] ?? {}) };
+      const hist: Record<number, Cell> = {};
+      for (const [k, v] of Object.entries(unitRounds[n.id] ?? {})) hist[+k] = { ...v };
       const bySession = new Map<string, { covered: number; answered: number }>();
       for (const p of unitProgress) {
         if (p.unitId !== n.id) continue;
@@ -70,19 +72,23 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
       }
       for (const c of n.children) {
         const sub = walk(c);
-        for (const [k, v] of Object.entries(sub.hist)) hist[+k] = (hist[+k] ?? 0) + v;
+        for (const [k, v] of Object.entries(sub.hist)) {
+          const cur = hist[+k] ?? { n: 0, correct: 0 };
+          hist[+k] = { n: cur.n + v.n, correct: cur.correct + v.correct };
+        }
         for (const [sid, v] of sub.bySession) {
           const cur = bySession.get(sid) ?? { covered: 0, answered: 0 };
           bySession.set(sid, { covered: cur.covered + v.covered, answered: cur.answered + v.answered });
         }
       }
-      const keys = Object.keys(hist).map(Number).filter((k) => hist[k] > 0);
+      const keys = Object.keys(hist).map(Number).filter((k) => hist[k].n > 0);
       if (keys.length) {
-        const total = keys.reduce((s, k) => s + hist[k], 0);
+        const total = keys.reduce((s, k) => s + hist[k].n, 0);
+        const correct = keys.reduce((s, k) => s + hist[k].correct, 0);
         const rounds = Math.min(...keys);
         let progressed = 0;
         for (const v of bySession.values()) if (v.covered >= total && v.answered > progressed) progressed = v.answered;
-        m.set(n.id, { rounds, progressed: Math.min(progressed, total), total });
+        m.set(n.id, { rounds, progressed: Math.min(progressed, total), total, correct });
       }
       return { hist, bySession };
     };
@@ -423,13 +429,21 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
   );
 }
 
-type RoundInfo = { rounds: number; progressed: number; total: number };
+type RoundInfo = { rounds: number; progressed: number; total: number; correct: number };
 
-/** "1회독" / "2회독 중 21/25" 배지. 아직 한 번도 안 풀었으면 없음 */
+/** "1회독 · 17/20 (85%)" / "2회독 중 21/25" 배지. 아직 한 번도 안 풀었으면 없음. 정답률은 문항별 최근 풀이 기준 */
 function RoundBadge({ info }: { info: RoundInfo | undefined }) {
   const t = useT();
   if (!info || (info.rounds === 0 && info.progressed === 0)) return null;
-  if (info.progressed === 0) return <span className="badge bg-ok-soft text-ok">{t("start.round_done", { k: info.rounds })}</span>;
+  if (info.progressed === 0) {
+    const pct = info.total ? Math.round((info.correct / info.total) * 100) : 0;
+    const tone = pct >= 80 ? "bg-ok-soft text-ok" : pct >= 60 ? "bg-warn-soft text-warn" : "bg-bad-soft text-bad";
+    return (
+      <span className={`badge ${tone}`} title={t("start.round_acc_title")}>
+        {t("start.round_done", { k: info.rounds, c: info.correct, n: info.total, pct })}
+      </span>
+    );
+  }
   return <span className="badge bg-accent-soft text-accent">{t("start.round_in", { k: info.rounds + 1, p: info.progressed, n: info.total })}</span>;
 }
 

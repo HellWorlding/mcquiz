@@ -559,7 +559,7 @@ isOneToOne: false
                            },
 "my_unit_rounds":
 { Args: { "p_subject": string }; Returns: {
-              "attempts": number,"n": number,"unit_id": string
+              "attempts": number,"n": number,"n_correct": number,"unit_id": string
             }[]
                            },
 "my_unseen_questions":
