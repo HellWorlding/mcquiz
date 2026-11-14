@@ -4,7 +4,7 @@ import { createClient } from "@/domains/auth/supabase/server";
 import { SourceReader } from "@/domains/evidence/components/SourceReader";
 import { sourceLabel } from "@/domains/evidence/search";
 import { tokenize } from "@/domains/import/tokenize";
-import { isKoreanTitle } from "@/domains/shared/labels";
+import { unitLabel } from "@/domains/shared/labels";
 
 export const metadata = { title: "원문 보기" };
 
@@ -28,7 +28,7 @@ export default async function SourcePage({
   const pageNo = page && /^\d+$/.test(page) ? Number(page) : null;
   const list = chunks ?? [];
   const target = (chunk && list.some((c) => c.id === chunk) ? chunk : null) ?? (pageNo !== null ? (list.find((c) => c.page === pageNo)?.id ?? null) : null);
-  const unitTitle = unit ? (unit.no && isKoreanTitle(unit.title) ? `${unit.no}강 ${unit.title}` : unit.title) : null;
+  const unitTitle = unit ? unitLabel(unit.no, unit.title) : null;
   const targetPage = list.find((c) => c.id === target)?.page ?? pageNo;
   // 긴 토큰부터 최대 8개만 강조
   const tokens = q ? [...new Set(tokenize(q))].sort((a, b) => b.length - a.length).slice(0, 8) : [];

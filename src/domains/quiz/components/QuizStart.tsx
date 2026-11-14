@@ -7,7 +7,7 @@ import { subtreeIds, type TreeNode } from "@/domains/shared/tree";
 import { createCollectionAction, deleteCollectionAction } from "@/domains/subjects/collection-actions";
 import { deleteSessionAction } from "@/domains/quiz/actions";
 import type { UnfinishedSession } from "@/domains/quiz/sessions";
-import { DIFFICULTIES, difficultyLabel, isKoreanTitle, rangeLabel } from "@/domains/shared/labels";
+import { DIFFICULTIES, difficultyLabel, isKoreanTitle, rangeLabel, unitLabel } from "@/domains/shared/labels";
 import type { UnitProgress, UnitRoundScores, UnitRounds } from "@/domains/progress/queries";
 import { useLang, useT } from "@/domains/shared/i18n-client";
 
@@ -491,10 +491,7 @@ function UnitRow({
         )}
         <label className="flex flex-1 cursor-pointer items-center gap-3">
           <input type="checkbox" className="size-5 accent-accent" checked={isOn} onChange={() => onToggle(node)} />
-          <span className={isOn ? "font-semibold" : ""}>
-            {node.no !== null ? `${node.no}. ` : ""}
-            {node.title}
-          </span>
+          <span className={isOn ? "font-semibold" : ""}>{unitLabel(node.no, node.title)}</span>
           <span className="ml-auto flex items-center gap-2 text-sm text-muted">
             <RoundBadge info={round.get(node.id)} />
             {total.get(node.id) ?? 0}

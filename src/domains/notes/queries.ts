@@ -1,5 +1,5 @@
 import "server-only";
-import { isKoreanTitle, qNoLabel } from "@/domains/shared/labels";
+import { isKoreanTitle, qNoLabel, unitLabel } from "@/domains/shared/labels";
 import { createClient } from "@/domains/auth/supabase/server";
 import { getCurrentUser } from "@/domains/auth/session";
 
@@ -94,7 +94,7 @@ export async function listMyNotes(subjectId: string | null): Promise<NoteItem[]>
         prompt: q.prompt,
         subjectId: q.subject_id,
         unitId: q.unit_id,
-        unitLabel: u ? (isTree ? `${top!.title} › ${u.no !== null ? `${u.no}. ` : ""}${u.title}` : u.no !== null && isKoreanTitle(u.title) ? `${u.no}강 ${u.title}` : u.title) : "단원 없음",
+        unitLabel: u ? (isTree ? `${top!.title} › ${u.no !== null ? `${u.no}. ` : ""}${u.title}` : unitLabel(u.no, u.title)) : "단원 없음",
         groupId: isTree ? top!.id : null,
         groupLabel: isTree ? top!.title : null,
         noLabel: !u ? `${q.ord}번` : !isKoreanTitle(u.title) ? `${u.title} ${qNoLabel(q.ord, false)}` : u.no !== null ? `${u.no}강 ${q.ord}번` : `${q.ord}번`,

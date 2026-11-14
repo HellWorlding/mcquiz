@@ -1,5 +1,5 @@
 "use client";
-import { cleanExplanation } from "@/domains/shared/labels";
+import { cleanExplanation, unitLabel } from "@/domains/shared/labels";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -27,7 +27,7 @@ export function unitLabelOf(units: Unit[], unitId: string | null): { key: string
     top = parent;
   }
   const isLeafOfTree = top.id !== u.id;
-  const label = isLeafOfTree ? (u.no !== null ? `${u.no}. ${u.title}` : u.title) : u.no !== null && isKoreanTitle(u.title) ? `${u.no}강 ${u.title}` : u.title;
+  const label = isLeafOfTree ? (u.no !== null ? `${u.no}. ${u.title}` : u.title) : unitLabel(u.no, u.title);
   return { key: u.id, label, sort: u.no ?? u.sort, groupKey: isLeafOfTree ? top.id : "__top__" };
 }
 

@@ -5,7 +5,7 @@ import { hashString, shuffled } from "./shuffle";
 import type { QuestionWithChoices } from "@/domains/shared/types";
 import { createClient } from "@/domains/auth/supabase/server";
 import { getReadClient } from "@/domains/subjects/queries";
-import { difficultyLabel } from "@/domains/shared/labels";
+import { difficultyLabel, unitLabel } from "@/domains/shared/labels";
 import { getCurrentUser } from "@/domains/auth/session";
 import type { SessionAnswer } from "./actions";
 
@@ -79,8 +79,15 @@ export async function resolveQuiz(p: QuizParams): Promise<ResolvedQuiz> {
     ids = await listQuestionIds({ kind: "collection", collectionId: p.collection });
     title = "묶음";
   } else if (p.units && p.subject) {
-    ids = await listQuestionIds({ kind: "units", subjectId: p.subject, unitIds: p.units.split(",").filter(Boolean) });
+    const unitIds = p.units.split(",").filter(Boolean);
+    ids = await listQuestionIds({ kind: "units", subjectId: p.subject, unitIds });
     title = "단원";
+    const { db } = await getReadClient();
+    const { data: us } = await db.from("units").select("no, title, sort").in("id", unitIds).order("sort").order("no");
+    if (us?.length) {
+      const first = unitLabel(us[0].no, us[0].title);
+      title = us.length === 1 ? first : `${first} 외 ${us.length - 1}개`;
+    }
   } else if (p.subject) {
     ids = await listQuestionIds({ kind: "subject", subjectId: p.subject });
     title = "전체";

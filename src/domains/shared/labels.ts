@@ -49,3 +49,9 @@ export const trapLabel = (t: string, lang: "ko" | "en" = "ko") => (lang === "en"
 export const isKoreanTitle = (title: string | null | undefined) => /[가-힣]/.test(title ?? "");
 export const qNoLabel = (ord: number, korean: boolean) => (korean ? `${ord}번` : `No. ${ord}`);
 export const rangeLabel = (from: number, to: number, korean: boolean) => (korean ? `${from}~${to}번` : `No. ${from}–${to}`);
+
+/** 단원 표시 이름: 한글 강의 단원은 "1강 - 학교 경영", 번호만 있으면 "1. 제목", 아니면 제목 그대로 */
+export function unitLabel(no: number | null | undefined, title: string): string {
+  if (no === null || no === undefined) return title;
+  return isKoreanTitle(title) ? `${no}강 - ${title}` : `${no}. ${title}`;
+}
