@@ -8,6 +8,7 @@ import { getLang } from "@/domains/shared/i18n-server";
 import { getAiQuota, type AiQuota } from "./quota";
 import { unitLabel } from "@/domains/shared/labels";
 import { getAiMode, type AiMode } from "./mode";
+import { plainText } from "./plain";
 
 export type EvidenceResult = { hits: EvidenceHit[]; unitTitle: string | null };
 
@@ -81,6 +82,7 @@ export async function chatAction(input: { subjectId: string; questionId: string 
       : `너는 학습 도우미(튜터)다. 이 주제에는 올려 둔 자료가 없으므로 네 일반 지식으로 답한다. ${langRule}
 질문에 바로 답한 뒤, 도움이 되는 파생 정보(핵심 규칙, 예문 2~3개, 비슷한 표현과의 차이, 학습자가 자주 틀리는 점)를 짧게 덧붙인다. 문항 맥락이 있으면 왜 정답이 맞고 다른 보기는 왜 틀리는지 설명한다.
 확실하지 않은 것은 그렇다고 말한다. 출처를 지어내지 않는다. 간결하게, 바로 공부에 쓸 수 있게 답한다.`;
+  const formatRule = "\n형식: 마크다운을 쓰지 않는다. 굵게(**), 머리글(#), 표를 쓰지 말고, 강조할 말은 작은따옴표로 감싼다. 목록이 필요하면 '- ' 나 '1)' 로 시작하는 줄로 쓴다. 코드는 그 줄만 따로 쓴다.";
   const hintRule = reveal
     ? ""
     : "\n학습자는 아직 이 문항의 답을 고르지 않았다. 정답 번호나 정답 자체를 직접 말하지 말고, 개념 설명·접근 방법·힌트로 돕는다. 학습자가 분명하게 정답을 알려 달라고 하면 그때는 알려 준다.";
@@ -93,12 +95,12 @@ export async function chatAction(input: { subjectId: string; questionId: string 
     const res = await client.responses.create({
       model: env.openaiModel,
       input: [
-        { role: "system", content: system + hintRule },
+        { role: "system", content: system + formatRule + hintRule },
         { role: "user", content: userContext },
         ...input.messages.slice(-8).map((m) => ({ role: m.role, content: m.content })),
       ],
     });
-    const answer = res.output_text?.trim() || "답을 만들지 못했습니다.";
+    const answer = plainText(res.output_text ?? "") || "답을 만들지 못했습니다.";
     const sources = hits.map((h) => ({ label: h.label, sourceId: h.sourceId, chunkId: h.chunkId, kind: h.kind, page: h.page, snippet: h.snippet }));
     await db.from("ai_questions").insert({
       user_id: user.id,

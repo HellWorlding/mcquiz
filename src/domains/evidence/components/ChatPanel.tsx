@@ -47,6 +47,19 @@ export function ChatThread({ subjectId, subjectName, questionId, question, aiEna
   const [pending, startTransition] = useTransition();
   const endRef = useRef<HTMLDivElement>(null);
   const lastRef = useRef<HTMLDivElement>(null);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 입력칸: 내용에 맞춰 늘어나되 6줄까지만. 비우면 한 줄로 돌아온다
+  useEffect(() => {
+    const el = areaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const line = parseFloat(getComputedStyle(el).lineHeight) || 24;
+    const pad = el.offsetHeight - el.clientHeight + 16;
+    const max = line * 6 + pad;
+    el.style.height = `${Math.min(el.scrollHeight + 2, max)}px`;
+    el.style.overflowY = el.scrollHeight + 2 > max ? "auto" : "hidden";
+  }, [input]);
   const firstRun = useRef(true);
 
   // 내가 보내면 맨 아래(생각 중…)로, 답이 오면 그 답의 첫 줄이 보이게 스크롤
@@ -175,11 +188,20 @@ export function ChatThread({ subjectId, subjectName, questionId, question, aiEna
             send();
           }}
         >
-          <input
-            className="input"
+          <textarea
+            ref={areaRef}
+            rows={1}
+            className="input resize-none leading-relaxed"
             placeholder={questionId ? t("chat.placeholder_q") : t(mode === "grounded" ? "chat.placeholder" : "chat.placeholder_open")}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter 는 보내기, Shift+Enter 는 줄바꿈 (한글 조합 중에는 무시)
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                send();
+              }
+            }}
             disabled={!canAsk}
           />
           <button className="btn-primary shrink-0" type="submit" disabled={!canAsk || !input.trim()}>
