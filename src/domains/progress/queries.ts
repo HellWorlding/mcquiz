@@ -213,6 +213,20 @@ export async function getUnitProgress(subjectId: string): Promise<UnitProgress> 
   return (data ?? []).map((r) => ({ sessionId: r.session_id, unitId: r.unit_id, covered: Number(r.covered), answered: Number(r.answered) }));
 }
 
+/** unit_id → { 회독 i: { n: i번째 풀이를 한 문항 수, correct: 그중 정답 } } */
+export type UnitRoundScores = Record<string, Record<number, { n: number; correct: number }>>;
+export async function getUnitRoundScores(subjectId: string): Promise<UnitRoundScores> {
+  const { db, user } = await getReadClient();
+  if (!user) return {};
+  const { data } = await db.rpc("my_unit_round_scores", { p_subject: subjectId });
+  const out: UnitRoundScores = {};
+  for (const r of data ?? []) {
+    const k = r.unit_id ?? "__none__";
+    (out[k] ??= {})[r.round_no] = { n: Number(r.n), correct: Number(r.n_correct) };
+  }
+  return out;
+}
+
 export async function getUnitRounds(subjectId: string): Promise<UnitRounds> {
   const { db, user } = await getReadClient();
   if (!user) return {};

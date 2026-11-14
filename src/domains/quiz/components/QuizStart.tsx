@@ -8,7 +8,7 @@ import { createCollectionAction, deleteCollectionAction } from "@/domains/subjec
 import { deleteSessionAction } from "@/domains/quiz/actions";
 import type { UnfinishedSession } from "@/domains/quiz/sessions";
 import { DIFFICULTIES, difficultyLabel, isKoreanTitle, rangeLabel } from "@/domains/shared/labels";
-import type { UnitProgress, UnitRounds } from "@/domains/progress/queries";
+import type { UnitProgress, UnitRoundScores, UnitRounds } from "@/domains/progress/queries";
 import { useLang, useT } from "@/domains/shared/i18n-client";
 
 type Props = {
@@ -19,6 +19,7 @@ type Props = {
   unitCounts: Record<string, number>;
   unitRounds: UnitRounds;
   unitProgress: UnitProgress;
+  unitRoundScores: UnitRoundScores;
   collectionCounts: Record<string, number>;
   user: { id: string; isAdmin: boolean } | null;
   sessions: UnfinishedSession[];
@@ -27,7 +28,7 @@ type Props = {
 type Tab = "units" | "collections" | "sets";
 const COUNTS = ["10", "20", "40", "all"] as const;
 
-export function QuizStart({ subject, units, sets, collections, unitCounts, unitRounds, unitProgress, collectionCounts, user, sessions }: Props) {
+export function QuizStart({ subject, units, sets, collections, unitCounts, unitRounds, unitProgress, unitRoundScores, collectionCounts, user, sessions }: Props) {
   const router = useRouter();
   const t = useT();
   const lang = useLang();
@@ -60,10 +61,18 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
   const unitRound = useMemo(() => {
     const m = new Map<string, RoundInfo>();
     type Cell = { n: number; correct: number };
-    type Acc = { hist: Record<number, Cell>; bySession: Map<string, { covered: number; answered: number }> };
+    type Acc = { hist: Record<number, Cell>; scores: Record<number, Cell>; bySession: Map<string, { covered: number; answered: number }> };
+    const addCells = (into: Record<number, Cell>, from: Record<number, Cell>) => {
+      for (const [k, v] of Object.entries(from)) {
+        const cur = into[+k] ?? { n: 0, correct: 0 };
+        into[+k] = { n: cur.n + v.n, correct: cur.correct + v.correct };
+      }
+    };
     const walk = (n: TreeNode<Unit>): Acc => {
       const hist: Record<number, Cell> = {};
-      for (const [k, v] of Object.entries(unitRounds[n.id] ?? {})) hist[+k] = { ...v };
+      addCells(hist, unitRounds[n.id] ?? {});
+      const scores: Record<number, Cell> = {};
+      addCells(scores, unitRoundScores[n.id] ?? {});
       const bySession = new Map<string, { covered: number; answered: number }>();
       for (const p of unitProgress) {
         if (p.unitId !== n.id) continue;
@@ -72,10 +81,8 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
       }
       for (const c of n.children) {
         const sub = walk(c);
-        for (const [k, v] of Object.entries(sub.hist)) {
-          const cur = hist[+k] ?? { n: 0, correct: 0 };
-          hist[+k] = { n: cur.n + v.n, correct: cur.correct + v.correct };
-        }
+        addCells(hist, sub.hist);
+        addCells(scores, sub.scores);
         for (const [sid, v] of sub.bySession) {
           const cur = bySession.get(sid) ?? { covered: 0, answered: 0 };
           bySession.set(sid, { covered: cur.covered + v.covered, answered: cur.answered + v.answered });
@@ -84,17 +91,18 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
       const keys = Object.keys(hist).map(Number).filter((k) => hist[k].n > 0);
       if (keys.length) {
         const total = keys.reduce((s, k) => s + hist[k].n, 0);
-        const correct = keys.reduce((s, k) => s + hist[k].correct, 0);
         const rounds = Math.min(...keys);
         let progressed = 0;
         for (const v of bySession.values()) if (v.covered >= total && v.answered > progressed) progressed = v.answered;
-        m.set(n.id, { rounds, progressed: Math.min(progressed, total), total, correct });
+        // 완료된 회독 1..rounds 각각의 정답 수 (i번째 풀이 기준)
+        const perRound = Array.from({ length: rounds }, (_, i) => ({ round: i + 1, correct: scores[i + 1]?.correct ?? 0, n: total }));
+        m.set(n.id, { rounds, progressed: Math.min(progressed, total), total, perRound });
       }
-      return { hist, bySession };
+      return { hist, scores, bySession };
     };
     units.forEach(walk);
     return m;
-  }, [units, unitRounds, unitProgress]);
+  }, [units, unitRounds, unitProgress, unitRoundScores]);
 
   const allUnits = useMemo(() => {
     const out: TreeNode<Unit>[] = [];
@@ -429,22 +437,26 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
   );
 }
 
-type RoundInfo = { rounds: number; progressed: number; total: number; correct: number };
+type RoundInfo = { rounds: number; progressed: number; total: number; perRound: { round: number; correct: number; n: number }[] };
 
-/** "1회독 · 17/20 (85%)" / "2회독 중 21/25" 배지. 아직 한 번도 안 풀었으면 없음. 정답률은 문항별 최근 풀이 기준 */
+/** 회독마다 "1회독 17/20 85%" 칩을 하나씩, 진행 중이면 "3회독 중 5/20" 을 덧붙인다. 아직 한 번도 안 풀었으면 없음 */
 function RoundBadge({ info }: { info: RoundInfo | undefined }) {
   const t = useT();
   if (!info || (info.rounds === 0 && info.progressed === 0)) return null;
-  if (info.progressed === 0) {
-    const pct = info.total ? Math.round((info.correct / info.total) * 100) : 0;
-    const tone = pct >= 80 ? "bg-ok-soft text-ok" : pct >= 60 ? "bg-warn-soft text-warn" : "bg-bad-soft text-bad";
-    return (
-      <span className={`badge ${tone}`} title={t("start.round_acc_title")}>
-        {t("start.round_done", { k: info.rounds, c: info.correct, n: info.total, pct })}
-      </span>
-    );
-  }
-  return <span className="badge bg-accent-soft text-accent">{t("start.round_in", { k: info.rounds + 1, p: info.progressed, n: info.total })}</span>;
+  return (
+    <span className="flex flex-wrap justify-end gap-1">
+      {info.perRound.map((r) => {
+        const pct = r.n ? Math.round((r.correct / r.n) * 100) : 0;
+        const tone = pct >= 80 ? "bg-ok-soft text-ok" : pct >= 60 ? "bg-warn-soft text-warn" : "bg-bad-soft text-bad";
+        return (
+          <span key={r.round} className={`badge ${tone}`} title={t("start.round_acc_title")}>
+            {t("start.round_done", { k: r.round, c: r.correct, n: r.n, pct })}
+          </span>
+        );
+      })}
+      {info.progressed > 0 && <span className="badge bg-accent-soft text-accent">{t("start.round_in", { k: info.rounds + 1, p: info.progressed, n: info.total })}</span>}
+    </span>
+  );
 }
 
 function UnitRow({

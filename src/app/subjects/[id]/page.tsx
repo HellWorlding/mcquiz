@@ -5,13 +5,13 @@ import { getCurrentUser } from "@/domains/auth/session";
 import { QuizStart } from "@/domains/quiz/components/QuizStart";
 import { buildTree } from "@/domains/shared/tree";
 import { listUnfinishedSessions } from "@/domains/quiz/sessions";
-import { getUnitProgress, getUnitRounds } from "@/domains/progress/queries";
+import { getUnitProgress, getUnitRoundScores, getUnitRounds } from "@/domains/progress/queries";
 
 export default async function SubjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const subject = await getSubject(id);
   if (!subject) notFound();
-  const [units, sets, collections, unitCounts, collectionCounts, user, sessions, unitRounds, unitProgress] = await Promise.all([
+  const [units, sets, collections, unitCounts, collectionCounts, user, sessions, unitRounds, unitProgress, unitRoundScores] = await Promise.all([
     getUnitTree(id),
     listSets(id),
     listCollections(id),
@@ -21,6 +21,7 @@ export default async function SubjectPage({ params }: { params: Promise<{ id: st
     listUnfinishedSessions(id),
     getUnitRounds(id),
     getUnitProgress(id),
+    getUnitRoundScores(id),
   ]);
   return (
     <QuizStart
@@ -31,6 +32,7 @@ export default async function SubjectPage({ params }: { params: Promise<{ id: st
       unitCounts={unitCounts}
       unitRounds={unitRounds}
       unitProgress={unitProgress}
+      unitRoundScores={unitRoundScores}
       collectionCounts={collectionCounts}
       user={user ? { id: user.id, isAdmin: user.isAdmin } : null}
       sessions={sessions}

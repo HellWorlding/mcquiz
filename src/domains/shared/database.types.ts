@@ -557,6 +557,11 @@ isOneToOne: false
               "answered": number,"covered": number,"session_id": string,"unit_id": string
             }[]
                            },
+"my_unit_round_scores":
+{ Args: { "p_subject": string }; Returns: {
+              "n": number,"n_correct": number,"round_no": number,"unit_id": string
+            }[]
+                           },
 "my_unit_rounds":
 { Args: { "p_subject": string }; Returns: {
               "attempts": number,"n": number,"n_correct": number,"unit_id": string
