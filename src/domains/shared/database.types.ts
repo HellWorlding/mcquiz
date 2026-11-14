@@ -552,6 +552,11 @@ isOneToOne: false
               "attempt_count": number,"last_at": string,"subject_id": string,"weak_count": number
             }[]
                            },
+"my_unit_progress":
+{ Args: { "p_subject": string }; Returns: {
+              "answered": number,"covered": number,"session_id": string,"unit_id": string
+            }[]
+                           },
 "my_unit_rounds":
 { Args: { "p_subject": string }; Returns: {
               "attempts": number,"n": number,"unit_id": string

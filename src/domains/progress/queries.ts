@@ -203,6 +203,15 @@ export async function buildWeakMix(subjectId: string, n: number): Promise<string
 
 /** 단원별 회독 히스토그램: unitId → { 풀이 횟수: 문항 수 }. 비로그인은 빈 객체. */
 export type UnitRounds = Record<string, Record<number, number>>;
+/** 끝내지 않은 세션별·단원별 진행: 세션에 든 문항 수와 답한 수 */
+export type UnitProgress = { sessionId: string; unitId: string | null; covered: number; answered: number }[];
+export async function getUnitProgress(subjectId: string): Promise<UnitProgress> {
+  const { db, user } = await getReadClient();
+  if (!user) return [];
+  const { data } = await db.rpc("my_unit_progress", { p_subject: subjectId });
+  return (data ?? []).map((r) => ({ sessionId: r.session_id, unitId: r.unit_id, covered: Number(r.covered), answered: Number(r.answered) }));
+}
+
 export async function getUnitRounds(subjectId: string): Promise<UnitRounds> {
   const { db, user } = await getReadClient();
   if (!user) return {};

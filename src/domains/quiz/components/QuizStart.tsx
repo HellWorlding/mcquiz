@@ -8,7 +8,7 @@ import { createCollectionAction, deleteCollectionAction } from "@/domains/subjec
 import { deleteSessionAction } from "@/domains/quiz/actions";
 import type { UnfinishedSession } from "@/domains/quiz/sessions";
 import { DIFFICULTIES, difficultyLabel, isKoreanTitle, rangeLabel } from "@/domains/shared/labels";
-import type { UnitRounds } from "@/domains/progress/queries";
+import type { UnitProgress, UnitRounds } from "@/domains/progress/queries";
 import { useLang, useT } from "@/domains/shared/i18n-client";
 
 type Props = {
@@ -18,6 +18,7 @@ type Props = {
   collections: TreeNode<Collection>[];
   unitCounts: Record<string, number>;
   unitRounds: UnitRounds;
+  unitProgress: UnitProgress;
   collectionCounts: Record<string, number>;
   user: { id: string; isAdmin: boolean } | null;
   sessions: UnfinishedSession[];
@@ -26,7 +27,7 @@ type Props = {
 type Tab = "units" | "collections" | "sets";
 const COUNTS = ["10", "20", "40", "all"] as const;
 
-export function QuizStart({ subject, units, sets, collections, unitCounts, unitRounds, collectionCounts, user, sessions }: Props) {
+export function QuizStart({ subject, units, sets, collections, unitCounts, unitRounds, unitProgress, collectionCounts, user, sessions }: Props) {
   const router = useRouter();
   const t = useT();
   const lang = useLang();
@@ -53,24 +54,41 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
     return m;
   }, [units, unitCounts]);
 
-  // 단원별(하위 포함) 회독 상태: 모든 문항을 k회 풀었으면 k회독, 그 다음 바퀴에서 p/N 진행
+  // 단원별(하위 포함) 회독 상태.
+  // k회독 = 단원의 모든 문항을 k번 이상 풀었다. 다음 바퀴 p/N 은 "단원 전체를 담은, 끝내지 않은 세션"의 진행만 센다.
+  // (틀린 것만 다시 풀기 같은 부분 풀이는 회독 진행으로 치지 않는다 → "3회독 중 1/20" 이 남는 현상 방지)
   const unitRound = useMemo(() => {
     const m = new Map<string, RoundInfo>();
-    const walk = (n: TreeNode<Unit>): Record<number, number> => {
-      const h: Record<number, number> = { ...(unitRounds[n.id] ?? {}) };
-      for (const c of n.children) for (const [k, v] of Object.entries(walk(c))) h[+k] = (h[+k] ?? 0) + v;
-      const keys = Object.keys(h).map(Number).filter((k) => h[k] > 0);
-      if (keys.length) {
-        const min = Math.min(...keys);
-        const total = keys.reduce((s, k) => s + h[k], 0);
-        const progressed = keys.filter((k) => k > min).reduce((s, k) => s + h[k], 0);
-        m.set(n.id, { rounds: min, progressed, total });
+    type Acc = { hist: Record<number, number>; bySession: Map<string, { covered: number; answered: number }> };
+    const walk = (n: TreeNode<Unit>): Acc => {
+      const hist: Record<number, number> = { ...(unitRounds[n.id] ?? {}) };
+      const bySession = new Map<string, { covered: number; answered: number }>();
+      for (const p of unitProgress) {
+        if (p.unitId !== n.id) continue;
+        const cur = bySession.get(p.sessionId) ?? { covered: 0, answered: 0 };
+        bySession.set(p.sessionId, { covered: cur.covered + p.covered, answered: cur.answered + p.answered });
       }
-      return h;
+      for (const c of n.children) {
+        const sub = walk(c);
+        for (const [k, v] of Object.entries(sub.hist)) hist[+k] = (hist[+k] ?? 0) + v;
+        for (const [sid, v] of sub.bySession) {
+          const cur = bySession.get(sid) ?? { covered: 0, answered: 0 };
+          bySession.set(sid, { covered: cur.covered + v.covered, answered: cur.answered + v.answered });
+        }
+      }
+      const keys = Object.keys(hist).map(Number).filter((k) => hist[k] > 0);
+      if (keys.length) {
+        const total = keys.reduce((s, k) => s + hist[k], 0);
+        const rounds = Math.min(...keys);
+        let progressed = 0;
+        for (const v of bySession.values()) if (v.covered >= total && v.answered > progressed) progressed = v.answered;
+        m.set(n.id, { rounds, progressed: Math.min(progressed, total), total });
+      }
+      return { hist, bySession };
     };
     units.forEach(walk);
     return m;
-  }, [units, unitRounds]);
+  }, [units, unitRounds, unitProgress]);
 
   const allUnits = useMemo(() => {
     const out: TreeNode<Unit>[] = [];
