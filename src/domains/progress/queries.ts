@@ -157,6 +157,24 @@ export async function getWeakSummary(subjectId: string): Promise<WeakSummary | n
   };
 }
 
+/** 주어진 문항 중 내가 직접 저장한 것 (퀴즈 화면의 저장 버튼 초기 상태용) */
+export async function getSavedIdsFor(questionIds: string[]): Promise<string[]> {
+  const user = await getCurrentUser();
+  if (!user || questionIds.length === 0) return [];
+  const db = await createClient();
+  const out: string[] = [];
+  for (let i = 0; i < questionIds.length; i += 200) {
+    const { data } = await db
+      .from("question_marks")
+      .select("question_id")
+      .eq("user_id", user.id)
+      .eq("kind", "saved")
+      .in("question_id", questionIds.slice(i, i + 200));
+    for (const r of data ?? []) out.push(r.question_id);
+  }
+  return out;
+}
+
 export async function getSavedIds(subjectId: string, mode: "saved" | "wrong" | "confused"): Promise<string[]> {
   const s = await getWeakSummary(subjectId);
   if (!s) return [];

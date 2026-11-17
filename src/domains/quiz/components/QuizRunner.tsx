@@ -39,6 +39,8 @@ type Props = {
   resume: ResumeState | null;
   /** 내 메모 (question_id → content) */
   notes?: Record<string, string>;
+  /** 이미 저장함에 직접 넣어 둔 문항 */
+  savedIds?: string[];
 };
 
 type Answer = {
@@ -53,7 +55,7 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
   return shuffled(q.choices, hashString(q.id) ^ salt);
 }
 
-export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAdmin = false, backHref, seed, resume, notes = {} }: Props) {
+export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [] }: Props) {
   const t = useT();
   const [questions, setQuestions] = useState(initial);
   const [idx, setIdx] = useState(resume?.position ?? 0);
@@ -63,7 +65,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     return out;
   });
   const [sessionId, setSessionId] = useState<string | null>(resume?.id ?? null);
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(initialSaved));
   // 우하단 AI 채팅 모달. 결과 화면에서는 고른 문항(chatTarget)으로 연다
   const [chatOpen, setChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState<QuestionWithChoices | null>(null);
@@ -210,6 +212,8 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     const correct = graded.filter((x) => answers[x.id]?.isCorrect === true);
     const wrong = questions.filter((x) => answers[x.id]?.isCorrect === false);
     const confused = questions.filter((x) => answers[x.id]?.confused);
+    // 저장만 한 문항 (틀림·헷갈림 목록에 이미 있는 것은 뺀다)
+    const savedOnly = questions.filter((x) => savedIds.has(x.id) && answers[x.id]?.isCorrect !== false && !answers[x.id]?.confused);
     const totalPts = graded.reduce((s, x) => s + pts(x), 0);
     const gotPts = correct.reduce((s, x) => s + pts(x), 0);
     const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -235,6 +239,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         </div>
         <ResultList title={t("quiz.wrong_list")} items={wrong} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="bad" savedIds={savedIds} onToggleSave={toggleSave} onAsk={askAbout} />
         <ResultList title={t("quiz.confused_list")} items={confused} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="warn" savedIds={savedIds} onToggleSave={toggleSave} onAsk={askAbout} />
+        <ResultList title={t("quiz.saved_list")} items={savedOnly} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="accent" savedIds={savedIds} onToggleSave={toggleSave} onAsk={askAbout} />
         {!isGuest && subjectId && chatTarget && (
           <ChatDock key={chatTarget.id} subjectId={subjectId} subjectName={title} question={chatTarget} revealed open={chatOpen} onOpenChange={setChatOpen} />
         )}
@@ -446,7 +451,7 @@ function ResultList({
   answers: Record<string, Answer>;
   subjectId: string | null;
   isGuest: boolean;
-  tone: "bad" | "warn";
+  tone: "bad" | "warn" | "accent";
   savedIds: Set<string>;
   onToggleSave: (id: string) => void;
   onAsk: (q: QuestionWithChoices) => void;
@@ -456,7 +461,7 @@ function ResultList({
   return (
     <div className="card">
       <div className="flex items-center justify-between">
-        <h2 className={`font-bold ${tone === "bad" ? "text-bad" : "text-warn"}`}>
+        <h2 className={`font-bold ${tone === "bad" ? "text-bad" : tone === "warn" ? "text-warn" : "text-accent"}`}>
           {title} ({items.length})
         </h2>
         {!isGuest && subjectId && <AddToCollection subjectId={subjectId} questionIds={items.map((q) => q.id)} />}

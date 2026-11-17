@@ -2,13 +2,15 @@ import { getCurrentUser } from "@/domains/auth/session";
 import { resolveQuiz, type QuizParams } from "@/domains/quiz/resolve";
 import { QuizRunner } from "@/domains/quiz/components/QuizRunner";
 import { getNotesFor } from "@/domains/notes/queries";
+import { getSavedIdsFor } from "@/domains/progress/queries";
 
 export const metadata = { title: "퀴즈" };
 
 export default async function QuizPage({ searchParams }: { searchParams: Promise<QuizParams> }) {
   const p = await searchParams;
   const [user, quiz] = await Promise.all([getCurrentUser(), resolveQuiz(p)]);
-  const notes = user ? await getNotesFor(quiz.questions.map((q) => q.id)) : {};
+  const ids = quiz.questions.map((q) => q.id);
+  const [notes, savedIds] = user ? await Promise.all([getNotesFor(ids), getSavedIdsFor(ids)]) : [{}, []];
   const subjectId = p.subject ?? quiz.questions[0]?.subject_id ?? null;
   const backHref = subjectId ? `/subjects/${subjectId}` : "/";
   return (
@@ -23,6 +25,7 @@ export default async function QuizPage({ searchParams }: { searchParams: Promise
       seed={quiz.seed}
       resume={quiz.resume}
       notes={notes}
+      savedIds={savedIds}
     />
   );
 }

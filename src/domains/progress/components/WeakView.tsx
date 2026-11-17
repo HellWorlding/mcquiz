@@ -13,7 +13,14 @@ import { useT } from "@/domains/shared/i18n-client";
 import { isKoreanTitle, qNoLabel } from "@/domains/shared/labels";
 import { ReportButton } from "@/domains/questions/components/ReportModal";
 
-type Filter = "all" | "wrong" | "confused" | "saved";
+type Filter = "all" | "wrong" | "repeat" | "confused" | "saved";
+
+/** 필터 조건. repeat = 2회 이상 틀린 문항 (회독을 거듭해도 다시 틀린 것) */
+function matches(it: SavedItem, f: Filter): boolean {
+  if (f === "all") return true;
+  if (f === "repeat") return it.wrongCount >= 2;
+  return it.reasons.includes(f);
+}
 
 /** 단원 라벨: "1강 학교 경영" / "파트3" */
 export function unitLabelOf(units: Unit[], unitId: string | null): { key: string; label: string; sort: number; groupKey: string } {
@@ -47,7 +54,7 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
   const [unitFilter, setUnitFilter] = useState<string | null>(null); // null = 전체
   const [groupFilter, setGroupFilter] = useState<string | null>(null); // 대단원 (콜로케이션/어휘). null = 전체
   const byId = new Map(questions.map((q) => [q.id, q]));
-  const byReason = summary.items.filter((it) => filter === "all" || it.reasons.includes(filter)).filter((it) => byId.has(it.questionId));
+  const byReason = summary.items.filter((it) => matches(it, filter)).filter((it) => byId.has(it.questionId));
   // 단원별 묶음 (단원 순 → 문항 번호 순)
   const groups = new Map<string, { label: string; sort: number; groupKey: string; items: SavedItem[] }>();
   for (const it of byReason) {
@@ -82,6 +89,7 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
   const counts = {
     all: summary.items.length,
     wrong: summary.items.filter((i) => i.reasons.includes("wrong")).length,
+    repeat: summary.items.filter((i) => i.wrongCount >= 2).length,
     confused: summary.items.filter((i) => i.reasons.includes("confused")).length,
     saved: summary.items.filter((i) => i.reasons.includes("saved")).length,
   };
@@ -129,6 +137,7 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
               [
                 ["all", t("saved.f_all")],
                 ["wrong", t("saved.f_wrong")],
+                ["repeat", t("saved.f_repeat")],
                 ["confused", t("saved.f_confused")],
                 ["saved", t("saved.f_saved")],
               ] as [Filter, string][]
@@ -136,12 +145,13 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
               <button
                 key={k}
                 onClick={() => setFilter(k)}
-                className={`rounded-full border px-3 py-1 text-sm ${filter === k ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+                className={`rounded-full border px-3 py-1 text-sm ${filter === k ? "border-accent bg-accent-soft text-accent" : k === "repeat" && counts.repeat > 0 ? "border-bad text-bad" : "border-border"}`}
               >
                 {label} {counts[k]}
               </button>
             ))}
           </div>
+          {filter === "repeat" && <p className="text-xs text-muted">{t("saved.f_repeat_hint")}</p>}
           {topGroups.length > 0 && (
             <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
               <span className="w-full text-xs font-semibold text-muted">{t("saved.group")}</span>
@@ -269,7 +279,7 @@ function SavedList({
                 </button>
               </div>
               <p className="mt-1 flex flex-wrap gap-2 text-xs">
-                {it.wrongCount > 0 && <span className="badge bg-bad-soft text-bad">{t("saved.wrong_times", { n: it.wrongCount })}</span>}
+                {it.wrongCount > 0 && <span className={`badge ${it.wrongCount >= 2 ? "bg-bad text-white" : "bg-bad-soft text-bad"}`}>{t("saved.wrong_times", { n: it.wrongCount })}</span>}
                 {it.confused && <span className="badge bg-warn-soft text-warn">{t("saved.f_confused")}</span>}
                 {it.saved && <span className="badge bg-accent-soft text-accent">{t("saved.f_saved")}</span>}
                 {it.lastResult !== null && (
