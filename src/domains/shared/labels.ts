@@ -53,5 +53,7 @@ export const rangeLabel = (from: number, to: number, korean: boolean) => (korean
 /** 단원 표시 이름: 한글 강의 단원은 "1강 - 학교 경영", 번호만 있으면 "1. 제목", 아니면 제목 그대로 */
 export function unitLabel(no: number | null | undefined, title: string): string {
   if (no === null || no === undefined) return title;
+  // 제목에 이미 번호가 있으면("1.3 평가 지표", "Unit 7: Character") 다시 붙이지 않는다
+  if (/^(\d|(unit|part|set|day|lesson|chapter)\s*\d)/i.test(title.trim())) return title;
   return isKoreanTitle(title) ? `${no}강 - ${title}` : `${no}. ${title}`;
 }

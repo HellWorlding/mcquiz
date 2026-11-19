@@ -68,8 +68,10 @@ export async function resolveSubjectByName(
   return created;
 }
 
-/** "파트3", "Part 3", "Day12", "세트07", "Set 7", "3강" → 3 */
+/** "파트3", "Part 3", "Day12", "세트07", "Set 7", "3강" → 3. "1. 머신러닝" → 1, "1.3 평가 지표" → 3 (점 번호는 마지막 자리) */
 export function unitNoFromTitle(title: string): number | null {
+  const dotted = /^(\d{1,3})(?:\.(\d{1,3}))?[.)]?\s/.exec(title.trim());
+  if (dotted) return +(dotted[2] ?? dotted[1]);
   const m =
     /(?:파트|part|day|unit|set|세트|lesson|chapter|챕터|회차|강|회|장)\s*[-_ ]?(\d{1,3})|(\d{1,3})\s*(?:강|회|장|과|세트|일차)/i.exec(title);
   if (m) return +(m[1] ?? m[2]);
