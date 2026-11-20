@@ -49,18 +49,31 @@ type Props = {
 const TIMER_KEY = "mcquiz.stopwatch";
 const TIMER_CAP = 600; // 10분 넘으면 "10분+" 로 멈춘다. 합계도 문항마다 10분으로 잘라 더한다
 
-// 타이머 숨김 여부는 기기에 기억한다 (localStorage). 서버 렌더에서는 "보임"
-const subscribeTimerPref = (cb: () => void) => {
+const STRIKE_KEY = "mcquiz.strike"; // 선지 지우기 모드 (기본 꺼짐)
+
+// 화면 설정은 기기에 기억한다 (localStorage). 같은 탭에서 바꾸면 storage 이벤트를 직접 쏴서 갱신한다
+const subscribePref = (cb: () => void) => {
   window.addEventListener("storage", cb);
   return () => window.removeEventListener("storage", cb);
 };
-const readTimerPref = () => {
+const readPref = (key: string, fallback: boolean) => {
   try {
-    return localStorage.getItem(TIMER_KEY) !== "off";
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : v === "on";
   } catch {
-    return true;
+    return fallback;
   }
 };
+const writePref = (key: string, on: boolean) => {
+  try {
+    localStorage.setItem(key, on ? "on" : "off");
+    window.dispatchEvent(new Event("storage"));
+  } catch {
+    // 저장소를 못 쓰면 바꾸지 못한다
+  }
+};
+const readTimerPref = () => readPref(TIMER_KEY, true);
+const readStrikePref = () => readPref(STRIKE_KEY, false);
 
 /** "1:05" / "5분+" */
 function formatElapsed(sec: number, cap: string): string {
@@ -106,15 +119,11 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   };
   // 문항별 타이머(초). 답을 고르면 멈추고, 5분이 넘으면 "5분+" 로 멈춘다. 숨기기는 기기에 기억
   const [elapsed, setElapsed] = useState<Record<string, number>>({});
-  const timerOn = useSyncExternalStore(subscribeTimerPref, readTimerPref, () => true);
-  const toggleTimer = () => {
-    try {
-      localStorage.setItem(TIMER_KEY, timerOn ? "off" : "on");
-      window.dispatchEvent(new Event("storage"));
-    } catch {
-      // 저장소를 못 쓰면 바꾸지 못한다
-    }
-  };
+  const timerOn = useSyncExternalStore(subscribePref, readTimerPref, () => true);
+  const toggleTimer = () => writePref(TIMER_KEY, !timerOn);
+  // 선지 지우기 모드: 켜면 선지 왼쪽에 × 칸이 생긴다
+  const strikeOn = useSyncExternalStore(subscribePref, readStrikePref, () => false);
+  const toggleStrikeMode = () => writePref(STRIKE_KEY, !strikeOn);
   // 우하단 AI 채팅 모달. 결과 화면에서는 고른 문항(chatTarget)으로 연다
   const [chatOpen, setChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState<QuestionWithChoices | null>(null);
@@ -395,7 +404,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
             {order.map((c, i) => {
               const picked = a?.selectedOrd === c.ord;
               const isAns = q.correct_choice !== null && c.ord === q.correct_choice;
-              const out = !answered && struck.has(`${q.id}:${c.ord}`);
+              const out = !answered && strikeOn && struck.has(`${q.id}:${c.ord}`);
               let cls = "border-border bg-card";
               if (answered) {
                 if (isAns) cls = "border-ok bg-ok-soft";
@@ -405,7 +414,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
               return (
                 <li key={c.id} className="flex items-stretch gap-1.5">
                   {/* 지우기(소거) 칸: 선지 버튼과 겹치지 않게 왼쪽에 따로 둔다. 모바일에서도 항상 보인다 */}
-                  {!answered && (
+                  {!answered && strikeOn && (
                     <button
                       type="button"
                       aria-label={out ? t("quiz.strike_undo") : t("quiz.strike")}
@@ -504,6 +513,15 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
             {savedIds.has(q.id) ? t("quiz.saved") : t("quiz.save")}
           </button>
         )}
+        <button
+          type="button"
+          aria-pressed={strikeOn}
+          title={t("quiz.strike_mode_title")}
+          className={`btn-sm rounded-xl border px-3 py-2 font-semibold ${strikeOn ? "border-bad bg-bad-soft text-bad" : "border-border"}`}
+          onClick={toggleStrikeMode}
+        >
+          {strikeOn ? t("quiz.strike_mode_on") : t("quiz.strike_mode")}
+        </button>
         <div className="ml-auto flex gap-2">
           {idx > 0 && (
             <button className="btn-secondary btn-sm" onClick={() => goTo(idx - 1)}>
