@@ -75,6 +75,14 @@ const writePref = (key: string, on: boolean) => {
 const readTimerPref = () => readPref(TIMER_KEY, true);
 const readStrikePref = () => readPref(STRIKE_KEY, false);
 
+/** 누적 시간: "12:34" 또는 "1:02:03" */
+function formatTotal(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+}
+
 /** "1:05" / "5분+" */
 function formatElapsed(sec: number, cap: string): string {
   if (sec >= TIMER_CAP) return cap;
@@ -284,12 +292,6 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
     // 총 소요 시간: 문항마다 상한(10분)으로 자른 값을 더한다
     const totalSec = questions.reduce((s, x) => s + Math.min(TIMER_CAP, elapsed[x.id] ?? 0), 0);
-    const fmtTotal = (sec: number) => {
-      const h = Math.floor(sec / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      const s = sec % 60;
-      return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
-    };
     return (
       <section className="flex flex-col gap-4 pb-20">
         <div className="card text-center">
@@ -298,7 +300,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           <div className="mt-1 text-muted">
             {t("quiz.score_count", { correct: correct.length, total: graded.length, pct: totalPts ? Math.round((gotPts / totalPts) * 100) : 0 })}
           </div>
-          {timerOn && totalSec > 0 && <div className="mt-1 font-mono text-sm tabular-nums text-muted">⏱ {t("quiz.total_time", { t: fmtTotal(totalSec) })}</div>}
+          {timerOn && totalSec > 0 && <div className="mt-1 font-mono text-sm tabular-nums text-muted">⏱ {t("quiz.total_time", { t: formatTotal(totalSec) })}</div>}
           {isGuest && <p className="mt-2 text-sm text-warn">{t("quiz.guest_warn")}</p>}
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {wrong.length > 0 && (
@@ -322,6 +324,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           savedIds={savedIds}
           onToggleSave={toggleSave}
           onAsk={askAbout}
+          elapsed={timerOn ? elapsed : null}
         />
         {!isGuest && subjectId && chatTarget && (
           <ChatDock key={chatTarget.id} subjectId={subjectId} subjectName={title} question={chatTarget} revealed open={chatOpen} onOpenChange={setChatOpen} />
@@ -361,6 +364,8 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     </div>
   );
 
+  // 전체 누적: 문항마다 상한으로 자른 값의 합
+  const runningTotal = Object.values(elapsed).reduce((s, v) => s + Math.min(TIMER_CAP, v), 0);
   const timerChip = timerOn ? (
     <button
       type="button"
@@ -369,6 +374,9 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       className={`rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums ${answered ? "text-muted" : "bg-card text-foreground"}`}
     >
       ⏱ {formatElapsed(elapsed[q.id] ?? 0, t("quiz.timer_cap"))}
+      <span className="ml-1.5 text-muted">
+        · {t("quiz.timer_total")} {formatTotal(runningTotal)}
+      </span>
     </button>
   ) : (
     <button type="button" onClick={toggleTimer} title={t("quiz.timer_show")} className="rounded-md px-1.5 py-0.5 text-xs text-muted opacity-50 hover:opacity-100">
@@ -388,7 +396,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           {idx + 1} / {questions.length}
           {sessionId && <span className="ml-1 text-xs text-muted">{t("quiz.saved_badge")}</span>}
         </span>
-        <span className="flex w-20 justify-end lg:hidden">{timerChip}</span>
+        <span className="flex justify-end">{timerChip}</span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
         <div className="h-full bg-accent transition-all" style={{ width: `${((idx + (answered ? 1 : 0)) / questions.length) * 100}%` }} />
@@ -547,10 +555,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     <aside className="sticky top-20 hidden w-56 shrink-0 lg:block">
       <div className="card">
         <div className="mb-2 flex items-center justify-between text-xs text-muted">
-          <span className="flex items-center gap-2">
-            {t("quiz.nav")}
-            {timerChip}
-          </span>
+          <span>{t("quiz.nav")}</span>
           <span>
             {Object.values(answers).filter((a) => a.selectedOrd !== null).length}/{questions.length}
           </span>
@@ -577,6 +582,7 @@ function ReviewList({
   savedIds,
   onToggleSave,
   onAsk,
+  elapsed,
 }: {
   items: QuestionWithChoices[];
   counts: Record<ReviewFilter, number>;
@@ -588,6 +594,8 @@ function ReviewList({
   savedIds: Set<string>;
   onToggleSave: (id: string) => void;
   onAsk: (q: QuestionWithChoices) => void;
+  /** 문항별 소요 시간(초). 스톱워치를 숨겼으면 null */
+  elapsed: Record<string, number> | null;
 }) {
   const t = useT();
   if (items.length === 0) return null;
@@ -640,6 +648,9 @@ function ReviewList({
                 {ans?.isCorrect === true && <span className="badge bg-ok-soft text-ok">{t("quiz.review_correct")}</span>}
                 {ans?.confused && <span className="badge bg-warn-soft text-warn">{t("saved.f_confused")}</span>}
                 {savedIds.has(q.id) && <span className="badge bg-accent-soft text-accent">{t("saved.f_saved")}</span>}
+                {elapsed && (elapsed[q.id] ?? 0) > 0 && (
+                  <span className="badge bg-background font-mono tabular-nums text-muted">⏱ {formatElapsed(elapsed[q.id] ?? 0, t("quiz.timer_cap"))}</span>
+                )}
               </p>
               {picked && ans?.isCorrect === false && <p className="mt-1 text-sm text-bad">{t("quiz.my_answer")}: {picked.text}</p>}
               {correct && <p className="mt-1 text-sm text-ok">{t("common.answer")}: {correct.text}</p>}

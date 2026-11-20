@@ -149,6 +149,7 @@ const M = {
   "quiz.strike_mode_title": ["켜면 선지 왼쪽에 × 칸이 생깁니다. 아니라고 생각하는 선지를 지워 가며 풉니다.", "Shows an × next to each choice so you can rule choices out while solving."],
   "quiz.strike_undo": ["지운 선지 되살리기", "Restore this choice"],
   "quiz.timer_cap": ["10분+", "10m+"],
+  "quiz.timer_total": ["전체", "total"],
   "quiz.total_time": ["총 {t} (문항당 최대 10분으로 계산)", "Total {t} (each question capped at 10 min)"],
   "quiz.timer_hide": ["스톱워치 숨기기", "Hide stopwatch"],
   "quiz.timer_show": ["스톱워치 보기", "Show stopwatch"],
