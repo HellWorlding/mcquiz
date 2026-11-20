@@ -66,6 +66,8 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   });
   const [sessionId, setSessionId] = useState<string | null>(resume?.id ?? null);
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(initialSaved));
+  // 결과 화면 "다시 볼 문항" 필터
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   // 우하단 AI 채팅 모달. 결과 화면에서는 고른 문항(chatTarget)으로 연다
   const [chatOpen, setChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState<QuestionWithChoices | null>(null);
@@ -212,8 +214,8 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     const correct = graded.filter((x) => answers[x.id]?.isCorrect === true);
     const wrong = questions.filter((x) => answers[x.id]?.isCorrect === false);
     const confused = questions.filter((x) => answers[x.id]?.confused);
-    // 저장만 한 문항 (틀림·헷갈림 목록에 이미 있는 것은 뺀다)
-    const savedOnly = questions.filter((x) => savedIds.has(x.id) && answers[x.id]?.isCorrect !== false && !answers[x.id]?.confused);
+    // 다시 볼 문항: 틀림·헷갈림·저장 중 하나라도 해당하면 한 번만 나온다 (이유는 배지로)
+    const review = questions.filter((x) => answers[x.id]?.isCorrect === false || answers[x.id]?.confused || savedIds.has(x.id));
     const totalPts = graded.reduce((s, x) => s + pts(x), 0);
     const gotPts = correct.reduce((s, x) => s + pts(x), 0);
     const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -237,9 +239,18 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
             </Link>
           </div>
         </div>
-        <ResultList title={t("quiz.wrong_list")} items={wrong} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="bad" savedIds={savedIds} onToggleSave={toggleSave} onAsk={askAbout} />
-        <ResultList title={t("quiz.confused_list")} items={confused} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="warn" savedIds={savedIds} onToggleSave={toggleSave} onAsk={askAbout} />
-        <ResultList title={t("quiz.saved_list")} items={savedOnly} answers={answers} subjectId={subjectId} isGuest={isGuest} tone="accent" savedIds={savedIds} onToggleSave={toggleSave} onAsk={askAbout} />
+        <ReviewList
+          items={review}
+          counts={{ all: review.length, wrong: wrong.length, confused: confused.length, saved: review.filter((x) => savedIds.has(x.id)).length }}
+          filter={reviewFilter}
+          onFilter={setReviewFilter}
+          answers={answers}
+          subjectId={subjectId}
+          isGuest={isGuest}
+          savedIds={savedIds}
+          onToggleSave={toggleSave}
+          onAsk={askAbout}
+        />
         {!isGuest && subjectId && chatTarget && (
           <ChatDock key={chatTarget.id} subjectId={subjectId} subjectName={title} question={chatTarget} revealed open={chatOpen} onOpenChange={setChatOpen} />
         )}
@@ -435,39 +446,70 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   );
 }
 
-function ResultList({
-  title,
+type ReviewFilter = "all" | "wrong" | "confused" | "saved";
+
+/** 결과 화면: 틀림·헷갈림·저장 문항을 한 목록으로. 이유는 배지, 칩으로 거른다 */
+function ReviewList({
   items,
+  counts,
+  filter,
+  onFilter,
   answers,
   subjectId,
   isGuest,
-  tone,
   savedIds,
   onToggleSave,
   onAsk,
 }: {
-  title: string;
   items: QuestionWithChoices[];
+  counts: Record<ReviewFilter, number>;
+  filter: ReviewFilter;
+  onFilter: (f: ReviewFilter) => void;
   answers: Record<string, Answer>;
   subjectId: string | null;
   isGuest: boolean;
-  tone: "bad" | "warn" | "accent";
   savedIds: Set<string>;
   onToggleSave: (id: string) => void;
   onAsk: (q: QuestionWithChoices) => void;
 }) {
   const t = useT();
   if (items.length === 0) return null;
+  const shown = items.filter((q) => {
+    if (filter === "wrong") return answers[q.id]?.isCorrect === false;
+    if (filter === "confused") return !!answers[q.id]?.confused;
+    if (filter === "saved") return savedIds.has(q.id);
+    return true;
+  });
+  const chips: [ReviewFilter, string, string][] = [
+    ["all", t("quiz.review_all"), "border-accent bg-accent-soft text-accent"],
+    ["wrong", t("quiz.wrong_list"), "border-bad bg-bad-soft text-bad"],
+    ["confused", t("quiz.confused_list"), "border-warn bg-warn-soft text-warn"],
+    ["saved", t("quiz.saved_list"), "border-accent bg-accent-soft text-accent"],
+  ];
   return (
     <div className="card">
-      <div className="flex items-center justify-between">
-        <h2 className={`font-bold ${tone === "bad" ? "text-bad" : tone === "warn" ? "text-warn" : "text-accent"}`}>
-          {title} ({items.length})
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-bold">
+          {t("quiz.review_list")} ({items.length})
         </h2>
-        {!isGuest && subjectId && <AddToCollection subjectId={subjectId} questionIds={items.map((q) => q.id)} />}
+        {!isGuest && subjectId && shown.length > 0 && <AddToCollection subjectId={subjectId} questionIds={shown.map((q) => q.id)} />}
       </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {chips.map(([k, label, active]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onFilter(k)}
+            disabled={counts[k] === 0}
+            className={`rounded-full border px-3 py-1 text-sm disabled:opacity-40 ${filter === k ? active : "border-border"}`}
+          >
+            {label} {counts[k]}
+          </button>
+        ))}
+      </div>
+      {shown.length === 0 && <p className="mt-3 text-sm text-muted">{t("quiz.review_empty")}</p>}
       <ol className="mt-3 flex flex-col gap-3">
-        {items.map((q, i) => {
+        {shown.map((q, i) => {
           const ans = answers[q.id];
           const correct = q.choices.find((c) => c.ord === q.correct_choice);
           const picked = q.choices.find((c) => c.ord === ans?.selectedOrd);
@@ -475,6 +517,12 @@ function ResultList({
             <li key={q.id} className="border-t border-border pt-3 first:border-t-0 first:pt-0">
               <p className="font-semibold">
                 {i + 1}. {q.prompt}
+              </p>
+              <p className="mt-1 flex flex-wrap gap-1 text-xs">
+                {ans?.isCorrect === false && <span className="badge bg-bad-soft text-bad">{t("quiz.wrong")}</span>}
+                {ans?.isCorrect === true && <span className="badge bg-ok-soft text-ok">{t("quiz.review_correct")}</span>}
+                {ans?.confused && <span className="badge bg-warn-soft text-warn">{t("saved.f_confused")}</span>}
+                {savedIds.has(q.id) && <span className="badge bg-accent-soft text-accent">{t("saved.f_saved")}</span>}
               </p>
               {picked && ans?.isCorrect === false && <p className="mt-1 text-sm text-bad">{t("quiz.my_answer")}: {picked.text}</p>}
               {correct && <p className="mt-1 text-sm text-ok">{t("common.answer")}: {correct.text}</p>}
