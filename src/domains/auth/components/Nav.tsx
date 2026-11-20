@@ -55,7 +55,11 @@ export async function Nav() {
             </>
           )}
           <form action={setLangAction.bind(null, other)}>
-            <button className="btn-ghost btn-sm font-bold" type="submit" aria-label="language" title={other === "en" ? "Switch to English" : "한국어로 보기"}>
+            <button className="btn-ghost btn-sm inline-flex items-center gap-1 font-bold" type="submit" aria-label="language" title={other === "en" ? "Switch to English" : "한국어로 보기"}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+              </svg>
               {tr("lang.toggle")}
             </button>
           </form>
