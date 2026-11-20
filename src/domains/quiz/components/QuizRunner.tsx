@@ -47,7 +47,7 @@ type Props = {
 
 // 문항별 스톱워치(0초부터 올라간다). 모의고사(제한 시간) 모드는 나중에 이 값 위에 얹는다
 const TIMER_KEY = "mcquiz.stopwatch";
-const TIMER_CAP = 300; // 5분 넘으면 "5분+" 로 멈춘다
+const TIMER_CAP = 600; // 10분 넘으면 "10분+" 로 멈춘다. 합계도 문항마다 10분으로 잘라 더한다
 
 // 타이머 숨김 여부는 기기에 기억한다 (localStorage). 서버 렌더에서는 "보임"
 const subscribeTimerPref = (cb: () => void) => {
@@ -273,6 +273,14 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     const totalPts = graded.reduce((s, x) => s + pts(x), 0);
     const gotPts = correct.reduce((s, x) => s + pts(x), 0);
     const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+    // 총 소요 시간: 문항마다 상한(10분)으로 자른 값을 더한다
+    const totalSec = questions.reduce((s, x) => s + Math.min(TIMER_CAP, elapsed[x.id] ?? 0), 0);
+    const fmtTotal = (sec: number) => {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+    };
     return (
       <section className="flex flex-col gap-4 pb-20">
         <div className="card text-center">
@@ -281,6 +289,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           <div className="mt-1 text-muted">
             {t("quiz.score_count", { correct: correct.length, total: graded.length, pct: totalPts ? Math.round((gotPts / totalPts) * 100) : 0 })}
           </div>
+          {timerOn && totalSec > 0 && <div className="mt-1 font-mono text-sm tabular-nums text-muted">⏱ {t("quiz.total_time", { t: fmtTotal(totalSec) })}</div>}
           {isGuest && <p className="mt-2 text-sm text-warn">{t("quiz.guest_warn")}</p>}
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {wrong.length > 0 && (
@@ -394,28 +403,30 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
                 else cls = "border-border opacity-70";
               } else if (out) cls = "border-border bg-background text-muted line-through opacity-60";
               return (
-                <li key={c.id} className="group relative">
-                  <button
-                    onClick={() => select(c)}
-                    disabled={answered || out}
-                    className={`w-full rounded-xl border-2 px-4 py-3 pr-12 text-left text-lg transition ${cls} ${!answered && !out ? "active:scale-[0.99] hover:border-accent" : ""}`}
-                  >
-                    <span className="mr-2 font-bold text-muted">{i + 1}</span>
-                    {c.text}
-                  </button>
+                <li key={c.id} className="flex items-stretch gap-1.5">
+                  {/* 지우기(소거) 칸: 선지 버튼과 겹치지 않게 왼쪽에 따로 둔다. 모바일에서도 항상 보인다 */}
                   {!answered && (
                     <button
                       type="button"
                       aria-label={out ? t("quiz.strike_undo") : t("quiz.strike")}
+                      aria-pressed={out}
                       title={out ? t("quiz.strike_undo") : t("quiz.strike")}
                       onClick={() => toggleStrike(q.id, c.ord)}
-                      className={`absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-lg leading-none transition ${
-                        out ? "font-bold text-bad opacity-100" : "text-muted opacity-25 hover:bg-background hover:opacity-80 sm:opacity-0 sm:group-hover:opacity-50"
+                      className={`flex w-10 shrink-0 items-center justify-center rounded-xl border text-xl leading-none transition ${
+                        out ? "border-bad bg-bad-soft font-bold text-bad" : "border-border text-muted opacity-40 hover:opacity-100 active:scale-95"
                       }`}
                     >
                       ×
                     </button>
                   )}
+                  <button
+                    onClick={() => select(c)}
+                    disabled={answered || out}
+                    className={`min-w-0 flex-1 rounded-xl border-2 px-4 py-3 text-left text-lg transition ${cls} ${!answered && !out ? "active:scale-[0.99] hover:border-accent" : ""}`}
+                  >
+                    <span className="mr-2 font-bold text-muted">{i + 1}</span>
+                    {c.text}
+                  </button>
                 </li>
               );
             })}
