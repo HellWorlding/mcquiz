@@ -481,14 +481,14 @@ isOneToOne: false
                   ]
                 },"units": {
                   Row: {
-                    "created_at": string,"id": string,"no": number | null,"parent_id": string | null,"sort": number,"subject_id": string,"title": string
+                    "created_at": string,"id": string,"no": number | null,"parent_id": string | null,"priority": number | null,"sort": number,"subject_id": string,"title": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"no"?: number | null,"parent_id"?: string | null,"sort"?: number,"subject_id": string,"title": string
+                    "created_at"?: string,"id"?: string,"no"?: number | null,"parent_id"?: string | null,"priority"?: number | null,"sort"?: number,"subject_id": string,"title": string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"no"?: number | null,"parent_id"?: string | null,"sort"?: number,"subject_id"?: string,"title"?: string
+                    "created_at"?: string,"id"?: string,"no"?: number | null,"parent_id"?: string | null,"priority"?: number | null,"sort"?: number,"subject_id"?: string,"title"?: string
                   }
                   Relationships: [
                     {

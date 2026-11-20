@@ -73,6 +73,8 @@ const M = {
   "start.tab_units": ["단원", "Units"],
   "start.round_done": ["{k}회독 {c}/{n} {pct}%", "Round {k}: {c}/{n} {pct}%"],
   "start.round_acc_title": ["그 회독에서 맞힌 문항 수 / 문항 수", "Correct / total in that round"],
+  "start.priority": ["{n}순위", "P{n}"],
+  "start.priority_title": ["학습 우선순위. 1순위가 가장 중요합니다.", "Study priority. 1 is the most important."],
   "start.round_in": ["{k}회독 중 {p}/{n}", "Round {k}: {p}/{n}"],
   "start.round_part": ["일부 {p}/{n} 풀이 중", "Partial: {p}/{n}"],
   "start.round_part_title": ["단원 일부만 골라 푼 세션의 진행입니다. 단원 전체를 풀어야 회독으로 칩니다.", "Progress of a session covering only part of this unit. A round counts only when the whole unit is included."],

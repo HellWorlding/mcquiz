@@ -443,6 +443,18 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
   );
 }
 
+/** 단원 우선순위 배지: 1순위가 가장 진하고 내려갈수록 연해진다 */
+function PriorityBadge({ p }: { p: number | null | undefined }) {
+  const t = useT();
+  if (!p) return null;
+  const tone = p === 1 ? "bg-accent text-white font-bold" : p === 2 ? "bg-accent-soft text-accent font-semibold" : "border border-border text-muted";
+  return (
+    <span className={`badge shrink-0 ${tone}`} title={t("start.priority_title")}>
+      {t("start.priority", { n: p })}
+    </span>
+  );
+}
+
 type RoundInfo = {
   rounds: number;
   progressed: number;
@@ -510,6 +522,7 @@ function UnitRow({
         <label className="flex flex-1 cursor-pointer items-center gap-3">
           <input type="checkbox" className="size-5 accent-accent" checked={isOn} onChange={() => onToggle(node)} />
           <span className={isOn ? "font-semibold" : ""}>{unitLabel(node.no, node.title)}</span>
+          <PriorityBadge p={node.priority} />
           <span className="ml-auto flex items-center gap-2 text-sm text-muted">
             <RoundBadge info={round.get(node.id)} />
             {total.get(node.id) ?? 0}
