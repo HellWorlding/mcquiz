@@ -370,7 +370,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           {idx + 1} / {questions.length}
           {sessionId && <span className="ml-1 text-xs text-muted">{t("quiz.saved_badge")}</span>}
         </span>
-        <span className="flex w-20 justify-end">{timerChip}</span>
+        <span className="flex w-20 justify-end lg:hidden">{timerChip}</span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
         <div className="h-full bg-accent transition-all" style={{ width: `${((idx + (answered ? 1 : 0)) / questions.length) * 100}%` }} />
