@@ -45,7 +45,8 @@ type Props = {
   unitLabels?: Record<string, string>;
 };
 
-const TIMER_KEY = "mcquiz.timer";
+// 문항별 스톱워치(0초부터 올라간다). 모의고사(제한 시간) 모드는 나중에 이 값 위에 얹는다
+const TIMER_KEY = "mcquiz.stopwatch";
 const TIMER_CAP = 300; // 5분 넘으면 "5분+" 로 멈춘다
 
 // 타이머 숨김 여부는 기기에 기억한다 (localStorage). 서버 렌더에서는 "보임"
@@ -202,10 +203,10 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       if (prev?.attemptId) {
         // 플래시카드에서 먼저 헷갈림을 눌러 둔 경우: 기존 기록은 두고 새 기록을 남긴다
       }
-      const r = await recordAttemptAction({ questionId: q.id, selectedOrd: choice.ord, isCorrect, confused });
+      const r = await recordAttemptAction({ questionId: q.id, selectedOrd: choice.ord, isCorrect, confused, elapsedSec: elapsed[q.id] ?? 0 });
       if (r.ok && r.data) setAnswers((s) => ({ ...s, [q.id]: { ...s[q.id], attemptId: r.data } }));
     },
-    [q, answered, answers, isGuest, persist, questions, idx],
+    [q, answered, answers, isGuest, persist, questions, idx, elapsed],
   );
 
   const toggleConfused = useCallback(async () => {

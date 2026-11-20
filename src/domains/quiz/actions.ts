@@ -9,6 +9,8 @@ export async function recordAttemptAction(input: {
   selectedOrd: number | null;
   isCorrect: boolean | null;
   confused: boolean;
+  /** 이 문항에 쓴 시간(초). 스톱워치 값, 5분 넘으면 300 */
+  elapsedSec?: number | null;
 }): Promise<ActionResult<string | null>> {
   const user = await getCurrentUser();
   if (!user) return { ok: true, data: null };
@@ -21,6 +23,7 @@ export async function recordAttemptAction(input: {
       selected_ord: input.selectedOrd,
       is_correct: input.isCorrect,
       confused: input.confused,
+      elapsed_sec: input.elapsedSec == null ? null : Math.max(0, Math.min(3600, Math.round(input.elapsedSec))),
     })
     .select("id")
     .single();

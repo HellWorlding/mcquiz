@@ -57,14 +57,14 @@ isOneToOne: false
                   ]
                 },"attempts": {
                   Row: {
-                    "confused": boolean,"created_at": string,"id": string,"is_correct": boolean | null,"question_id": string,"selected_ord": number | null,"user_id": string
+                    "confused": boolean,"created_at": string,"elapsed_sec": number | null,"id": string,"is_correct": boolean | null,"question_id": string,"selected_ord": number | null,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "confused"?: boolean,"created_at"?: string,"id"?: string,"is_correct"?: boolean | null,"question_id": string,"selected_ord"?: number | null,"user_id": string
+                    "confused"?: boolean,"created_at"?: string,"elapsed_sec"?: number | null,"id"?: string,"is_correct"?: boolean | null,"question_id": string,"selected_ord"?: number | null,"user_id": string
                   }
                   Update: {
-                    "confused"?: boolean,"created_at"?: string,"id"?: string,"is_correct"?: boolean | null,"question_id"?: string,"selected_ord"?: number | null,"user_id"?: string
+                    "confused"?: boolean,"created_at"?: string,"elapsed_sec"?: number | null,"id"?: string,"is_correct"?: boolean | null,"question_id"?: string,"selected_ord"?: number | null,"user_id"?: string
                   }
                   Relationships: [
                     {
