@@ -14,6 +14,13 @@ import { isKoreanTitle, qNoLabel } from "@/domains/shared/labels";
 import { ReportButton } from "@/domains/questions/components/ReportModal";
 
 type Filter = "wrong" | "repeat" | "confused" | "saved";
+
+/** 한국 시간으로 "2026.11.20 21:42" */
+const KST = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+function fmtKst(iso: string): string {
+  const parts = Object.fromEntries(KST.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
+  return `${parts.year}.${parts.month}.${parts.day} ${parts.hour}:${parts.minute}`;
+}
 const FILTERS: Filter[] = ["wrong", "repeat", "confused", "saved"];
 
 /** 필터 조건 하나. repeat = 2회 이상 틀린 문항 (회독을 거듭해도 다시 틀린 것) */
@@ -362,6 +369,11 @@ function SavedList({
                 {it.saved && <span className="badge bg-accent-soft text-accent">{t("saved.f_saved")}</span>}
                 {it.lastResult !== null && (
                   <span className={`badge ${it.lastResult ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad"}`}>{it.lastResult ? t("saved.last_correct") : t("saved.last_wrong")}</span>
+                )}
+                {it.lastGradedAt && (
+                  <span className="badge bg-background text-muted" title={t("saved.last_solved_title")}>
+                    {t("saved.last_solved", { t: fmtKst(it.lastGradedAt) })}
+                  </span>
                 )}
               </p>
               {correct && <p className="mt-1 text-sm text-ok">{t("common.answer")}: {correct.text}</p>}

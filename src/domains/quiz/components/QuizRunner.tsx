@@ -126,7 +126,16 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     });
   };
   // 문항별 타이머(초). 답을 고르면 멈추고, 5분이 넘으면 "5분+" 로 멈춘다. 숨기기는 기기에 기억
-  const [elapsed, setElapsed] = useState<Record<string, number>>({});
+  const [elapsed, setElapsed] = useState<Record<string, number>>(() => {
+    // 이어서 풀기: 세션에 저장해 둔 문항별 시간을 되살린다
+    const out: Record<string, number> = {};
+    for (const [qid, a] of Object.entries(resume?.answers ?? {})) if (a.elapsedSec) out[qid] = Math.min(TIMER_CAP, a.elapsedSec);
+    return out;
+  });
+  const elapsedRef = useRef(elapsed);
+  useEffect(() => {
+    elapsedRef.current = elapsed;
+  }, [elapsed]);
   const timerOn = useSyncExternalStore(subscribePref, readTimerPref, () => true);
   const toggleTimer = () => writePref(TIMER_KEY, !timerOn);
   // 선지 지우기 모드: 켜면 선지 왼쪽에 × 칸이 생긴다
@@ -158,7 +167,10 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     (qs: QuestionWithChoices[], pos: number, ans: Record<string, Answer>, finished: boolean) => {
       if (isGuest) return;
       const compact: Record<string, SessionAnswer> = {};
-      for (const [qid, a] of Object.entries(ans)) compact[qid] = { selectedOrd: a.selectedOrd, isCorrect: a.isCorrect, confused: a.confused };
+      const times = elapsedRef.current;
+      for (const [qid, a] of Object.entries(ans)) compact[qid] = { selectedOrd: a.selectedOrd, isCorrect: a.isCorrect, confused: a.confused, elapsedSec: times[qid] ?? 0 };
+      // 아직 답하지 않았지만 시간이 쌓인 문항도 시간만 저장해 둔다 (이어서 풀 때 전체 시간 보존)
+      for (const [qid, sec] of Object.entries(times)) if (!(qid in compact) && sec > 0) compact[qid] = { selectedOrd: null, isCorrect: null, confused: false, elapsedSec: sec };
       const run = async () => {
         const r = await saveProgressAction({
           sessionId: sessionRef.current,
@@ -199,6 +211,31 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     const id = setInterval(() => setElapsed((e) => ({ ...e, [qid]: Math.min(TIMER_CAP, (e[qid] ?? 0) + 1) })), 1000);
     return () => clearInterval(id);
   }, [qid, answered, finished, capped]);
+  // 답하기 전의 시간도 잃지 않게: 30초마다, 그리고 탭을 숨기거나 닫을 때 세션에 저장한다
+  const latest = useRef({ questions, idx, answers, finished });
+  useEffect(() => {
+    latest.current = { questions, idx, answers, finished };
+  }, [questions, idx, answers, finished]);
+  const tick30 = !!qid && !answered && (elapsed[qid] ?? 0) > 0 && (elapsed[qid] ?? 0) % 30 === 0;
+  useEffect(() => {
+    if (!tick30 || isGuest) return;
+    const l = latest.current;
+    if (!l.finished) persist(l.questions, l.idx, l.answers, false);
+  }, [tick30, isGuest, persist]);
+  useEffect(() => {
+    if (isGuest) return;
+    const flush = () => {
+      if (document.visibilityState !== "hidden") return;
+      const l = latest.current;
+      if (!l.finished && (Object.keys(elapsedRef.current).length > 0 || Object.keys(l.answers).length > 0)) persist(l.questions, l.idx, l.answers, false);
+    };
+    document.addEventListener("visibilitychange", flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", flush);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, [isGuest, persist]);
 
   const goTo = (i: number) => {
     setShowHint(false);

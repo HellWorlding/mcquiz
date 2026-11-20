@@ -211,6 +211,8 @@ const M = {
   "saved.practice_list": ["이 목록 풀기", "Practice this list"],
   "saved.removing": ["빼는 중…", "Removing…"],
   "saved.wrong_times": ["{n}회 틀림", "wrong {n}×"],
+  "saved.last_solved": ["{t} 풀이", "solved {t}"],
+  "saved.last_solved_title": ["마지막으로 답을 고른 시각 (한국 시간)", "When you last answered this (KST)"],
   "saved.last_correct": ["최근 정답", "last: correct"],
   "saved.last_wrong": ["최근 오답", "last: wrong"],
   "saved.stat_group": ["묶음별 (콜로케이션 / 어휘 등)", "By section"],

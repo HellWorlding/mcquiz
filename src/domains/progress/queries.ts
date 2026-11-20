@@ -35,6 +35,8 @@ export type SavedItem = {
   saved: boolean;
   reasons: ("wrong" | "confused" | "saved")[];
   lastAt: string;
+  /** 마지막으로 답을 고른 시각 (ISO). 한 번도 안 풀었으면 null */
+  lastGradedAt: string | null;
 };
 
 export type WeakSummary = {
@@ -83,6 +85,7 @@ function buildSavedItems(stats: Stat[]): SavedItem[] {
       saved: s.saved,
       reasons,
       lastAt: s.last_weak_at ?? "",
+      lastGradedAt: s.last_graded_at,
     });
   }
   return out.sort((a, b) => b.wrongCount - a.wrongCount || (b.lastAt > a.lastAt ? 1 : -1));

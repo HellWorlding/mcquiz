@@ -39,7 +39,8 @@ export async function setConfusedAction(attemptId: string, confused: boolean): P
   return error ? { ok: false, error: error.message } : { ok: true, data: undefined };
 }
 
-export type SessionAnswer = { selectedOrd: number | null; isCorrect: boolean | null; confused: boolean };
+/** 세션에 저장되는 문항 상태. elapsedSec = 스톱워치(초). 아직 답하지 않은 문항도 시간만 들고 있을 수 있다 */
+export type SessionAnswer = { selectedOrd: number | null; isCorrect: boolean | null; confused: boolean; elapsedSec?: number };
 
 /** 퀴즈 진행 상태 저장. sessionId 가 없으면 새로 만들고 id 를 돌려준다. 게스트는 저장하지 않는다. */
 export async function saveProgressAction(input: {
