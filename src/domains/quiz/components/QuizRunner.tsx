@@ -412,7 +412,8 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
             {order.map((c, i) => {
               const picked = a?.selectedOrd === c.ord;
               const isAns = q.correct_choice !== null && c.ord === q.correct_choice;
-              const out = !answered && strikeOn && struck.has(`${q.id}:${c.ord}`);
+              // 지운 선지는 모드를 꺼도 지워진 채로 둔다 (× 칸만 사라진다). 되살리려면 모드를 켜고 × 를 다시 누른다
+              const out = !answered && struck.has(`${q.id}:${c.ord}`);
               let cls = "border-border bg-card";
               if (answered) {
                 if (isAns) cls = "border-ok bg-ok-soft";
