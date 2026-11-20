@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Choice, QuestionWithChoices } from "@/domains/shared/types";
 import { hashString, shuffled } from "@/domains/quiz/shuffle";
 import { recordAttemptAction, saveProgressAction, setConfusedAction, type SessionAnswer } from "@/domains/quiz/actions";
@@ -41,7 +41,31 @@ type Props = {
   notes?: Record<string, string>;
   /** 이미 저장함에 직접 넣어 둔 문항 */
   savedIds?: string[];
+  /** unit_id → "3강 - 학교 경영" 같은 단원 라벨 */
+  unitLabels?: Record<string, string>;
 };
+
+const TIMER_KEY = "mcquiz.timer";
+const TIMER_CAP = 300; // 5분 넘으면 "5분+" 로 멈춘다
+
+// 타이머 숨김 여부는 기기에 기억한다 (localStorage). 서버 렌더에서는 "보임"
+const subscribeTimerPref = (cb: () => void) => {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+};
+const readTimerPref = () => {
+  try {
+    return localStorage.getItem(TIMER_KEY) !== "off";
+  } catch {
+    return true;
+  }
+};
+
+/** "1:05" / "5분+" */
+function formatElapsed(sec: number, cap: string): string {
+  if (sec >= TIMER_CAP) return cap;
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
 
 type Answer = {
   selectedOrd: number | null; // 원본 선지 번호
@@ -55,7 +79,7 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
   return shuffled(q.choices, hashString(q.id) ^ salt);
 }
 
-export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [] }: Props) {
+export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [], unitLabels = {} }: Props) {
   const t = useT();
   const [questions, setQuestions] = useState(initial);
   const [idx, setIdx] = useState(resume?.position ?? 0);
@@ -68,6 +92,28 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(initialSaved));
   // 결과 화면 "다시 볼 문항" 필터
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
+  // 선지 지우기(소거법): "문항id:선지ord" 집합. 화면 상태만, 저장하지 않는다
+  const [struck, setStruck] = useState<Set<string>>(new Set());
+  const toggleStrike = (qid: string, ord: number) => {
+    const k = `${qid}:${ord}`;
+    setStruck((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+  };
+  // 문항별 타이머(초). 답을 고르면 멈추고, 5분이 넘으면 "5분+" 로 멈춘다. 숨기기는 기기에 기억
+  const [elapsed, setElapsed] = useState<Record<string, number>>({});
+  const timerOn = useSyncExternalStore(subscribeTimerPref, readTimerPref, () => true);
+  const toggleTimer = () => {
+    try {
+      localStorage.setItem(TIMER_KEY, timerOn ? "off" : "on");
+      window.dispatchEvent(new Event("storage"));
+    } catch {
+      // 저장소를 못 쓰면 바꾸지 못한다
+    }
+  };
   // 우하단 AI 채팅 모달. 결과 화면에서는 고른 문항(chatTarget)으로 연다
   const [chatOpen, setChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState<QuestionWithChoices | null>(null);
@@ -128,6 +174,13 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   const order = useMemo(() => (q ? shuffleChoices(q, salt) : []), [q, salt]);
   const a = q ? answers[q.id] : undefined;
   const answered = !!a && a.selectedOrd !== null;
+  const qid = q?.id ?? null;
+  const capped = qid ? (elapsed[qid] ?? 0) >= TIMER_CAP : true;
+  useEffect(() => {
+    if (!qid || answered || finished || capped) return;
+    const id = setInterval(() => setElapsed((e) => ({ ...e, [qid]: Math.min(TIMER_CAP, (e[qid] ?? 0) + 1) })), 1000);
+    return () => clearInterval(id);
+  }, [qid, answered, finished, capped]);
 
   const goTo = (i: number) => {
     setShowHint(false);
@@ -289,6 +342,22 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     </div>
   );
 
+  const timerChip = timerOn ? (
+    <button
+      type="button"
+      onClick={toggleTimer}
+      title={t("quiz.timer_hide")}
+      className={`rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums ${answered ? "text-muted" : "bg-card text-foreground"}`}
+    >
+      ⏱ {formatElapsed(elapsed[q.id] ?? 0, t("quiz.timer_cap"))}
+    </button>
+  ) : (
+    <button type="button" onClick={toggleTimer} title={t("quiz.timer_show")} className="rounded-md px-1.5 py-0.5 text-xs text-muted opacity-50 hover:opacity-100">
+      ⏱
+    </button>
+  );
+  const unitTitle = q.unit_id ? unitLabels[q.unit_id] : null;
+
   return (
     <div className="flex flex-col gap-3 pb-20 lg:flex-row lg:items-start">
     <section className="flex min-w-0 flex-1 flex-col gap-3">
@@ -300,7 +369,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           {idx + 1} / {questions.length}
           {sessionId && <span className="ml-1 text-xs text-muted">{t("quiz.saved_badge")}</span>}
         </span>
-        <span className="w-16" />
+        <span className="flex w-20 justify-end">{timerChip}</span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
         <div className="h-full bg-accent transition-all" style={{ width: `${((idx + (answered ? 1 : 0)) / questions.length) * 100}%` }} />
@@ -308,6 +377,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
 
       {(
         <div className="card">
+          {unitTitle && <div className="mb-1 truncate text-xs text-muted">{unitTitle}</div>}
           <QuestionBadges q={{ ...q, topic: answered ? q.topic : null }} showTraps={false} />
           <p className="mt-1 whitespace-pre-wrap text-xl font-semibold leading-relaxed">{q.prompt}</p>
           {q.needs_review && <p className="mt-2 text-sm text-warn">{t("quiz.no_answer_warn")}</p>}
@@ -315,22 +385,36 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
             {order.map((c, i) => {
               const picked = a?.selectedOrd === c.ord;
               const isAns = q.correct_choice !== null && c.ord === q.correct_choice;
+              const out = !answered && struck.has(`${q.id}:${c.ord}`);
               let cls = "border-border bg-card";
               if (answered) {
                 if (isAns) cls = "border-ok bg-ok-soft";
                 else if (picked) cls = "border-bad bg-bad-soft";
                 else cls = "border-border opacity-70";
-              }
+              } else if (out) cls = "border-border bg-background text-muted line-through opacity-60";
               return (
-                <li key={c.id}>
+                <li key={c.id} className="group relative">
                   <button
                     onClick={() => select(c)}
-                    disabled={answered}
-                    className={`w-full rounded-xl border-2 px-4 py-3 text-left text-lg transition ${cls} ${!answered ? "active:scale-[0.99] hover:border-accent" : ""}`}
+                    disabled={answered || out}
+                    className={`w-full rounded-xl border-2 px-4 py-3 pr-12 text-left text-lg transition ${cls} ${!answered && !out ? "active:scale-[0.99] hover:border-accent" : ""}`}
                   >
                     <span className="mr-2 font-bold text-muted">{i + 1}</span>
                     {c.text}
                   </button>
+                  {!answered && (
+                    <button
+                      type="button"
+                      aria-label={out ? t("quiz.strike_undo") : t("quiz.strike")}
+                      title={out ? t("quiz.strike_undo") : t("quiz.strike")}
+                      onClick={() => toggleStrike(q.id, c.ord)}
+                      className={`absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-lg leading-none transition ${
+                        out ? "font-bold text-bad opacity-100" : "text-muted opacity-25 hover:bg-background hover:opacity-80 sm:opacity-0 sm:group-hover:opacity-50"
+                      }`}
+                    >
+                      ×
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -433,7 +517,10 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     <aside className="sticky top-20 hidden w-56 shrink-0 lg:block">
       <div className="card">
         <div className="mb-2 flex items-center justify-between text-xs text-muted">
-          <span>{t("quiz.nav")}</span>
+          <span className="flex items-center gap-2">
+            {t("quiz.nav")}
+            {timerChip}
+          </span>
           <span>
             {Object.values(answers).filter((a) => a.selectedOrd !== null).length}/{questions.length}
           </span>

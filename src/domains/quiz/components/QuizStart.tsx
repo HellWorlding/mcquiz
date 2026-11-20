@@ -93,10 +93,16 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
         const total = keys.reduce((s, k) => s + hist[k].n, 0);
         const rounds = Math.min(...keys);
         let progressed = 0;
-        for (const v of bySession.values()) if (v.covered >= total && v.answered > progressed) progressed = v.answered;
+        // 단원 일부만 담은 세션(10문항만 골라 풀기 등)의 진행도: 회독으로 치지는 않지만 "일부 3/10" 으로 보여 준다
+        let partial: RoundInfo["partial"] = null;
+        for (const v of bySession.values()) {
+          if (v.covered >= total) {
+            if (v.answered > progressed) progressed = v.answered;
+          } else if (v.answered > 0 && (!partial || v.answered > partial.answered)) partial = { answered: v.answered, covered: v.covered };
+        }
         // 완료된 회독 1..rounds 각각의 정답 수 (i번째 풀이 기준)
         const perRound = Array.from({ length: rounds }, (_, i) => ({ round: i + 1, correct: scores[i + 1]?.correct ?? 0, n: total }));
-        m.set(n.id, { rounds, progressed: Math.min(progressed, total), total, perRound });
+        m.set(n.id, { rounds, progressed: Math.min(progressed, total), total, perRound, partial });
       }
       return { hist, scores, bySession };
     };
@@ -437,12 +443,19 @@ export function QuizStart({ subject, units, sets, collections, unitCounts, unitR
   );
 }
 
-type RoundInfo = { rounds: number; progressed: number; total: number; perRound: { round: number; correct: number; n: number }[] };
+type RoundInfo = {
+  rounds: number;
+  progressed: number;
+  total: number;
+  perRound: { round: number; correct: number; n: number }[];
+  /** 단원 일부만 담은, 끝내지 않은 세션의 진행 (가장 많이 푼 것) */
+  partial: { answered: number; covered: number } | null;
+};
 
 /** 회독마다 "1회독 17/20 85%" 칩을 하나씩, 진행 중이면 "3회독 중 5/20" 을 덧붙인다. 아직 한 번도 안 풀었으면 없음 */
 function RoundBadge({ info }: { info: RoundInfo | undefined }) {
   const t = useT();
-  if (!info || (info.rounds === 0 && info.progressed === 0)) return null;
+  if (!info || (info.rounds === 0 && info.progressed === 0 && !info.partial)) return null;
   return (
     <span className="flex flex-wrap justify-end gap-1">
       {info.perRound.map((r) => {
@@ -455,6 +468,11 @@ function RoundBadge({ info }: { info: RoundInfo | undefined }) {
         );
       })}
       {info.progressed > 0 && <span className="badge bg-accent-soft text-accent">{t("start.round_in", { k: info.rounds + 1, p: info.progressed, n: info.total })}</span>}
+      {info.progressed === 0 && info.partial && (
+        <span className="badge bg-accent-soft text-accent" title={t("start.round_part_title")}>
+          {t("start.round_part", { p: info.partial.answered, n: info.partial.covered })}
+        </span>
+      )}
     </span>
   );
 }

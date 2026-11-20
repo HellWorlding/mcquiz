@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { QuestionWithChoices, Subject, Unit } from "@/domains/shared/types";
 import type { GroupStat, SavedItem, WeakSummary } from "@/domains/progress/queries";
-import { dismissQuestionAction } from "@/domains/progress/actions";
+import { dismissQuestionAction, dismissQuestionsAction } from "@/domains/progress/actions";
 import { AddToCollection } from "@/domains/quiz/components/AddToCollection";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
@@ -13,14 +13,16 @@ import { useT } from "@/domains/shared/i18n-client";
 import { isKoreanTitle, qNoLabel } from "@/domains/shared/labels";
 import { ReportButton } from "@/domains/questions/components/ReportModal";
 
-type Filter = "all" | "wrong" | "repeat" | "confused" | "saved";
+type Filter = "wrong" | "repeat" | "confused" | "saved";
+const FILTERS: Filter[] = ["wrong", "repeat", "confused", "saved"];
 
-/** 필터 조건. repeat = 2회 이상 틀린 문항 (회독을 거듭해도 다시 틀린 것) */
-function matches(it: SavedItem, f: Filter): boolean {
-  if (f === "all") return true;
+/** 필터 조건 하나. repeat = 2회 이상 틀린 문항 (회독을 거듭해도 다시 틀린 것) */
+function matchesOne(it: SavedItem, f: Filter): boolean {
   if (f === "repeat") return it.wrongCount >= 2;
   return it.reasons.includes(f);
 }
+/** 고른 조건을 모두 만족해야 한다 (AND). 아무것도 안 골랐으면 전체 */
+const matches = (it: SavedItem, fs: Set<Filter>) => [...fs].every((f) => matchesOne(it, f));
 
 /** 단원 라벨: "1강 학교 경영" / "파트3" */
 export function unitLabelOf(units: Unit[], unitId: string | null): { key: string; label: string; sort: number; groupKey: string } {
@@ -50,11 +52,18 @@ export function questionNoLabel(units: Unit[], q: { unit_id: string | null; ord:
 export function WeakView({ subject, summary, questions, units }: { subject: Subject; summary: WeakSummary; questions: QuestionWithChoices[]; units: Unit[] }) {
   const t = useT();
   const [tab, setTab] = useState<"list" | "stats">("list");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filters, setFilters] = useState<Set<Filter>>(new Set());
+  const toggleFilter = (f: Filter) =>
+    setFilters((s) => {
+      const n = new Set(s);
+      if (n.has(f)) n.delete(f);
+      else n.add(f);
+      return n;
+    });
   const [unitFilter, setUnitFilter] = useState<string | null>(null); // null = 전체
   const [groupFilter, setGroupFilter] = useState<string | null>(null); // 대단원 (콜로케이션/어휘). null = 전체
   const byId = new Map(questions.map((q) => [q.id, q]));
-  const byReason = summary.items.filter((it) => matches(it, filter)).filter((it) => byId.has(it.questionId));
+  const byReason = summary.items.filter((it) => matches(it, filters)).filter((it) => byId.has(it.questionId));
   // 단원별 묶음 (단원 순 → 문항 번호 순)
   const groups = new Map<string, { label: string; sort: number; groupKey: string; items: SavedItem[] }>();
   for (const it of byReason) {
@@ -86,13 +95,20 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
   const headStat = groupFilter ? summary.byGroup.find((g) => g.key === groupFilter) : null;
   const headTotal = headStat ? headStat.total : summary.totalAttempts;
   const headAcc = headStat ? headStat.accuracy : summary.accuracy;
-  const counts = {
-    all: summary.items.length,
-    wrong: summary.items.filter((i) => i.reasons.includes("wrong")).length,
-    repeat: summary.items.filter((i) => i.wrongCount >= 2).length,
-    confused: summary.items.filter((i) => i.reasons.includes("confused")).length,
-    saved: summary.items.filter((i) => i.reasons.includes("saved")).length,
+  // 칩의 숫자: 그 조건을 (이미 고른 다른 조건과 함께) 켰을 때 남는 문항 수
+  const countWith = (f: Filter) => {
+    const fs = new Set(filters);
+    fs.add(f);
+    return summary.items.filter((i) => matches(i, fs)).length;
   };
+  const counts: Record<"all" | Filter, number> = {
+    all: summary.items.length,
+    wrong: countWith("wrong"),
+    repeat: countWith("repeat"),
+    confused: countWith("confused"),
+    saved: countWith("saved"),
+  };
+  const labelOf: Record<Filter, string> = { wrong: t("saved.f_wrong"), repeat: t("saved.f_repeat"), confused: t("saved.f_confused"), saved: t("saved.f_saved") };
 
   return (
     <div className="flex flex-col gap-4">
@@ -132,26 +148,27 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
 
       {tab === "list" && (
         <>
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["all", t("saved.f_all")],
-                ["wrong", t("saved.f_wrong")],
-                ["repeat", t("saved.f_repeat")],
-                ["confused", t("saved.f_confused")],
-                ["saved", t("saved.f_saved")],
-              ] as [Filter, string][]
-            ).map(([k, label]) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setFilters(new Set())}
+              className={`rounded-full border px-3 py-1 text-sm ${filters.size === 0 ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+            >
+              {t("saved.f_all")} {counts.all}
+            </button>
+            {FILTERS.map((k) => (
               <button
                 key={k}
-                onClick={() => setFilter(k)}
-                className={`rounded-full border px-3 py-1 text-sm ${filter === k ? "border-accent bg-accent-soft text-accent" : k === "repeat" && counts.repeat > 0 ? "border-bad text-bad" : "border-border"}`}
+                onClick={() => toggleFilter(k)}
+                aria-pressed={filters.has(k)}
+                className={`rounded-full border px-3 py-1 text-sm ${filters.has(k) ? "border-accent bg-accent-soft text-accent" : k === "repeat" && counts.repeat > 0 ? "border-bad text-bad" : "border-border"}`}
               >
-                {label} {counts[k]}
+                {filters.has(k) ? "✓ " : ""}
+                {labelOf[k]} {counts[k]}
               </button>
             ))}
+            <span className="text-xs text-muted">{t("saved.f_multi_hint")}</span>
           </div>
-          {filter === "repeat" && <p className="text-xs text-muted">{t("saved.f_repeat_hint")}</p>}
+          {filters.has("repeat") && <p className="text-xs text-muted">{t("saved.f_repeat_hint")}</p>}
           {topGroups.length > 0 && (
             <div className="flex flex-wrap gap-2 rounded-xl bg-card p-2">
               <span className="w-full text-xs font-semibold text-muted">{t("saved.group")}</span>
@@ -233,6 +250,9 @@ function SavedList({
   const t = useT();
   const [pending, startTransition] = useTransition();
   const [removing, setRemoving] = useState<string | null>(null);
+  // 여러 개 고르기 → 한 번에 빼기
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   if (items.length === 0) {
     return <p className="card text-muted">{t("saved.empty")}</p>;
   }
@@ -245,15 +265,59 @@ function SavedList({
     });
   };
   const ids = items.map((i) => i.questionId);
+  const togglePick = (qid: string) =>
+    setPicked((s) => {
+      const n = new Set(s);
+      if (n.has(qid)) n.delete(qid);
+      else n.add(qid);
+      return n;
+    });
+  const pickedVisible = ids.filter((id) => picked.has(id));
+  const removePicked = () => {
+    if (pickedVisible.length === 0) return;
+    startTransition(async () => {
+      const r = await dismissQuestionsAction(pickedVisible);
+      if (r.ok) {
+        setPicked(new Set());
+        setSelecting(false);
+        router.refresh();
+      }
+    });
+  };
   return (
     <div className="card">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-muted">{t("common.count_questions", { n: items.length })}</span>
-        <div className="flex gap-2">
-          <AddToCollection subjectId={subjectId} questionIds={ids} />
-          <Link href={`/quiz?ids=${ids.join(",")}`} className="btn-primary btn-sm">
-            {t("saved.practice_list")}
-          </Link>
+        <div className="flex flex-wrap gap-2">
+          {selecting ? (
+            <>
+              <button className="btn-secondary btn-sm" onClick={() => setPicked(pickedVisible.length === ids.length ? new Set() : new Set(ids))}>
+                {pickedVisible.length === ids.length ? t("saved.pick_none") : t("saved.pick_all")}
+              </button>
+              <button className="btn-sm rounded-xl bg-bad px-3 py-1.5 font-semibold text-white disabled:opacity-40" disabled={pending || pickedVisible.length === 0} onClick={removePicked}>
+                {pending ? t("saved.removing") : t("saved.remove_picked", { n: pickedVisible.length })}
+              </button>
+              <button
+                className="btn-ghost btn-sm"
+                onClick={() => {
+                  setSelecting(false);
+                  setPicked(new Set());
+                }}
+              >
+                {t("common.cancel")}
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn-secondary btn-sm" onClick={() => setSelecting(true)}>
+                {t("saved.pick_mode")}
+              </button>
+              <AddToCollection subjectId={subjectId} questionIds={ids} />
+              <Link href={`/quiz?ids=${ids.join(",")}`} className="btn-primary btn-sm">
+                {t("saved.practice_list")}
+              </Link>
+            </>
+          )}
         </div>
       </div>
       <div className="flex flex-col gap-5">
@@ -268,15 +332,26 @@ function SavedList({
           const q = byId.get(it.questionId)!;
           const correct = q.choices.find((c) => c.ord === q.correct_choice);
           return (
-            <li key={q.id} className="border-t border-border pt-3 first:border-t-0 first:pt-0">
+            <li key={q.id} className={`border-t border-border pt-3 first:border-t-0 first:pt-0 ${selecting && picked.has(q.id) ? "-mx-2 rounded-lg bg-accent-soft/40 px-2" : ""}`}>
               <div className="flex items-start justify-between gap-2">
-                <p className="font-semibold">
+                {selecting && (
+                  <input
+                    type="checkbox"
+                    className="mt-1.5 h-5 w-5 shrink-0 accent-accent"
+                    checked={picked.has(q.id)}
+                    onChange={() => togglePick(q.id)}
+                    aria-label={t("saved.pick_one")}
+                  />
+                )}
+                <p className="flex-1 cursor-default font-semibold" onClick={selecting ? () => togglePick(q.id) : undefined}>
                   <span className="mr-1 text-accent">{questionNoLabel(units, q)}</span>
                   {q.prompt}
                 </p>
-                <button className="btn-ghost btn-sm shrink-0 text-bad" disabled={pending && removing === q.id} onClick={() => remove(q.id)}>
-                  {removing === q.id ? t("saved.removing") : t("common.remove")}
-                </button>
+                {!selecting && (
+                  <button className="btn-ghost btn-sm shrink-0 text-bad" disabled={pending && removing === q.id} onClick={() => remove(q.id)}>
+                    {removing === q.id ? t("saved.removing") : t("common.remove")}
+                  </button>
+                )}
               </div>
               <p className="mt-1 flex flex-wrap gap-2 text-xs">
                 {it.wrongCount > 0 && <span className={`badge ${it.wrongCount >= 2 ? "bg-bad text-white" : "bg-bad-soft text-bad"}`}>{t("saved.wrong_times", { n: it.wrongCount })}</span>}

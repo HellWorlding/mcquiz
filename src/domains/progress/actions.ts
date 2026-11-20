@@ -14,6 +14,20 @@ export async function dismissQuestionAction(questionId: string): Promise<ActionR
   return error ? { ok: false, error: error.message } : { ok: true, data: undefined };
 }
 
+/** 저장된 문제 목록에서 여러 개 한 번에 빼기 */
+export async function dismissQuestionsAction(questionIds: string[]): Promise<ActionResult<number>> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "로그인이 필요합니다." };
+  const ids = [...new Set(questionIds)].slice(0, 500);
+  if (ids.length === 0) return { ok: true, data: 0 };
+  const db = await createClient();
+  const at = new Date().toISOString();
+  const { error } = await db
+    .from("question_marks")
+    .upsert(ids.map((question_id) => ({ user_id: user.id, question_id, kind: "dismissed" as const, at })), { onConflict: "user_id,question_id,kind" });
+  return error ? { ok: false, error: error.message } : { ok: true, data: ids.length };
+}
+
 /** 문제 직접 저장 / 저장 취소 */
 export async function saveQuestionAction(questionId: string, saved: boolean): Promise<ActionResult> {
   const user = await getCurrentUser();
