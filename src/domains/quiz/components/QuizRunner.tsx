@@ -157,10 +157,12 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       else n.delete(id);
       return n;
     });
-    void saveQuestionAction(id, next);
+    saveQuestionAction(id, next).catch(() => setSyncError(true));
   };
   const sessionRef = useRef<string | null>(resume?.id ?? null);
   const saving = useRef<Promise<void> | null>(null);
+  // 서버 저장 실패(대개 새 버전 배포 직후 옛 화면이 서버를 부른 경우). 화면은 깨뜨리지 않고 안내만 띄운다
+  const [syncError, setSyncError] = useState(false);
 
   /** 진행 상태를 DB 에 저장 (게스트는 건너뜀). 호출 순서를 지키려고 직렬화한다. */
   const persist = useCallback(
@@ -172,15 +174,22 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       // 아직 답하지 않았지만 시간이 쌓인 문항도 시간만 저장해 둔다 (이어서 풀 때 전체 시간 보존)
       for (const [qid, sec] of Object.entries(times)) if (!(qid in compact) && sec > 0) compact[qid] = { selectedOrd: null, isCorrect: null, confused: false, elapsedSec: sec };
       const run = async () => {
-        const r = await saveProgressAction({
-          sessionId: sessionRef.current,
-          subjectId,
-          title,
-          questionIds: qs.map((q) => q.id),
-          position: pos,
-          answers: compact,
-          finished,
-        });
+        let r: Awaited<ReturnType<typeof saveProgressAction>>;
+        try {
+          r = await saveProgressAction({
+            sessionId: sessionRef.current,
+            subjectId,
+            title,
+            questionIds: qs.map((q) => q.id),
+            position: pos,
+            answers: compact,
+            finished,
+          });
+        } catch {
+          setSyncError(true);
+          return;
+        }
+        if (!r.ok) setSyncError(true);
         if (r.ok && r.data && !sessionRef.current) {
           sessionRef.current = r.data;
           setSessionId(r.data);
@@ -257,8 +266,13 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       if (prev?.attemptId) {
         // 플래시카드에서 먼저 헷갈림을 눌러 둔 경우: 기존 기록은 두고 새 기록을 남긴다
       }
-      const r = await recordAttemptAction({ questionId: q.id, selectedOrd: choice.ord, isCorrect, confused, elapsedSec: elapsed[q.id] ?? 0 });
-      if (r.ok && r.data) setAnswers((s) => ({ ...s, [q.id]: { ...s[q.id], attemptId: r.data } }));
+      try {
+        const r = await recordAttemptAction({ questionId: q.id, selectedOrd: choice.ord, isCorrect, confused, elapsedSec: elapsed[q.id] ?? 0 });
+        if (r.ok && r.data) setAnswers((s) => ({ ...s, [q.id]: { ...s[q.id], attemptId: r.data } }));
+        else if (!r.ok) setSyncError(true);
+      } catch {
+        setSyncError(true);
+      }
     },
     [q, answered, answers, isGuest, persist, questions, idx, elapsed],
   );
@@ -274,11 +288,15 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     setAnswers(nextAnswers);
     if (isGuest) return;
     persist(questions, idx, nextAnswers, false);
-    if (cur?.attemptId) {
-      await setConfusedAction(cur.attemptId, next);
-    } else {
-      const r = await recordAttemptAction({ questionId: q.id, selectedOrd: null, isCorrect: null, confused: next });
-      if (r.ok && r.data) setAnswers((s) => ({ ...s, [q.id]: { ...s[q.id], attemptId: r.data } }));
+    try {
+      if (cur?.attemptId) {
+        await setConfusedAction(cur.attemptId, next);
+      } else {
+        const r = await recordAttemptAction({ questionId: q.id, selectedOrd: null, isCorrect: null, confused: next });
+        if (r.ok && r.data) setAnswers((s) => ({ ...s, [q.id]: { ...s[q.id], attemptId: r.data } }));
+      }
+    } catch {
+      setSyncError(true);
     }
   }, [q, answers, isGuest, persist, questions, idx]);
 
@@ -438,6 +456,14 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
         <div className="h-full bg-accent transition-all" style={{ width: `${((idx + (answered ? 1 : 0)) / questions.length) * 100}%` }} />
       </div>
+      {syncError && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-warn-soft px-3 py-2 text-sm text-warn">
+          <span className="flex-1">{t("quiz.sync_error")}</span>
+          <button type="button" className="btn-secondary btn-sm" onClick={() => window.location.reload()}>
+            {t("quiz.sync_reload")}
+          </button>
+        </div>
+      )}
 
       {(
         <div className="card">

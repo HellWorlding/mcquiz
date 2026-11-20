@@ -116,6 +116,8 @@ const M = {
   // 퀴즈 풀이
   "quiz.exit": ["← 나가기", "← Exit"],
   "quiz.saved_badge": ["· 저장됨", "· saved"],
+  "quiz.sync_error": ["저장이 실패했습니다. 새 버전이 배포된 뒤일 수 있어요. 새로고침하면 저장된 데까지 이어서 풀 수 있습니다.", "Saving failed. A new version may have been deployed. Reload to continue from where it was saved."],
+  "quiz.sync_reload": ["새로고침", "Reload"],
   "quiz.nav": ["번호", "Questions"],
   "quiz.skip": ["건너뛰기", "Skip"],
   "quiz.flip_hint": ["문제 · 탭하면 정답", "Question · tap to reveal"],
