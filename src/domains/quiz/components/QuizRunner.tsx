@@ -5,7 +5,7 @@ import type { Choice, QuestionWithChoices } from "@/domains/shared/types";
 import { hashString, shuffled } from "@/domains/quiz/shuffle";
 import { recordAttemptAction, saveProgressAction, setConfusedAction, type SessionAnswer } from "@/domains/quiz/actions";
 import type { ResumeState } from "@/domains/quiz/resolve";
-import { saveQuestionAction } from "@/domains/progress/actions";
+import { dismissQuestionsAction, saveQuestionAction, undismissQuestionsAction } from "@/domains/progress/actions";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
 import { cleanExplanation } from "@/domains/shared/labels";
@@ -114,6 +114,9 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(initialSaved));
   // 결과 화면 "다시 볼 문항" 필터
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
+  // 결과 화면에서 저장함에서 뺀 문항. 목록에서 사라지고, 되돌리기로 복구할 수 있다
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [dismissBusy, setDismissBusy] = useState(false);
   // 선지 지우기(소거법): "문항id:선지ord" 집합. 화면 상태만, 저장하지 않는다
   const [struck, setStruck] = useState<Set<string>>(new Set());
   const toggleStrike = (qid: string, ord: number) => {
@@ -158,6 +161,30 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       return n;
     });
     saveQuestionAction(id, next).catch(() => setSyncError(true));
+  };
+  /** 결과 화면: 저장함에서 빼기 (틀림·헷갈림·저장 표시를 지금 시점 이전 것으로 묻는다) */
+  const dismissMany = (ids: string[]) => {
+    if (ids.length === 0 || dismissBusy) return;
+    setDismissBusy(true);
+    dismissQuestionsAction(ids)
+      .then((r) => {
+        if (r.ok) setDismissed((s) => new Set([...s, ...ids]));
+        else setSyncError(true);
+      })
+      .catch(() => setSyncError(true))
+      .finally(() => setDismissBusy(false));
+  };
+  const undoDismiss = () => {
+    const ids = [...dismissed];
+    if (ids.length === 0 || dismissBusy) return;
+    setDismissBusy(true);
+    undismissQuestionsAction(ids)
+      .then((r) => {
+        if (r.ok) setDismissed(new Set());
+        else setSyncError(true);
+      })
+      .catch(() => setSyncError(true))
+      .finally(() => setDismissBusy(false));
   };
   const sessionRef = useRef<string | null>(resume?.id ?? null);
   const saving = useRef<Promise<void> | null>(null);
@@ -341,7 +368,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     const wrong = questions.filter((x) => answers[x.id]?.isCorrect === false);
     const confused = questions.filter((x) => answers[x.id]?.confused);
     // 다시 볼 문항: 틀림·헷갈림·저장 중 하나라도 해당하면 한 번만 나온다 (이유는 배지로)
-    const review = questions.filter((x) => answers[x.id]?.isCorrect === false || answers[x.id]?.confused || savedIds.has(x.id));
+    const review = questions.filter((x) => !dismissed.has(x.id) && (answers[x.id]?.isCorrect === false || answers[x.id]?.confused || savedIds.has(x.id)));
     const totalPts = graded.reduce((s, x) => s + pts(x), 0);
     const gotPts = correct.reduce((s, x) => s + pts(x), 0);
     const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -370,7 +397,12 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         </div>
         <ReviewList
           items={review}
-          counts={{ all: review.length, wrong: wrong.length, confused: confused.length, saved: review.filter((x) => savedIds.has(x.id)).length }}
+          counts={{
+            all: review.length,
+            wrong: wrong.filter((x) => !dismissed.has(x.id)).length,
+            confused: confused.filter((x) => !dismissed.has(x.id)).length,
+            saved: review.filter((x) => savedIds.has(x.id)).length,
+          }}
           filter={reviewFilter}
           onFilter={setReviewFilter}
           answers={answers}
@@ -380,6 +412,10 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           onToggleSave={toggleSave}
           onAsk={askAbout}
           elapsed={timerOn ? elapsed : null}
+          onDismiss={dismissMany}
+          dismissedCount={dismissed.size}
+          onUndoDismiss={undoDismiss}
+          busy={dismissBusy}
         />
         {!isGuest && subjectId && chatTarget && (
           <ChatDock key={chatTarget.id} subjectId={subjectId} subjectName={title} question={chatTarget} revealed open={chatOpen} onOpenChange={setChatOpen} />
@@ -647,6 +683,10 @@ function ReviewList({
   onToggleSave,
   onAsk,
   elapsed,
+  onDismiss,
+  dismissedCount,
+  onUndoDismiss,
+  busy,
 }: {
   items: QuestionWithChoices[];
   counts: Record<ReviewFilter, number>;
@@ -660,15 +700,46 @@ function ReviewList({
   onAsk: (q: QuestionWithChoices) => void;
   /** 문항별 소요 시간(초). 스톱워치를 숨겼으면 null */
   elapsed: Record<string, number> | null;
+  /** 저장함에서 빼기 (한 개 또는 여러 개) */
+  onDismiss: (ids: string[]) => void;
+  dismissedCount: number;
+  onUndoDismiss: () => void;
+  busy: boolean;
 }) {
   const t = useT();
-  if (items.length === 0) return null;
+  // 여러 개 고르기 → 한 번에 빼기
+  const [selecting, setSelecting] = useState(false);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const undoLine = dismissedCount > 0 && (
+    <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted">
+      {t("quiz.dismissed_n", { n: dismissedCount })}
+      <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={onUndoDismiss}>
+        {t("quiz.undo")}
+      </button>
+    </p>
+  );
+  if (items.length === 0) return undoLine ? <div className="card">{undoLine}</div> : null;
   const shown = items.filter((q) => {
     if (filter === "wrong") return answers[q.id]?.isCorrect === false;
     if (filter === "confused") return !!answers[q.id]?.confused;
     if (filter === "saved") return savedIds.has(q.id);
     return true;
   });
+  const shownIds = shown.map((q) => q.id);
+  const pickedVisible = shownIds.filter((id) => sel.has(id));
+  const togglePick = (qid: string) =>
+    setSel((s) => {
+      const n = new Set(s);
+      if (n.has(qid)) n.delete(qid);
+      else n.add(qid);
+      return n;
+    });
+  const removePicked = () => {
+    if (pickedVisible.length === 0) return;
+    onDismiss(pickedVisible);
+    setSel(new Set());
+    setSelecting(false);
+  };
   const chips: [ReviewFilter, string, string][] = [
     ["all", t("quiz.review_all"), "border-accent bg-accent-soft text-accent"],
     ["wrong", t("quiz.wrong_list"), "border-bad bg-bad-soft text-bad"],
@@ -681,8 +752,46 @@ function ReviewList({
         <h2 className="font-bold">
           {t("quiz.review_list")} ({items.length})
         </h2>
-        {!isGuest && subjectId && shown.length > 0 && <AddToCollection subjectId={subjectId} questionIds={shown.map((q) => q.id)} />}
+        {!isGuest && (
+          <div className="flex flex-wrap items-center gap-2">
+            {selecting ? (
+              <>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => setSel(pickedVisible.length === shownIds.length ? new Set() : new Set(shownIds))}>
+                  {pickedVisible.length === shownIds.length ? t("saved.pick_none") : t("saved.pick_all")}
+                </button>
+                <button
+                  type="button"
+                  className="btn-sm rounded-xl bg-bad px-3 py-1.5 font-semibold text-white disabled:opacity-40"
+                  disabled={busy || pickedVisible.length === 0}
+                  onClick={removePicked}
+                >
+                  {busy ? t("saved.removing") : t("saved.remove_picked", { n: pickedVisible.length })}
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  onClick={() => {
+                    setSelecting(false);
+                    setSel(new Set());
+                  }}
+                >
+                  {t("common.cancel")}
+                </button>
+              </>
+            ) : (
+              <>
+                {shown.length > 0 && (
+                  <button type="button" className="btn-secondary btn-sm" onClick={() => setSelecting(true)}>
+                    {t("saved.pick_mode")}
+                  </button>
+                )}
+                {subjectId && shown.length > 0 && <AddToCollection subjectId={subjectId} questionIds={shownIds} />}
+              </>
+            )}
+          </div>
+        )}
       </div>
+      {undoLine}
       <div className="mt-2 flex flex-wrap gap-2">
         {chips.map(([k, label, active]) => (
           <button
@@ -703,7 +812,13 @@ function ReviewList({
           const correct = q.choices.find((c) => c.ord === q.correct_choice);
           const picked = q.choices.find((c) => c.ord === ans?.selectedOrd);
           return (
-            <li key={q.id} className="border-t border-border pt-3 first:border-t-0 first:pt-0">
+            <li key={q.id} className={`border-t border-border pt-3 first:border-t-0 first:pt-0 ${selecting ? "flex gap-2" : ""}`}>
+              {selecting && (
+                <label className="flex shrink-0 cursor-pointer items-start pt-0.5">
+                  <input type="checkbox" className="h-5 w-5 accent-accent" checked={sel.has(q.id)} onChange={() => togglePick(q.id)} aria-label={t("saved.pick_one")} />
+                </label>
+              )}
+              <div className="min-w-0 flex-1">
               <p className="font-semibold">
                 {i + 1}. {q.prompt}
               </p>
@@ -736,8 +851,14 @@ function ReviewList({
                         {t("chat.fab")}
                       </button>
                     )}
+                    {!selecting && (
+                      <button type="button" className="btn-ghost btn-sm text-muted" title={t("quiz.dismiss_title")} disabled={busy} onClick={() => onDismiss([q.id])}>
+                        {t("common.remove")}
+                      </button>
+                    )}
                   </span>
                 )}
+              </div>
               </div>
             </li>
           );

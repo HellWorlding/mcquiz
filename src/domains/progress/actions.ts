@@ -28,6 +28,17 @@ export async function dismissQuestionsAction(questionIds: string[]): Promise<Act
   return error ? { ok: false, error: error.message } : { ok: true, data: ids.length };
 }
 
+/** 방금 뺀 문항을 되돌리기 (dismissed 표시 삭제) */
+export async function undismissQuestionsAction(questionIds: string[]): Promise<ActionResult<number>> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "로그인이 필요합니다." };
+  const ids = [...new Set(questionIds)].slice(0, 500);
+  if (ids.length === 0) return { ok: true, data: 0 };
+  const db = await createClient();
+  const { error } = await db.from("question_marks").delete().eq("user_id", user.id).eq("kind", "dismissed").in("question_id", ids);
+  return error ? { ok: false, error: error.message } : { ok: true, data: ids.length };
+}
+
 /** 문제 직접 저장 / 저장 취소 */
 export async function saveQuestionAction(questionId: string, saved: boolean): Promise<ActionResult> {
   const user = await getCurrentUser();
