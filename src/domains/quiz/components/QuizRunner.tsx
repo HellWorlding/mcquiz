@@ -160,6 +160,12 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       else n.delete(id);
       return n;
     });
+    if (next && dismissed.has(id))
+      setDismissed((s) => {
+        const n = new Set(s);
+        n.delete(id);
+        return n;
+      });
     saveQuestionAction(id, next).catch(() => setSyncError(true));
   };
   /** 결과 화면: 저장함에서 빼기 (틀림·헷갈림·저장 표시를 지금 시점 이전 것으로 묻는다) */
@@ -174,13 +180,18 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
       .catch(() => setSyncError(true))
       .finally(() => setDismissBusy(false));
   };
-  const undoDismiss = () => {
-    const ids = [...dismissed];
+  const undoDismiss = (only?: string[]) => {
+    const ids = only ?? [...dismissed];
     if (ids.length === 0 || dismissBusy) return;
     setDismissBusy(true);
     undismissQuestionsAction(ids)
       .then((r) => {
-        if (r.ok) setDismissed(new Set());
+        if (r.ok)
+          setDismissed((s) => {
+            const n = new Set(s);
+            for (const id of ids) n.delete(id);
+            return n;
+          });
         else setSyncError(true);
       })
       .catch(() => setSyncError(true))
@@ -414,7 +425,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           elapsed={timerOn ? elapsed : null}
           onDismiss={dismissMany}
           dismissedCount={dismissed.size}
-          onUndoDismiss={undoDismiss}
+          onUndoDismiss={() => undoDismiss()}
           busy={dismissBusy}
         />
         {!isGuest && subjectId && chatTarget && (
@@ -619,6 +630,18 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
             onClick={() => toggleSave(q.id)}
           >
             {savedIds.has(q.id) ? t("quiz.saved") : t("quiz.save")}
+          </button>
+        )}
+        {!isGuest && answered && (
+          <button
+            type="button"
+            aria-pressed={dismissed.has(q.id)}
+            title={t("quiz.dismiss_title")}
+            disabled={dismissBusy}
+            className={`btn-sm rounded-xl border px-3 py-2 font-semibold disabled:opacity-60 ${dismissed.has(q.id) ? "border-border bg-background text-muted" : "border-border"}`}
+            onClick={() => (dismissed.has(q.id) ? undoDismiss([q.id]) : dismissMany([q.id]))}
+          >
+            {dismissed.has(q.id) ? t("quiz.dismissed_on") : t("quiz.dismiss")}
           </button>
         )}
         <button
