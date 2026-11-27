@@ -9,18 +9,36 @@ import { LOW_CONFIDENCE } from "../../domain/import/types";
 import { QuestionBadges, SourceQuote } from "@/shared/ui/QuestionMeta";
 import { metaOf } from "./meta";
 
+type Outcome = { ok: true } | { ok: false; error: string };
+
 export function SetEditor({ set, questions, unitTree }: { set: QuestionSet; questions: Question[]; unitTree: TreeNode<Unit>[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const units = flattenTree(unitTree);
-  const run = (fn: () => Promise<unknown>) =>
-    startTransition(async () => {
-      await fn();
-      router.refresh();
-    });
+  /** 저장 결과가 실패면 메시지를 보이고 false (편집 중이던 입력은 그대로 둔다), 성공이면 새로고침하고 true */
+  const run = (fn: () => Promise<Outcome>) =>
+    new Promise<boolean>((resolve) =>
+      startTransition(async () => {
+        const r = await fn();
+        if (!r.ok) {
+          setError(r.error);
+          resolve(false);
+          return;
+        }
+        setError(null);
+        router.refresh();
+        resolve(true);
+      }),
+    );
   return (
     <div className="flex flex-col gap-3">
+      {error && (
+        <p role="alert" className="card border-bad text-sm text-bad">
+          저장하지 못했습니다: {error}
+        </p>
+      )}
       {questions.map((q, i) => {
         const low = q.unitConfidence !== null && q.unitConfidence < LOW_CONFIDENCE;
         return (
@@ -105,7 +123,11 @@ export function SetEditor({ set, questions, unitTree }: { set: QuestionSet; ques
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                await deleteSetAction(set.id, set.subjectId);
+                const r = await deleteSetAction(set.id, set.subjectId);
+                if (!r.ok) {
+                  setError(r.error);
+                  return;
+                }
                 router.push("/admin");
               })
             }
@@ -122,7 +144,7 @@ export function SetEditor({ set, questions, unitTree }: { set: QuestionSet; ques
   );
 }
 
-function EditableText({ value, onSave, className = "", placeholder }: { value: string; onSave: (v: string) => void; className?: string; placeholder?: string }) {
+function EditableText({ value, onSave, className = "", placeholder }: { value: string; onSave: (v: string) => Promise<boolean>; className?: string; placeholder?: string }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   if (!editing) {
@@ -144,9 +166,9 @@ function EditableText({ value, onSave, className = "", placeholder }: { value: s
       <div className="flex gap-1">
         <button
           className="btn-primary btn-sm"
-          onClick={() => {
-            onSave(draft);
-            setEditing(false);
+          onClick={async () => {
+            // 저장이 실패하면 편집 상태와 입력을 그대로 둔다
+            if (await onSave(draft)) setEditing(false);
           }}
         >
           저장
