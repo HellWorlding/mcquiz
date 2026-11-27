@@ -22,8 +22,10 @@
     "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "^2.4.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
+    "mcp-handler": "^2.4.0",
     "next": "16.4.5",
     "openai": "^7.53.0",
     "react": "19.3.0",

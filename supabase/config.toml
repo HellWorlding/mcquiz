@@ -372,12 +372,12 @@ enabled = false
 
 # OAuth server configuration
 [auth.oauth_server]
-# Enable OAuth server functionality
-enabled = false
+# Enable OAuth server functionality (MCP 커넥터 로그인용: Claude·ChatGPT 가 이 서버로 사용자 토큰을 받는다)
+enabled = true
 # Path for OAuth consent flow UI
 authorization_url_path = "/oauth/consent"
-# Allow dynamic client registration
-allow_dynamic_registration = false
+# Allow dynamic client registration (MCP 클라이언트가 스스로 등록한다. 동의 화면에서 사용자가 매번 허용해야 한다)
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true
