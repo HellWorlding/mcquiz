@@ -145,11 +145,12 @@ export async function getAttemptCounts(subjectId: string): Promise<Record<string
   return attemptCounts(await sessionLearningDeps(), subjectId);
 }
 
-/** 약점 섞어 풀기 문항 id (저장함에서 n개) */
+/** 약점 섞어 풀기 문항 id (D-007 옛 동작: 약한 영역 안 푼 문항 60% + 저장함 40%) */
 export async function buildWeakMix(subjectId: string, n: number): Promise<string[]> {
   const deps = await sessionLearningDeps();
-  const { ids } = await savedBoxIds(deps, subjectId, "weak");
-  return pickWeakMix(ids, n, deps.rng.seed());
+  if (!deps.user) return [];
+  const [{ ids }, stats, unsolved] = await Promise.all([savedBoxIds(deps, subjectId, "weak"), deps.stats.questionStats(subjectId), deps.stats.unsolvedQuestions(subjectId)]);
+  return pickWeakMix({ stats, unsolved, savedBoxIds: ids }, n, deps.rng.seed());
 }
 
 /** 주어진 문항들의 내 메모 (question_id → content) */

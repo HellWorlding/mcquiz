@@ -19,7 +19,8 @@
     "cli": "tsx scripts/cli.ts",
     "sources:add": "tsx scripts/cli.ts sources add",
     "sources:embed": "tsx scripts/cli.ts sources embed",
-    "questions:add": "tsx scripts/cli.ts questions add"
+    "questions:add": "tsx scripts/cli.ts questions add",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.4.0",
@@ -33,6 +34,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^24.19.2",
     "@types/react": "^19",

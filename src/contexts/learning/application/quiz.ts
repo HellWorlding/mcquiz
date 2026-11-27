@@ -65,7 +65,9 @@ export async function resolveQuizIds(deps: LearningDeps, input: AssembleQuizInpu
     if (input.weakMix) {
       const n = input.count === "all" ? 20 : input.count;
       const seed = input.order.kind === "random" ? input.order.seed : deps.rng.seed();
-      return ok({ ids: pickWeakMix(ids, n, seed), total });
+      // D-007: 옛 동작 — 약한 영역의 안 푼 문항 60% + 저장함 40%, 모자라면 채움
+      const unsolved = subjectId ? await deps.stats.unsolvedQuestions(subjectId) : [];
+      return ok({ ids: pickWeakMix({ stats: [...statById.values()], unsolved, savedBoxIds: ids }, n, seed), total });
     }
     return ok({ ids: pickByOrder(ids, input.order, input.count), total });
   } catch (e) {

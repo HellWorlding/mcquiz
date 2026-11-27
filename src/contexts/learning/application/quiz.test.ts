@@ -42,11 +42,12 @@ describe("assembleQuiz (옛 resolveQuiz)", () => {
     const r = await resolveQuizIds(deps, { scope: { kind: "subject", subjectId: "S" }, filter: "all", order: { kind: "seq", offset: 0 }, count: 10, difficulty: "hard", under: 2 });
     expect(r).toEqual({ ok: true, data: { ids: ["q5"], total: 1 } });
   });
-  it("L5 약점 섞어 풀기: 저장함에서 count 개, 모자라면 그대로 (안 푼 문항으로 채우지 않음)", async () => {
+  it("L5 약점 섞어 풀기 (D-007 옛 동작): 저장함 + 안 푼 문항으로 채움, count 를 넘지 않음", async () => {
     const stats = [stat("q1", { attemptCount: 1, wrongCount: 1, wrongAfter: true }), stat("q3", { saved: true })];
     const { deps } = fakeDeps(user, { questions: qs, stats });
     const r = await assembleQuiz(deps, { scope: { kind: "subject", subjectId: "S" }, filter: "weak", weakMix: true, order: { kind: "random", seed: 1 }, count: 20 });
-    expect(r.ok && [...r.data].sort()).toEqual(["q1", "q3"]);
+    // 저장함 q1·q3 + 안 푼 q2·q4·q5·q6 → 모자라서 전부(6개) 들어온다
+    expect(r.ok && [...r.data].sort()).toEqual(["q1", "q2", "q3", "q4", "q5", "q6"]);
   });
   it("단원 제목", async () => {
     const { deps } = fakeDeps(user, { units: [{ id: "unitA", parent_id: null, no: 3, title: "학교 경영", sort: 0, priority: null }, { id: "unitB", parent_id: null, no: 4, title: "교무", sort: 1, priority: null }] });
