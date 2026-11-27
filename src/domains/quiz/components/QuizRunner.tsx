@@ -532,9 +532,31 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
         <Link href={backHref} className="btn-ghost btn-sm">
           {t("quiz.exit")}
         </Link>
-        <span>
-          {idx + 1} / {questions.length}
-          {sessionId && <span className="ml-1 text-xs text-muted">{t("quiz.saved_badge")}</span>}
+        {/* 이전/다음을 위에도 둔다: 폰에서 해설을 읽고 다시 아래까지 안 내려가도 넘길 수 있게 */}
+        <span className="flex items-center gap-1">
+          <button
+            type="button"
+            className="btn-ghost btn-sm px-2 disabled:opacity-30"
+            disabled={idx === 0}
+            aria-label={t("common.prev")}
+            title={t("common.prev")}
+            onClick={() => goTo(idx - 1)}
+          >
+            ‹
+          </button>
+          <span className="tabular-nums">
+            {idx + 1} / {questions.length}
+            {sessionId && <span className="ml-1 text-xs text-muted">{t("quiz.saved_badge")}</span>}
+          </span>
+          <button
+            type="button"
+            className={`btn-ghost btn-sm px-2 ${answered && idx + 1 < questions.length ? "text-accent" : ""}`}
+            aria-label={idx + 1 >= questions.length ? t("quiz.results") : answered ? t("common.next") : t("quiz.skip")}
+            title={idx + 1 >= questions.length ? t("quiz.results") : answered ? t("common.next") : t("quiz.skip")}
+            onClick={goNext}
+          >
+            {idx + 1 >= questions.length ? t("quiz.results") : "›"}
+          </button>
         </span>
         <span className="flex justify-end">{timerChip}</span>
       </div>
