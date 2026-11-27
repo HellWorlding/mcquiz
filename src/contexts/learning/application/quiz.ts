@@ -35,6 +35,8 @@ export async function resolveQuizIds(deps: LearningDeps, input: AssembleQuizInpu
     const { scope, filter } = input;
     let ids: string[] = scope.kind === "ids" ? [...new Set(scope.ids)] : await deps.catalog.questionIds(scope);
     const subjectId = subjectOf(scope);
+    // 풀이 기록 필터·약점 섞어 풀기는 과목 단위 집계가 필요하다. 과목이 없는 범위(set/collection/ids)에서는 틀린 결과 대신 거부한다
+    if ((filter !== "all" || input.weakMix) && !subjectId) return err("풀이 기록 필터는 과목·단원 범위에서만 쓸 수 있습니다.");
     const needStats = filter !== "all" || (input.under ?? 0) > 0;
     const stats = needStats && subjectId && deps.user ? await deps.stats.questionStats(subjectId) : [];
     const statById = new Map(stats.map((s) => [s.questionId, s]));
@@ -66,7 +68,13 @@ export async function resolveQuizIds(deps: LearningDeps, input: AssembleQuizInpu
       const n = input.count === "all" ? 20 : input.count;
       const seed = input.order.kind === "random" ? input.order.seed : deps.rng.seed();
       // D-007: 옛 동작 — 약한 영역의 안 푼 문항 60% + 저장함 40%, 모자라면 채움
-      const unsolved = subjectId ? await deps.stats.unsolvedQuestions(subjectId) : [];
+      let unsolved = subjectId ? await deps.stats.unsolvedQuestions(subjectId) : [];
+      // 난이도를 골랐으면 안 푼 문항 후보에도 같은 조건을 건다 (저장함 후보 ids 는 위에서 이미 걸렀다)
+      if (input.difficulty && unsolved.length) {
+        const qs = await deps.catalog.questionsByIds(unsolved.map((u) => u.id));
+        const keep = new Set(qs.filter((q) => q.difficulty === input.difficulty).map((q) => q.id));
+        unsolved = unsolved.filter((u) => keep.has(u.id));
+      }
       return ok({ ids: pickWeakMix({ stats: [...statById.values()], unsolved, savedBoxIds: ids }, n, seed), total });
     }
     return ok({ ids: pickByOrder(ids, input.order, input.count), total });

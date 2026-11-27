@@ -49,6 +49,21 @@ describe("assembleQuiz (옛 resolveQuiz)", () => {
     // 저장함 q1·q3 + 안 푼 q2·q4·q5·q6 → 모자라서 전부(6개) 들어온다
     expect(r.ok && [...r.data].sort()).toEqual(["q1", "q2", "q3", "q4", "q5", "q6"]);
   });
+  it("L5 약점 섞어 풀기 + 난이도: 안 푼 문항 후보에도 난이도를 건다", async () => {
+    const stats = [stat("q1", { attemptCount: 1, wrongCount: 1, wrongAfter: true }), stat("q2", { attemptCount: 1, wrongCount: 1, wrongAfter: true })];
+    const { deps } = fakeDeps(user, { questions: qs, stats });
+    const r = await assembleQuiz(deps, { scope: { kind: "subject", subjectId: "S" }, filter: "weak", weakMix: true, order: { kind: "random", seed: 1 }, count: 20, difficulty: "hard" });
+    // hard 는 q2·q5 뿐: 저장함 q2 + 안 푼 q5
+    expect(r.ok && [...r.data].sort()).toEqual(["q2", "q5"]);
+  });
+  it("과목이 없는 범위(set/collection/ids)에 풀이 기록 필터를 걸면 틀린 목록 대신 err", async () => {
+    const { deps } = fakeDeps(user, { questions: qs, stats: [stat("q1", { attemptCount: 1 })] });
+    for (const filter of ["unsolved", "saved", "weak"] as const) {
+      const r = await assembleQuiz(deps, { scope: { kind: "ids", ids: ["q1", "q2"] }, filter, order: { kind: "seq", offset: 0 }, count: "all" });
+      expect(r.ok).toBe(false);
+    }
+    expect((await assembleQuiz(deps, { scope: { kind: "set", setId: "x" }, filter: "all", weakMix: true, order: { kind: "random", seed: 1 }, count: 5 })).ok).toBe(false);
+  });
   it("단원 제목", async () => {
     const { deps } = fakeDeps(user, { units: [{ id: "unitA", parent_id: null, no: 3, title: "학교 경영", sort: 0, priority: null }, { id: "unitB", parent_id: null, no: 4, title: "교무", sort: 1, priority: null }] });
     expect(await scopeTitle(deps, { kind: "units", subjectId: "S", unitIds: ["unitA"] }, "단원")).toBe("3강 - 학교 경영");
