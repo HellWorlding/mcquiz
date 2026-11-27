@@ -19,6 +19,7 @@
     "unit:priority": "tsx scripts/unit-priority.ts",
     "export:learning": "tsx scripts/export-learning.ts",
     "import:questions": "tsx scripts/import-questions.ts",
+    "embed:chunks": "tsx scripts/embed-chunks.ts",
     "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {

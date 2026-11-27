@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/domains/shared/database.types";
 import type { Unit } from "@/domains/shared/types";
 import { unitNoFromFilename } from "./parse-text";
-import { chunkText } from "./chunk";
+import { chunkText, extractSourceUrl, htmlToText } from "./chunk";
+import { embedSourceChunks, type EmbedProgress } from "./embed-chunks";
 
 type Db = SupabaseClient<Database>;
 
@@ -55,7 +56,7 @@ export async function createUnitsFromToc(
 
 export type ExtractedFile = { text: string; pageRange: string | null };
 
-/** txt/md 는 그대로, pdf 는 페이지마다 "[p.N]" 표시를 넣어 텍스트로 만든다 */
+/** txt/md 는 그대로, html 은 태그를 벗겨 평문으로, pdf 는 페이지마다 "[p.N]" 표시를 넣어 텍스트로 만든다 */
 export async function extractText(filename: string, bytes: Uint8Array): Promise<ExtractedFile> {
   if (/\.pdf$/i.test(filename)) {
     const { PDFParse } = await import("pdf-parse");
@@ -72,7 +73,9 @@ export async function extractText(filename: string, bytes: Uint8Array): Promise<
       await parser.destroy();
     }
   }
-  return { text: new TextDecoder("utf-8").decode(bytes), pageRange: null };
+  const raw = new TextDecoder("utf-8").decode(bytes);
+  if (/\.html?$/i.test(filename)) return { text: htmlToText(raw), pageRange: null };
+  return { text: raw, pageRange: null };
 }
 
 export type SourceUploadResult = {
@@ -93,9 +96,13 @@ export async function importSourceFile(
     units: Unit[];
     unitId?: string | null; // 명시적으로 지정하면 파일명 추정보다 우선
     parentUnitId?: string | null; // 목차를 이 단원 아래에 만들 때
+    embed?: boolean; // 저장 뒤 조각 임베딩까지 (기본 true; 키가 없으면 건너뜀)
+    embedBudgetMs?: number; // 임베딩에 쓸 시간 상한 (서버 액션 시간 제한 안에서). 남은 조각은 embed:chunks 스크립트로
   },
 ): Promise<SourceUploadResult> {
-  const { text, pageRange } = await extractText(input.filename, input.bytes);
+  const extracted = await extractText(input.filename, input.bytes);
+  const { url, text } = extractSourceUrl(extracted.text);
+  const pageRange = extracted.pageRange;
   if (!text.trim()) return { filename: input.filename, status: "skipped", message: "내용이 비어 있습니다." };
 
   if (looksLikeToc(input.filename, text)) {
@@ -133,7 +140,7 @@ export async function importSourceFile(
   const range = pageRange ?? (pages.length ? `${Math.min(...pages)}-${Math.max(...pages)}` : null);
   const { data: inserted, error } = await db
     .from("sources")
-    .insert({ subject_id: input.subjectId, unit_id: unitId, kind: input.kind, title, content: text, page_range: range })
+    .insert({ subject_id: input.subjectId, unit_id: unitId, kind: input.kind, title, content: text, page_range: range, url })
     .select("id")
     .single();
   if (error || !inserted) return { filename: input.filename, status: "skipped", message: error?.message ?? "저장 실패" };
@@ -145,15 +152,23 @@ export async function importSourceFile(
       unit_id: unitId,
       ord: c.ord,
       page: c.page,
+      heading: c.heading,
       content: c.content,
     }));
     const { error: cErr } = await db.from("source_chunks").insert(rows);
     if (cErr) return { filename: input.filename, status: "skipped", message: `조각 저장 실패: ${cErr.message}` };
   }
+  let embedNote = "";
+  if (input.embed !== false) {
+    const p: EmbedProgress = await embedSourceChunks(db, inserted.id, { budgetMs: input.embedBudgetMs ?? 40_000 });
+    if (p.skipped) embedNote = "";
+    else if (p.failed) embedNote = ` · 임베딩 실패: ${p.failed}`;
+    else embedNote = p.done < p.total ? ` · 임베딩 ${p.done}/${p.total} (나머지는 npm run embed:chunks)` : ` · 임베딩 ${p.done}개`;
+  }
   return {
     filename: input.filename,
     status: "source",
     unitTitle,
-    message: `${unitId ? `단원 "${unitTitle}" 에 연결` : "단원을 찾지 못해 연결하지 않음"} · 조각 ${chunks.length}개${pages.length ? ` (p.${Math.min(...pages)}-${Math.max(...pages)})` : ""}`,
+    message: `${unitId ? `단원 "${unitTitle}" 에 연결` : "단원을 찾지 못해 연결하지 않음"} · 조각 ${chunks.length}개${pages.length ? ` (p.${Math.min(...pages)}-${Math.max(...pages)})` : ""}${embedNote}`,
   };
 }

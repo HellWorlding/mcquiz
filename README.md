@@ -20,6 +20,11 @@
 
 ### 외부 AI 연결 (MCP)
 - `https://<배포 주소>/api/mcp` 를 Claude·ChatGPT 등의 커넥터로 등록하면, 그 AI 가 내 과목·단원·문항과 풀이 기록을 읽고(관리자는 문항을 넣기도) 합니다.
+- 자료를 올린 과목은 `search_sources` 로 원자료 조각을 찾아 근거로 쓸 수 있습니다 (아래 RAG).
+
+### 자료 검색 (RAG)
+- 올린 자료(`.md/.txt/.html/.pdf`)는 조각으로 나뉘어 저장되고, OpenAI 임베딩(`text-embedding-3-large`)과 pgvector(HNSW) 로 색인됩니다. 검색은 벡터 유사도와 키워드 점수를 합친 하이브리드입니다.
+- 임베딩은 과목 단위로 켭니다 (`npm run embed:chunks -- "<주제>"`). 임베딩이 없는 과목은 키워드 검색으로 동작합니다. `OPENAI_API_KEY` 가 없어도 앱은 그대로 돕니다.
 - 로그인은 Supabase Auth 의 OAuth 2.1 서버로 하며, 모든 도구는 그 사용자 권한(RLS)으로 동작합니다. 계정 화면에 주소와 연결 방법이 있습니다.
 
 ### AI 튜터

@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/domains/shared/database.types";
 import { tokenize } from "@/domains/import/tokenize";
+import { embedQuery, toVectorLiteral } from "@/domains/import/embed";
 
 type Db = SupabaseClient<Database>;
 
@@ -21,6 +22,13 @@ export type EvidenceHit = {
   score: number;
   /** 단원 안에서 찾았는지, 전체에서 찾았는지 */
   scope: "unit" | "all";
+  /** 웹 자료의 출처 주소 */
+  url: string | null;
+  /** 마크다운 제목 경로 */
+  heading: string | null;
+  /** 어떤 검색이 잡았는지: 벡터·키워드 순위 (하이브리드일 때만) */
+  vecRank: number | null;
+  kwRank: number | null;
 };
 
 export function sourceLabel(kind: string, unitNo: number | null, page: number | null, title: string): string {
@@ -44,8 +52,15 @@ export function makeSnippet(content: string, tokens: string[], width = 320): str
   return (start > 0 ? "…" : "") + text.slice(start, end) + (end < text.length ? "…" : "");
 }
 
+/** 과목에 임베딩된 조각이 하나라도 있나 (부분 인덱스로 즉시) */
+export async function subjectHasEmbeddings(db: Db, subjectId: string): Promise<boolean> {
+  const { data } = await db.from("source_chunks").select("id").eq("subject_id", subjectId).not("embedding", "is", null).limit(1);
+  return !!data?.length;
+}
+
 /**
  * 근거 검색: 해당 단원(스크립트+책)에서 먼저 찾고, 모자라면 주제 전체에서 찾는다.
+ * 과목에 임베딩이 있으면 벡터 + 키워드 하이브리드(match_chunks), 없으면 키워드(search_chunks).
  */
 export async function findEvidence(
   db: Db,
@@ -53,16 +68,45 @@ export async function findEvidence(
 ): Promise<EvidenceHit[]> {
   const limit = input.limit ?? 6;
   const tokens = tokenize(input.query);
-  if (tokens.length === 0) return [];
+  const embedding = (await subjectHasEmbeddings(db, input.subjectId)) ? await embedQuery(input.query).catch(() => null) : null;
+  if (tokens.length === 0 && !embedding) return [];
 
-  const run = async (unitIds: string[] | null, scope: "unit" | "all") => {
+  const run = async (unitIds: string[] | null, scope: "unit" | "all"): Promise<EvidenceHit[]> => {
+    if (embedding) {
+      const { data, error } = await db.rpc("match_chunks", {
+        p_subject: input.subjectId,
+        p_embedding: toVectorLiteral(embedding),
+        p_tokens: tokens,
+        p_unit_ids: unitIds ?? undefined,
+        p_limit: limit,
+      });
+      if (error || !data) return [];
+      return data.map((r) => ({
+        chunkId: r.chunk_id,
+        sourceId: r.source_id,
+        unitId: r.unit_id,
+        unitNo: r.unit_no,
+        kind: r.kind,
+        sourceTitle: r.source_title,
+        page: r.page,
+        label: sourceLabel(r.kind, r.unit_no, r.page, r.source_title),
+        content: r.content,
+        snippet: makeSnippet(r.content, [...tokens]),
+        score: Number(r.score),
+        scope,
+        url: r.source_url,
+        heading: r.heading,
+        vecRank: r.vec_rank,
+        kwRank: r.kw_rank,
+      }));
+    }
     const { data, error } = await db.rpc("search_chunks", {
       p_subject: input.subjectId,
       p_tokens: tokens,
       p_unit_ids: unitIds ?? undefined,
       p_limit: limit,
     });
-    if (error || !data) return [] as EvidenceHit[];
+    if (error || !data) return [];
     return data.map((r) => ({
       chunkId: r.chunk_id,
       sourceId: r.source_id,
@@ -76,6 +120,10 @@ export async function findEvidence(
       snippet: makeSnippet(r.content, [...tokens]),
       score: Number(r.score),
       scope,
+      url: null,
+      heading: null,
+      vecRank: null,
+      kwRank: null,
     }));
   };
 

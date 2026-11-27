@@ -1,5 +1,5 @@
 /**
- * 폴더 안의 txt/md/pdf 를 sources 로 올린다. 목차 파일이 있으면 먼저 단원을 만든다.
+ * 폴더 안의 txt/md/html/pdf 를 sources 로 올린다. 조각 임베딩(RAG)까지 같이 한다 (OPENAI_API_KEY 있을 때). 목차 파일이 있으면 먼저 단원을 만든다.
  *   npm run upload:sources -- "<주제 이름>" <폴더> [--kind script|note|book|other] [--parent <단원id>]
  */
 import { readdirSync, readFileSync } from "node:fs";
@@ -22,7 +22,7 @@ async function main() {
 
   const db = adminDb();
   const subject = await findSubject(db, subjectName);
-  const files = readdirSync(dir).filter((f) => /\.(txt|md|pdf)$/i.test(f) && !f.startsWith("."));
+  const files = readdirSync(dir).filter((f) => /\.(txt|md|pdf|html?)$/i.test(f) && !f.startsWith("."));
   // 목차 먼저
   files.sort((a, b) => (/목차|toc/i.test(b) ? 1 : 0) - (/목차|toc/i.test(a) ? 1 : 0));
   console.log(`${files.length}개 파일 → 주제 "${subject.name}"`);
@@ -35,6 +35,7 @@ async function main() {
       kind,
       units: units ?? [],
       parentUnitId,
+      embedBudgetMs: 0, // 스크립트는 시간 제한 없이 전부
     });
     console.log(`  [${r.status}] ${f}: ${r.message}`);
   }

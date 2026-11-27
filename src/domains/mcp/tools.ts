@@ -9,6 +9,7 @@ import { ensureUnitPath, normalizeTarget } from "@/domains/import/targets";
 import type { PreviewQuestion } from "@/domains/import/types";
 import { unitLabel } from "@/domains/shared/labels";
 import type { Unit } from "@/domains/shared/types";
+import { findEvidence } from "@/domains/evidence/search";
 
 /**
  * MCP 도구. 외부 AI(Claude, ChatGPT 등)가 사용자의 과목·문항·학습 기록을 읽고, 관리자는 문항을 넣는다.
@@ -29,6 +30,7 @@ type Stat = {
 
 const QUESTION_COLS = "id, subject_id, unit_id, ord, prompt, correct_choice, topic, difficulty, trap_types, tags, explanation, hint, source_quote, source_page, choices(ord, text, explanation)";
 
+const APP_HOST = process.env.NEXT_PUBLIC_CANONICAL_HOST || "mcquiz.site";
 const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
 const json = (v: unknown) => text(JSON.stringify(v, null, 2));
 const fail = (msg: string) => ({ content: [{ type: "text" as const, text: msg }], isError: true });
@@ -486,6 +488,117 @@ export function registerTools(server: McpServer) {
           results.push({ subject: [...subjectByName.entries()].find(([, v]) => v === sid)?.[0] ?? sid, inserted: r.inserted, updated: r.updated });
         }
         return json({ ...report, results });
+      });
+    },
+  );
+
+  // ---- 자료(RAG) ----
+  server.registerTool(
+    "list_sources",
+    {
+      title: "자료 목록",
+      description: "과목에 올라온 자료(스크립트·노트·책·문서)와 조각 수, 임베딩 여부. 어떤 원자료가 있는지 먼저 볼 때.",
+      inputSchema: z.object({ subject_id: z.string().uuid(), unit_id: z.string().uuid().optional() }),
+    },
+    async ({ subject_id, unit_id }, ctx) => {
+      return timed("list_sources", async () => {
+        const { db } = clientFromAuth(ctx.http?.authInfo);
+        let q = db.from("sources").select("id, unit_id, kind, title, url, page_range, created_at").eq("subject_id", subject_id).order("created_at");
+        if (unit_id) q = q.eq("unit_id", unit_id);
+        const [{ data: sources, error }, units, { data: chunks }] = await Promise.all([q, loadUnits(db, subject_id), db.from("source_chunks").select("source_id, embedded_at").eq("subject_id", subject_id)]);
+        if (error) return fail(error.message);
+        const counts = new Map<string, { chunks: number; embedded: number }>();
+        for (const c of chunks ?? []) {
+          const v = counts.get(c.source_id) ?? { chunks: 0, embedded: 0 };
+          v.chunks++;
+          if (c.embedded_at) v.embedded++;
+          counts.set(c.source_id, v);
+        }
+        return json(
+          (sources ?? []).map((s) => ({
+            id: s.id,
+            title: s.title,
+            kind: s.kind,
+            url: s.url,
+            unit_path: unitPathOf(units, s.unit_id),
+            page_range: s.page_range,
+            chunks: counts.get(s.id)?.chunks ?? 0,
+            embedded: counts.get(s.id)?.embedded ?? 0,
+          })),
+        );
+      });
+    },
+  );
+
+  server.registerTool(
+    "search_sources",
+    {
+      title: "자료 검색 (RAG)",
+      description:
+        "질문·주제어로 과목 자료에서 관련 조각을 찾는다. 임베딩이 있는 과목은 벡터+키워드 하이브리드, 없으면 키워드. 출제 근거·해설 근거를 찾을 때 먼저 쓴다. 결과의 app_link 는 앱의 원문 보기 주소, url 은 원 출처.",
+      inputSchema: z.object({
+        subject_id: z.string().uuid(),
+        query: z.string().min(2).max(1000).describe("자연어 질문이나 주제어. 한국어·영어 모두 가능"),
+        unit_id: z.string().uuid().optional().describe("이 단원 안에서 먼저 찾고, 모자라면 과목 전체"),
+        limit: z.number().int().min(1).max(30).default(8),
+      }),
+    },
+    async ({ subject_id, query, unit_id, limit }, ctx) => {
+      return timed("search_sources", async () => {
+        const { db } = clientFromAuth(ctx.http?.authInfo);
+        const [hits, units] = await Promise.all([findEvidence(db, { subjectId: subject_id, unitIds: unit_id ? [unit_id] : null, query, limit }), loadUnits(db, subject_id)]);
+        return json({
+          mode: hits.some((h) => h.vecRank !== null || h.kwRank !== null) ? "hybrid" : "keyword",
+          results: hits.map((h) => ({
+            chunk_id: h.chunkId,
+            source_id: h.sourceId,
+            source_title: h.sourceTitle,
+            kind: h.kind,
+            url: h.url,
+            unit_path: unitPathOf(units, h.unitId),
+            page: h.page,
+            heading: h.heading,
+            label: h.label,
+            score: h.score,
+            vec_rank: h.vecRank,
+            kw_rank: h.kwRank,
+            content: h.content,
+            app_link: `https://${APP_HOST}/sources/${h.sourceId}?chunk=${h.chunkId}`,
+          })),
+        });
+      });
+    },
+  );
+
+  server.registerTool(
+    "get_source",
+    {
+      title: "자료 원문 읽기",
+      description: "자료 하나의 조각을 순서대로 읽는다 (검색으로 찾은 조각의 앞뒤 맥락, 또는 문서 전체). 한 번에 최대 40조각.",
+      inputSchema: z.object({
+        source_id: z.string().uuid(),
+        from_ord: z.number().int().min(1).default(1).describe("시작 조각 번호 (1부터)"),
+        count: z.number().int().min(1).max(40).default(20),
+      }),
+    },
+    async ({ source_id, from_ord, count }, ctx) => {
+      return timed("get_source", async () => {
+        const { db } = clientFromAuth(ctx.http?.authInfo);
+        const { data: s, error } = await db.from("sources").select("id, subject_id, unit_id, kind, title, url, page_range").eq("id", source_id).maybeSingle();
+        if (error) return fail(error.message);
+        if (!s) return fail("자료를 찾을 수 없거나 볼 권한이 없습니다.");
+        const [{ count: total }, { data: chunks }, units] = await Promise.all([
+          db.from("source_chunks").select("id", { count: "exact", head: true }).eq("source_id", source_id),
+          db.from("source_chunks").select("id, ord, page, heading, content").eq("source_id", source_id).gte("ord", from_ord).order("ord").limit(count),
+          loadUnits(db, s.subject_id),
+        ]);
+        const last = chunks?.at(-1)?.ord ?? from_ord - 1;
+        return json({
+          source: { id: s.id, title: s.title, kind: s.kind, url: s.url, unit_path: unitPathOf(units, s.unit_id), page_range: s.page_range, total_chunks: total ?? 0 },
+          from_ord,
+          next_ord: (total ?? 0) > last ? last + 1 : null,
+          chunks: (chunks ?? []).map((c) => ({ ord: c.ord, page: c.page, heading: c.heading, content: c.content })),
+        });
       });
     },
   );

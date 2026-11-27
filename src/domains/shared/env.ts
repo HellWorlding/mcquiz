@@ -6,6 +6,8 @@ export const env = {
   publicGuestAccess: (process.env.PUBLIC_GUEST_ACCESS ?? "false").toLowerCase() === "true",
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
   openaiModel: process.env.OPENAI_MODEL || "gpt-6-luna",
+  /** 자료 조각 임베딩 모델 (RAG). 바꾸면 npm run embed:chunks -- "<주제>" --force 로 다시 만든다 */
+  embeddingModel: process.env.EMBEDDING_MODEL || "text-embedding-3-large",
 };
 
 export function hasOpenAI() {

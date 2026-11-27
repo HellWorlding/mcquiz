@@ -24,7 +24,7 @@ const handler = createMcpHandler((server) => registerTools(server), {
     }
   },
   instructions:
-    "mcquiz 는 객관식 퀴즈 앱입니다. 먼저 list_subjects 로 과목 id 를 얻고, list_units / list_questions / get_learning_summary 로 문항과 학습 기록을 읽으세요. 새 문항을 만들 때는 get_authoring_guide 를 읽고 import_questions(mode=check) 로 검사한 뒤 commit 하세요.",
+    "mcquiz 는 객관식 퀴즈 앱입니다. 먼저 list_subjects 로 과목 id 를 얻고, list_units / list_questions / get_learning_summary 로 문항과 학습 기록을 읽으세요. 자료가 올라온 과목은 list_sources / search_sources(하이브리드 검색) / get_source 로 원자료 조각을 읽고 근거로 삼으세요. 새 문항을 만들 때는 get_authoring_guide 를 읽고 import_questions(mode=check) 로 검사한 뒤 commit 하세요.",
 });
 
 const authed = withMcpAuth(handler, verifyMcpToken, { required: true });
