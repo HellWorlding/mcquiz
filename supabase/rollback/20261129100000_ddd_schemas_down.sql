@@ -18,7 +18,8 @@ drop trigger if exists profiles_guard_is_admin on access.profiles;
 drop view if exists community.posts_view;
 drop function if exists access.is_admin(), access.readable_subject_ids(), access.can_read_subject(uuid), access.handle_new_user(), access.guard_is_admin_change();
 drop function if exists catalog.can_read_collection(uuid), catalog.can_edit_collection(uuid), catalog.unit_subtree(uuid[]), catalog.question_counts_by_unit(uuid), catalog.classify_unit(uuid, text[]);
-drop function if exists learning.question_stats(uuid), learning.unsolved_questions(uuid), learning.unit_progress(uuid), learning.unit_attempt_counts(uuid), learning.unit_round_scores(uuid), learning.subject_activity();
+-- 정방향의 서명 그대로 (p_user 인자 포함). 서명이 다르면 if exists 가 조용히 건너뛰어 아래 drop schema learning 이 실패한다
+drop function if exists learning.question_stats(uuid, uuid), learning.unsolved_questions(uuid, uuid), learning.unit_progress(uuid, uuid), learning.unit_attempt_counts(uuid, uuid), learning.unit_round_scores(uuid, uuid), learning.subject_activity(uuid), learning.effective_user(uuid);
 drop function if exists knowledge.search_chunks(uuid, text[], uuid[], integer), knowledge.match_chunks(uuid, extensions.vector, text[], uuid[], integer);
 
 -- 2. 테이블을 public 으로, 옛 이름으로
@@ -42,6 +43,9 @@ alter table knowledge.chat_logs set schema public; alter table public.chat_logs 
 alter table community.posts set schema public;  alter table public.posts rename to board_posts;
 alter table community.reports set schema public; alter table public.reports rename to question_reports;
 drop schema access; drop schema catalog; drop schema learning; drop schema knowledge; drop schema community;
+
+-- 정방향이 지운 전역 기본값(postgres 가 만드는 함수의 PUBLIC EXECUTE)을 되돌린다. 아래에서 다시 만드는 옛 함수가 전환 전과 같은 권한을 갖게
+alter default privileges for role postgres grant execute on functions to public;
 
 -- 3. 옛 함수 18개 (2026-11-29 정방향 적용 직전 로컬 DB 의 pg_get_functiondef 그대로)
 CREATE OR REPLACE FUNCTION public.can_edit_collection(cid uuid)
