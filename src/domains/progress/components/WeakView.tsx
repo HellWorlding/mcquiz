@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { QuestionWithChoices, Subject, Unit } from "@/domains/shared/types";
 import type { GroupStat, SavedItem, WeakSummary } from "@/domains/progress/queries";
-import { dismissQuestionAction, dismissQuestionsAction } from "@/domains/progress/actions";
+import { dismissQuestionAction, dismissQuestionsAction, exportSavedAction } from "@/domains/progress/actions";
 import { AddToCollection } from "@/domains/quiz/components/AddToCollection";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
 import { EvidencePanel } from "@/domains/evidence/components/EvidencePanel";
@@ -119,6 +119,16 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
     saved: countWith("saved"),
   };
   const labelOf: Record<Filter, string> = { wrong: t("saved.f_wrong"), repeat: t("saved.f_repeat"), confused: t("saved.f_confused"), saved: t("saved.f_saved") };
+  // 내보내기 파일에 적을 조건 설명: "틀림 + 2회 이상 틀림 · 3강 학교 경영"
+  const filterLabel = (() => {
+    const parts: string[] = [];
+    if (filters.size) parts.push([...filters].map((f) => labelOf[f]).join(" + "));
+    const g = groupFilter ? topGroups.find((x) => x.key === groupFilter)?.label : null;
+    const u = unitFilter ? groupList.find((x) => x.key === unitFilter)?.label : null;
+    if (g) parts.push(g);
+    if (u) parts.push(u);
+    return parts.length ? parts.join(" · ") : null;
+  })();
 
   return (
     <div className="flex flex-col gap-4">
@@ -226,6 +236,7 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
             </div>
           )}
           <SavedList subjectId={subject.id} items={items} groups={visibleGroups} byId={byId} units={units} />
+          {items.length > 0 && <ExportBar subjectId={subject.id} questionIds={items.map((i) => i.questionId)} filterLabel={filterLabel} />}
         </>
       )}
       {tab === "stats" && (
@@ -239,6 +250,55 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
           <StatTable title={t("saved.stat_tag")} rows={summary.byTag} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** 지금 보이는 목록을 JSON / Markdown 파일로 내려받기 */
+function ExportBar({ subjectId, questionIds, filterLabel }: { subjectId: string; questionIds: string[]; filterLabel: string | null }) {
+  const t = useT();
+  const [busy, setBusy] = useState<"json" | "md" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const run = async (kind: "json" | "md") => {
+    if (busy) return;
+    setBusy(kind);
+    setError(null);
+    try {
+      const r = await exportSavedAction(subjectId, questionIds, filterLabel);
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      const text = kind === "json" ? r.data.json : r.data.markdown;
+      const blob = new Blob([text], { type: kind === "json" ? "application/json;charset=utf-8" : "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${r.data.fileBase}.${kind === "json" ? "json" : "md"}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <div className="card flex flex-wrap items-center gap-2" title={t("saved.export_title", { n: questionIds.length })}>
+      <span className="text-sm font-semibold">{t("saved.export")}</span>
+      <span className="text-xs text-muted">{t("common.count_questions", { n: questionIds.length })}</span>
+      <div className="ml-auto flex gap-2">
+        <button type="button" className="btn-secondary btn-sm" disabled={busy !== null} onClick={() => run("md")}>
+          {busy === "md" ? t("saved.exporting") : t("saved.export_md")}
+        </button>
+        <button type="button" className="btn-secondary btn-sm" disabled={busy !== null} onClick={() => run("json")}>
+          {busy === "json" ? t("saved.exporting") : t("saved.export_json")}
+        </button>
+      </div>
+      <p className="w-full text-xs text-muted">{t("saved.export_title", { n: questionIds.length })}</p>
+      {error && <p className="w-full text-xs text-bad">{t("saved.export_fail", { e: error })}</p>}
     </div>
   );
 }

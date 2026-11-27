@@ -235,6 +235,12 @@ const M = {
   "saved.no_stats": ["아직 기록이 없습니다.", "No records yet."],
   "saved.weak": ["약점 {n}", "weak {n}"],
   "saved.no_subject": ["볼 수 있는 주제가 없습니다.", "No subjects available."],
+  "saved.export": ["내보내기", "Export"],
+  "saved.export_json": ["JSON", "JSON"],
+  "saved.export_md": ["Markdown", "Markdown"],
+  "saved.exporting": ["만드는 중…", "Preparing…"],
+  "saved.export_title": ["지금 보이는 목록 {n}개를 파일로 받습니다. Markdown 은 AI 채팅에 붙여 넣기용, JSON 은 다른 프로그램·다시 가져오기용입니다.", "Download the {n} questions shown. Markdown is for pasting into an AI chat; JSON is for other tools or re-import."],
+  "saved.export_fail": ["내보내기에 실패했습니다: {e}", "Export failed: {e}"],
 
   // 필기
   "notes.title": ["필기", "Notes"],
