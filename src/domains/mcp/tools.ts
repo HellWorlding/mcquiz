@@ -32,6 +32,21 @@ const QUESTION_COLS = "id, subject_id, unit_id, ord, prompt, correct_choice, top
 const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
 const json = (v: unknown) => text(JSON.stringify(v, null, 2));
 const fail = (msg: string) => ({ content: [{ type: "text" as const, text: msg }], isError: true });
+/** 도구 실행 시간을 기록하고, 45초를 넘기거나 예외가 나면 오류 응답으로 바꾼다 (요청이 매달리지 않게) */
+async function timed<T>(name: string, fn: () => Promise<T>): Promise<T | ReturnType<typeof fail>> {
+  const t0 = Date.now();
+  const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`${name} 이(가) 45초를 넘겨 중단했습니다`)), 45_000));
+  try {
+    const r = await Promise.race([fn(), timeout]);
+    console.log(`[mcp] tool ${name} ${Date.now() - t0}ms`);
+    return r;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[mcp] tool ${name} failed ${Date.now() - t0}ms ${msg}`);
+    return fail(`오류: ${msg}`);
+  }
+}
+
 
 async function loadUnits(db: McpClient, subjectId: string): Promise<Unit[]> {
   const { data, error } = await db.from("units").select("*").eq("subject_id", subjectId);
@@ -168,15 +183,17 @@ export function registerTools(server: McpServer) {
       inputSchema: z.object({}),
     },
     async (_args, ctx) => {
-      const { db } = clientFromAuth(ctx.http?.authInfo);
-      const { data, error } = await db.from("subjects").select("id, name, visibility").order("name");
-      if (error) return fail(error.message);
-      const out = [];
-      for (const s of data ?? []) {
-        const { count } = await db.from("questions").select("id", { count: "exact", head: true }).eq("subject_id", s.id);
-        out.push({ id: s.id, name: s.name, visibility: s.visibility, question_count: count ?? 0 });
-      }
-      return json(out);
+      return timed("list_subjects", async () => {
+        const { db } = clientFromAuth(ctx.http?.authInfo);
+        const { data, error } = await db.from("subjects").select("id, name, visibility").order("name");
+        if (error) return fail(error.message);
+        const out = [];
+        for (const s of data ?? []) {
+          const { count } = await db.from("questions").select("id", { count: "exact", head: true }).eq("subject_id", s.id);
+          out.push({ id: s.id, name: s.name, visibility: s.visibility, question_count: count ?? 0 });
+        }
+        return json(out);
+      });
     },
   );
 
@@ -188,28 +205,30 @@ export function registerTools(server: McpServer) {
       inputSchema: z.object({ subject_id: z.string().uuid() }),
     },
     async ({ subject_id }, ctx) => {
-      const { db } = clientFromAuth(ctx.http?.authInfo);
-      const [units, index, { data: rs }] = await Promise.all([loadUnits(db, subject_id), loadIndex(db, subject_id), db.rpc("my_unit_round_scores", { p_subject: subject_id })]);
-      const count = new Map<string, number>();
-      for (const s of index) count.set(s.unit_id ?? "", (count.get(s.unit_id ?? "") ?? 0) + 1);
-      const rounds = new Map<string, { round: number; n: number; correct: number }[]>();
-      for (const r of rs ?? []) {
-        const k = r.unit_id ?? "";
-        rounds.set(k, [...(rounds.get(k) ?? []), { round: r.round_no, n: Number(r.n), correct: Number(r.n_correct) }]);
-      }
-      const rows = units
-        .map((u) => ({
-          id: u.id,
-          parent_id: u.parent_id,
-          no: u.no,
-          title: u.title,
-          path: unitPathOf(units, u.id),
-          priority: u.priority,
-          question_count: count.get(u.id) ?? 0,
-          round_scores: (rounds.get(u.id) ?? []).sort((a, b) => a.round - b.round),
-        }))
-        .sort((a, b) => a.path.join("/").localeCompare(b.path.join("/"), "ko"));
-      return json(rows);
+      return timed("list_units", async () => {
+        const { db } = clientFromAuth(ctx.http?.authInfo);
+        const [units, index, { data: rs }] = await Promise.all([loadUnits(db, subject_id), loadIndex(db, subject_id), db.rpc("my_unit_round_scores", { p_subject: subject_id })]);
+        const count = new Map<string, number>();
+        for (const s of index) count.set(s.unit_id ?? "", (count.get(s.unit_id ?? "") ?? 0) + 1);
+        const rounds = new Map<string, { round: number; n: number; correct: number }[]>();
+        for (const r of rs ?? []) {
+          const k = r.unit_id ?? "";
+          rounds.set(k, [...(rounds.get(k) ?? []), { round: r.round_no, n: Number(r.n), correct: Number(r.n_correct) }]);
+        }
+        const rows = units
+          .map((u) => ({
+            id: u.id,
+            parent_id: u.parent_id,
+            no: u.no,
+            title: u.title,
+            path: unitPathOf(units, u.id),
+            priority: u.priority,
+            question_count: count.get(u.id) ?? 0,
+            round_scores: (rounds.get(u.id) ?? []).sort((a, b) => a.round - b.round),
+          }))
+          .sort((a, b) => a.path.join("/").localeCompare(b.path.join("/"), "ko"));
+        return json(rows);
+      });
     },
   );
 
@@ -229,22 +248,24 @@ export function registerTools(server: McpServer) {
       }),
     },
     async ({ subject_id, unit_id, filter, limit, offset, format }, ctx) => {
-      const { db } = clientFromAuth(ctx.http?.authInfo);
-      const [units, index, stats, { data: subject }] = await Promise.all([loadUnits(db, subject_id), loadIndex(db, subject_id), loadStats(db, subject_id), db.from("subjects").select("name").eq("id", subject_id).maybeSingle()]);
-      if (!subject) return fail("과목을 찾을 수 없거나 볼 권한이 없습니다.");
-      const scope = unit_id ? descendants(units, unit_id) : null;
-      const statById = new Map(stats.map((s) => [s.question_id, s]));
-      const picked = index
-        .filter((x) => (!scope || (x.unit_id && scope.has(x.unit_id))) && matches(statById.get(x.id), filter))
-        .sort((a, b) => (statById.get(b.id)?.wrong_count ?? 0) - (statById.get(a.id)?.wrong_count ?? 0));
-      const total = picked.length;
-      const page = picked.slice(offset, offset + limit);
-      const questions = await loadQuestions(db, page.map((x) => x.id));
-      const rows = questions.map((q) => ({ q, r: recordOf(statById.get(q.id)) }));
-      const built = buildSavedExport({ subjectName: subject.name, exportedAt: new Date().toISOString(), filterLabel: filter === "all" ? null : filter, units, rows });
-      if (format === "markdown") return text(`total=${total} offset=${offset} returned=${rows.length}\n\n${built.markdown}`);
-      const j = built.json as { questions: unknown[] };
-      return json({ total, offset, returned: rows.length, questions: j.questions });
+      return timed("list_questions", async () => {
+        const { db } = clientFromAuth(ctx.http?.authInfo);
+        const [units, index, stats, { data: subject }] = await Promise.all([loadUnits(db, subject_id), loadIndex(db, subject_id), loadStats(db, subject_id), db.from("subjects").select("name").eq("id", subject_id).maybeSingle()]);
+        if (!subject) return fail("과목을 찾을 수 없거나 볼 권한이 없습니다.");
+        const scope = unit_id ? descendants(units, unit_id) : null;
+        const statById = new Map(stats.map((s) => [s.question_id, s]));
+        const picked = index
+          .filter((x) => (!scope || (x.unit_id && scope.has(x.unit_id))) && matches(statById.get(x.id), filter))
+          .sort((a, b) => (statById.get(b.id)?.wrong_count ?? 0) - (statById.get(a.id)?.wrong_count ?? 0));
+        const total = picked.length;
+        const page = picked.slice(offset, offset + limit);
+        const questions = await loadQuestions(db, page.map((x) => x.id));
+        const rows = questions.map((q) => ({ q, r: recordOf(statById.get(q.id)) }));
+        const built = buildSavedExport({ subjectName: subject.name, exportedAt: new Date().toISOString(), filterLabel: filter === "all" ? null : filter, units, rows });
+        if (format === "markdown") return text(`total=${total} offset=${offset} returned=${rows.length}\n\n${built.markdown}`);
+        const j = built.json as { questions: unknown[] };
+        return json({ total, offset, returned: rows.length, questions: j.questions });
+      });
     },
   );
 
@@ -256,15 +277,17 @@ export function registerTools(server: McpServer) {
       inputSchema: z.object({ question_id: z.string().uuid() }),
     },
     async ({ question_id }, ctx) => {
-      const { db } = clientFromAuth(ctx.http?.authInfo);
-      const [q] = await loadQuestions(db, [question_id]);
-      if (!q) return fail("문항을 찾을 수 없거나 볼 권한이 없습니다.");
-      const { data: subject } = await db.from("subjects").select("name").eq("id", q.subject_id).maybeSingle();
-      const units = await loadUnits(db, q.subject_id);
-      const stats = await loadStats(db, q.subject_id);
-      const { data: note } = await db.from("question_notes").select("content").eq("question_id", question_id).maybeSingle();
-      const built = buildSavedExport({ subjectName: subject?.name ?? "", exportedAt: new Date().toISOString(), filterLabel: null, units, rows: [{ q, r: recordOf(stats.find((s) => s.question_id === question_id), note?.content ?? null) }] });
-      return json({ id: q.id, ...(built.json as { questions: Record<string, unknown>[] }).questions[0] });
+      return timed("get_question", async () => {
+        const { db } = clientFromAuth(ctx.http?.authInfo);
+        const [q] = await loadQuestions(db, [question_id]);
+        if (!q) return fail("문항을 찾을 수 없거나 볼 권한이 없습니다.");
+        const { data: subject } = await db.from("subjects").select("name").eq("id", q.subject_id).maybeSingle();
+        const units = await loadUnits(db, q.subject_id);
+        const stats = await loadStats(db, q.subject_id);
+        const { data: note } = await db.from("question_notes").select("content").eq("question_id", question_id).maybeSingle();
+        const built = buildSavedExport({ subjectName: subject?.name ?? "", exportedAt: new Date().toISOString(), filterLabel: null, units, rows: [{ q, r: recordOf(stats.find((s) => s.question_id === question_id), note?.content ?? null) }] });
+        return json({ id: q.id, ...(built.json as { questions: Record<string, unknown>[] }).questions[0] });
+      });
     },
   );
 
@@ -276,12 +299,14 @@ export function registerTools(server: McpServer) {
       inputSchema: z.object({ subject_id: z.string().uuid(), query: z.string().min(2).max(200), limit: z.number().int().min(1).max(50).default(20) }),
     },
     async ({ subject_id, query, limit }, ctx) => {
-      const { db } = clientFromAuth(ctx.http?.authInfo);
-      const pat = `%${query.replace(/[%_]/g, (m) => `\\${m}`)}%`;
-      const { data, error } = await db.from("questions").select("id, unit_id, ord, prompt, topic").eq("subject_id", subject_id).or(`prompt.ilike.${pat},explanation.ilike.${pat}`).limit(limit);
-      if (error) return fail(error.message);
-      const units = await loadUnits(db, subject_id);
-      return json((data ?? []).map((q) => ({ id: q.id, unit_path: unitPathOf(units, q.unit_id), no: q.ord, prompt: q.prompt, topic: q.topic })));
+      return timed("search_questions", async () => {
+        const { db } = clientFromAuth(ctx.http?.authInfo);
+        const pat = `%${query.replace(/[%_]/g, (m) => `\\${m}`)}%`;
+        const { data, error } = await db.from("questions").select("id, unit_id, ord, prompt, topic").eq("subject_id", subject_id).or(`prompt.ilike.${pat},explanation.ilike.${pat}`).limit(limit);
+        if (error) return fail(error.message);
+        const units = await loadUnits(db, subject_id);
+        return json((data ?? []).map((q) => ({ id: q.id, unit_path: unitPathOf(units, q.unit_id), no: q.ord, prompt: q.prompt, topic: q.topic })));
+      });
     },
   );
 
@@ -293,28 +318,30 @@ export function registerTools(server: McpServer) {
       inputSchema: z.object({ subject_id: z.string().uuid(), unit_id: z.string().uuid().optional(), top: z.number().int().min(1).max(300).default(60) }),
     },
     async ({ subject_id, unit_id, top }, ctx) => {
-      const { db } = clientFromAuth(ctx.http?.authInfo);
-      const [units, index, stats, { data: subject }] = await Promise.all([loadUnits(db, subject_id), loadIndex(db, subject_id), loadStats(db, subject_id), db.from("subjects").select("name").eq("id", subject_id).maybeSingle()]);
-      if (!subject) return fail("과목을 찾을 수 없거나 볼 권한이 없습니다.");
-      const scope = unit_id ? descendants(units, unit_id) : null;
-      const inScope = index.filter((x) => !scope || (x.unit_id && scope.has(x.unit_id)));
-      const weak = stats
-        .filter((s) => (!scope || (s.unit_id && scope.has(s.unit_id))) && matches(s, "weak"))
-        .sort((a, b) => b.wrong_count - a.wrong_count)
-        .slice(0, top);
-      const statById = new Map(stats.map((s) => [s.question_id, s]));
-      const questions = await loadQuestions(db, weak.map((s) => s.question_id));
-      const ids = questions.map((q) => q.id);
-      const notes = new Map<string, string>();
-      for (let i = 0; i < ids.length; i += 100) {
-        const { data } = await db.from("question_notes").select("question_id, content").in("question_id", ids.slice(i, i + 100));
-        for (const n of data ?? []) notes.set(n.question_id, n.content);
-      }
-      const scopeIds = new Set(inScope.map((x) => x.id));
-      const graded = stats.filter((s) => s.attempt_count > 0 && scopeIds.has(s.question_id));
-      const head = `전체: 문항 ${inScope.length}개 중 ${graded.length}개 풀었음, 안 푼 문항 ${inScope.length - graded.length}개, 최근 풀이 기준 정답 ${graded.filter((s) => s.last_correct).length}/${graded.length}.\n\n`;
-      const built = buildSavedExport({ subjectName: subject.name, exportedAt: new Date().toISOString(), filterLabel: "틀림·헷갈림·직접 저장", units, rows: questions.map((q) => ({ q, r: recordOf(statById.get(q.id), notes.get(q.id) ?? null) })) });
-      return text(head + built.markdown);
+      return timed("get_learning_summary", async () => {
+        const { db } = clientFromAuth(ctx.http?.authInfo);
+        const [units, index, stats, { data: subject }] = await Promise.all([loadUnits(db, subject_id), loadIndex(db, subject_id), loadStats(db, subject_id), db.from("subjects").select("name").eq("id", subject_id).maybeSingle()]);
+        if (!subject) return fail("과목을 찾을 수 없거나 볼 권한이 없습니다.");
+        const scope = unit_id ? descendants(units, unit_id) : null;
+        const inScope = index.filter((x) => !scope || (x.unit_id && scope.has(x.unit_id)));
+        const weak = stats
+          .filter((s) => (!scope || (s.unit_id && scope.has(s.unit_id))) && matches(s, "weak"))
+          .sort((a, b) => b.wrong_count - a.wrong_count)
+          .slice(0, top);
+        const statById = new Map(stats.map((s) => [s.question_id, s]));
+        const questions = await loadQuestions(db, weak.map((s) => s.question_id));
+        const ids = questions.map((q) => q.id);
+        const notes = new Map<string, string>();
+        for (let i = 0; i < ids.length; i += 100) {
+          const { data } = await db.from("question_notes").select("question_id, content").in("question_id", ids.slice(i, i + 100));
+          for (const n of data ?? []) notes.set(n.question_id, n.content);
+        }
+        const scopeIds = new Set(inScope.map((x) => x.id));
+        const graded = stats.filter((s) => s.attempt_count > 0 && scopeIds.has(s.question_id));
+        const head = `전체: 문항 ${inScope.length}개 중 ${graded.length}개 풀었음, 안 푼 문항 ${inScope.length - graded.length}개, 최근 풀이 기준 정답 ${graded.filter((s) => s.last_correct).length}/${graded.length}.\n\n`;
+        const built = buildSavedExport({ subjectName: subject.name, exportedAt: new Date().toISOString(), filterLabel: "틀림·헷갈림·직접 저장", units, rows: questions.map((q) => ({ q, r: recordOf(statById.get(q.id), notes.get(q.id) ?? null) })) });
+        return text(head + built.markdown);
+      });
     },
   );
 
@@ -326,38 +353,40 @@ export function registerTools(server: McpServer) {
       inputSchema: z.object({ subject_id: z.string().uuid().optional() }),
     },
     async ({ subject_id }, ctx) => {
-      const { db } = clientFromAuth(ctx.http?.authInfo);
-      let extra = "";
-      if (subject_id) {
-        const [{ data: subject }, units] = await Promise.all([db.from("subjects").select("name").eq("id", subject_id).maybeSingle(), loadUnits(db, subject_id)]);
-        if (subject) {
-          const leaves = units.filter((u) => !units.some((c) => c.parent_id === u.id));
-          extra = `\n## 이 과목의 기존 단원 경로 (subject = "${subject.name}")\n\n${leaves
-            .map((u) => `- ${JSON.stringify(unitPathOf(units, u.id))}`)
-            .sort()
-            .join("\n")}\n`;
-          const { data: sample } = await db.from("questions").select(QUESTION_COLS).eq("subject_id", subject_id).limit(1).maybeSingle();
-          if (sample) {
-            const ex = {
-              subject: subject.name,
-              unit_path: unitPathOf(units, sample.unit_id),
-              no: 1,
-              prompt: sample.prompt,
-              topic: sample.topic,
-              difficulty: sample.difficulty,
-              trap_types: sample.trap_types ?? [],
-              correct_choice: sample.correct_choice,
-              explanation: sample.explanation,
-              hint: sample.hint,
-              source_quote: sample.source_quote,
-              source_page: sample.source_page,
-              choices: [...(sample.choices ?? [])].sort((a, b) => a.ord - b.ord).map((c) => ({ ord: c.ord, text: c.text })),
-            };
-            extra += `\n## 이 과목의 실제 문항 예시\n\n\`\`\`json\n${JSON.stringify(ex, null, 2)}\n\`\`\`\n`;
+      return timed("get_authoring_guide", async () => {
+        const { db } = clientFromAuth(ctx.http?.authInfo);
+        let extra = "";
+        if (subject_id) {
+          const [{ data: subject }, units] = await Promise.all([db.from("subjects").select("name").eq("id", subject_id).maybeSingle(), loadUnits(db, subject_id)]);
+          if (subject) {
+            const leaves = units.filter((u) => !units.some((c) => c.parent_id === u.id));
+            extra = `\n## 이 과목의 기존 단원 경로 (subject = "${subject.name}")\n\n${leaves
+              .map((u) => `- ${JSON.stringify(unitPathOf(units, u.id))}`)
+              .sort()
+              .join("\n")}\n`;
+            const { data: sample } = await db.from("questions").select(QUESTION_COLS).eq("subject_id", subject_id).limit(1).maybeSingle();
+            if (sample) {
+              const ex = {
+                subject: subject.name,
+                unit_path: unitPathOf(units, sample.unit_id),
+                no: 1,
+                prompt: sample.prompt,
+                topic: sample.topic,
+                difficulty: sample.difficulty,
+                trap_types: sample.trap_types ?? [],
+                correct_choice: sample.correct_choice,
+                explanation: sample.explanation,
+                hint: sample.hint,
+                source_quote: sample.source_quote,
+                source_page: sample.source_page,
+                choices: [...(sample.choices ?? [])].sort((a, b) => a.ord - b.ord).map((c) => ({ ord: c.ord, text: c.text })),
+              };
+              extra += `\n## 이 과목의 실제 문항 예시\n\n\`\`\`json\n${JSON.stringify(ex, null, 2)}\n\`\`\`\n`;
+            }
           }
         }
-      }
-      return text(AUTHORING_GUIDE + extra);
+        return text(AUTHORING_GUIDE + extra);
+      });
     },
   );
 
@@ -374,86 +403,88 @@ export function registerTools(server: McpServer) {
       }),
     },
     async ({ questions, mode, set_title }, ctx) => {
-      const { db, userId } = clientFromAuth(ctx.http?.authInfo);
-      const { data: isAdmin } = await db.rpc("is_admin");
-      if (!isAdmin) return fail("문항 넣기는 관리자 계정만 할 수 있습니다.");
-      const parsed = parseJsonQuestions(JSON.stringify(questions));
-      if (parsed.questions.length === 0) return fail(`문항을 읽지 못했습니다: ${parsed.warnings.join("; ") || "형식을 확인하세요"}`);
-      // 과목 찾기 (이름 그대로; 없는 과목은 만들지 않는다)
-      const { data: subjects } = await db.from("subjects").select("id, name");
-      const subjectByName = new Map((subjects ?? []).map((s) => [s.name, s.id]));
-      const unitsCache = new Map<string, Unit[]>();
-      const preview: PreviewQuestion[] = [];
-      const problems: string[] = [];
-      for (let i = 0; i < parsed.questions.length; i++) {
-        const q = parsed.questions[i];
-        const t = normalizeTarget(q.subjectName, q.unitPath);
-        const sid = t.subject ? subjectByName.get(t.subject) : null;
-        if (!sid) {
-          problems.push(`#${i + 1}: 과목 "${t.subject ?? "(없음)"}" 을 찾을 수 없습니다. list_subjects 의 이름을 그대로 쓰세요.`);
-          continue;
-        }
-        if (!t.unitPath?.length) {
-          problems.push(`#${i + 1}: unit_path 가 없습니다.`);
-          continue;
-        }
-        if (!unitsCache.has(sid)) unitsCache.set(sid, await loadUnits(db, sid));
-        const units = unitsCache.get(sid)!;
-        // check 모드에서는 단원을 만들지 않고 있는지만 본다
-        let unitId: string | null = null;
-        if (mode === "commit") unitId = await ensureUnitPath(db, sid, t.unitPath, units);
-        else {
-          let parent: string | null = null;
-          for (const title of t.unitPath) {
-            const found = units.find((u) => u.parent_id === parent && u.title === title);
-            if (!found) {
-              unitId = null;
-              break;
-            }
-            parent = found.id;
-            unitId = found.id;
+      return timed("import_questions", async () => {
+        const { db, userId } = clientFromAuth(ctx.http?.authInfo);
+        const { data: isAdmin } = await db.rpc("is_admin");
+        if (!isAdmin) return fail("문항 넣기는 관리자 계정만 할 수 있습니다.");
+        const parsed = parseJsonQuestions(JSON.stringify(questions));
+        if (parsed.questions.length === 0) return fail(`문항을 읽지 못했습니다: ${parsed.warnings.join("; ") || "형식을 확인하세요"}`);
+        // 과목 찾기 (이름 그대로; 없는 과목은 만들지 않는다)
+        const { data: subjects } = await db.from("subjects").select("id, name");
+        const subjectByName = new Map((subjects ?? []).map((s) => [s.name, s.id]));
+        const unitsCache = new Map<string, Unit[]>();
+        const preview: PreviewQuestion[] = [];
+        const problems: string[] = [];
+        for (let i = 0; i < parsed.questions.length; i++) {
+          const q = parsed.questions[i];
+          const t = normalizeTarget(q.subjectName, q.unitPath);
+          const sid = t.subject ? subjectByName.get(t.subject) : null;
+          if (!sid) {
+            problems.push(`#${i + 1}: 과목 "${t.subject ?? "(없음)"}" 을 찾을 수 없습니다. list_subjects 의 이름을 그대로 쓰세요.`);
+            continue;
           }
-          if (!unitId) problems.push(`#${i + 1}: 단원 ${JSON.stringify(t.unitPath)} 은 새로 만들어집니다 (기존 단원이면 이름을 글자까지 맞추세요).`);
+          if (!t.unitPath?.length) {
+            problems.push(`#${i + 1}: unit_path 가 없습니다.`);
+            continue;
+          }
+          if (!unitsCache.has(sid)) unitsCache.set(sid, await loadUnits(db, sid));
+          const units = unitsCache.get(sid)!;
+          // check 모드에서는 단원을 만들지 않고 있는지만 본다
+          let unitId: string | null = null;
+          if (mode === "commit") unitId = await ensureUnitPath(db, sid, t.unitPath, units);
+          else {
+            let parent: string | null = null;
+            for (const title of t.unitPath) {
+              const found = units.find((u) => u.parent_id === parent && u.title === title);
+              if (!found) {
+                unitId = null;
+                break;
+              }
+              parent = found.id;
+              unitId = found.id;
+            }
+            if (!unitId) problems.push(`#${i + 1}: 단원 ${JSON.stringify(t.unitPath)} 은 새로 만들어집니다 (기존 단원이면 이름을 글자까지 맞추세요).`);
+          }
+          preview.push({ ...q, key: `q${i}`, subjectId: sid, unitId, unitConfidence: 1, unitCandidates: [] });
         }
-        preview.push({ ...q, key: `q${i}`, subjectId: sid, unitId, unitConfidence: 1, unitCandidates: [] });
-      }
-      // 정답이 없거나(번호가 선지 범위를 벗어나 파서가 비운 경우 포함) 파서 경고가 있는 문항은 넣지 않는다
-      const noAnswer = new Set(preview.filter((q) => q.correct === null).map((q) => q.key));
-      for (const q of preview) {
-        const i = Number(q.key.slice(1)) + 1;
-        if (noAnswer.has(q.key)) problems.push(`#${i}: 정답(correct_choice)이 없거나 선지 범위를 벗어납니다 — ${q.prompt.slice(0, 40)}`);
-        for (const w of q.warnings) if (!w.startsWith("정답이 없습니다")) problems.push(`#${i}: ${w}`);
-      }
-      const { valid, failed } = validateQuestions(preview.filter((q) => !noAnswer.has(q.key)));
-      for (const f of failed) problems.push(`#${f.index + 1}: ${f.reason} — ${f.prompt.slice(0, 40)}`);
-      // 중복: 같은 과목에 질문문이 같은 문항
-      const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
-      const dup: string[] = [];
-      for (const sid of new Set(valid.map((q) => q.subjectId!))) {
-        const prompts = valid.filter((q) => q.subjectId === sid).map((q) => q.prompt);
-        for (let i = 0; i < prompts.length; i += 50) {
-          const { data } = await db.from("questions").select("prompt").eq("subject_id", sid).in("prompt", prompts.slice(i, i + 50));
-          for (const r of data ?? []) dup.push(r.prompt);
+        // 정답이 없거나(번호가 선지 범위를 벗어나 파서가 비운 경우 포함) 파서 경고가 있는 문항은 넣지 않는다
+        const noAnswer = new Set(preview.filter((q) => q.correct === null).map((q) => q.key));
+        for (const q of preview) {
+          const i = Number(q.key.slice(1)) + 1;
+          if (noAnswer.has(q.key)) problems.push(`#${i}: 정답(correct_choice)이 없거나 선지 범위를 벗어납니다 — ${q.prompt.slice(0, 40)}`);
+          for (const w of q.warnings) if (!w.startsWith("정답이 없습니다")) problems.push(`#${i}: ${w}`);
         }
-      }
-      const dupSet = new Set(dup.map(norm));
-      const duplicates = valid.filter((q) => dupSet.has(norm(q.prompt))).map((q) => q.prompt.slice(0, 60));
-      const report = { mode, received: questions.length, valid: valid.length, failed: failed.length + noAnswer.size, duplicates_with_existing: duplicates.length, problems, duplicates };
-      if (mode === "check") return json({ ...report, next: problems.length === 0 && duplicates.length === 0 ? "문제 없음. mode=commit 으로 다시 부르면 넣습니다." : "위 문제를 고친 뒤 다시 check 하세요. 중복 문항은 commit 시 같은 단원이면 덮어쓰고, 다른 단원이면 새로 들어갑니다." });
-      if (valid.length === 0) return fail("넣을 수 있는 문항이 없습니다.");
-      const results: { subject: string; inserted: number; updated: number }[] = [];
-      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-      for (const sid of new Set(valid.map((q) => q.subjectId!))) {
-        const r = await saveQuestionSet(db, {
-          subjectId: sid,
-          title: set_title ?? `MCP ${stamp}`,
-          sourceFilename: null,
-          createdBy: userId,
-          questions: valid.filter((q) => q.subjectId === sid),
-        });
-        results.push({ subject: [...subjectByName.entries()].find(([, v]) => v === sid)?.[0] ?? sid, inserted: r.inserted, updated: r.updated });
-      }
-      return json({ ...report, results });
+        const { valid, failed } = validateQuestions(preview.filter((q) => !noAnswer.has(q.key)));
+        for (const f of failed) problems.push(`#${f.index + 1}: ${f.reason} — ${f.prompt.slice(0, 40)}`);
+        // 중복: 같은 과목에 질문문이 같은 문항
+        const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
+        const dup: string[] = [];
+        for (const sid of new Set(valid.map((q) => q.subjectId!))) {
+          const prompts = valid.filter((q) => q.subjectId === sid).map((q) => q.prompt);
+          for (let i = 0; i < prompts.length; i += 50) {
+            const { data } = await db.from("questions").select("prompt").eq("subject_id", sid).in("prompt", prompts.slice(i, i + 50));
+            for (const r of data ?? []) dup.push(r.prompt);
+          }
+        }
+        const dupSet = new Set(dup.map(norm));
+        const duplicates = valid.filter((q) => dupSet.has(norm(q.prompt))).map((q) => q.prompt.slice(0, 60));
+        const report = { mode, received: questions.length, valid: valid.length, failed: failed.length + noAnswer.size, duplicates_with_existing: duplicates.length, problems, duplicates };
+        if (mode === "check") return json({ ...report, next: problems.length === 0 && duplicates.length === 0 ? "문제 없음. mode=commit 으로 다시 부르면 넣습니다." : "위 문제를 고친 뒤 다시 check 하세요. 중복 문항은 commit 시 같은 단원이면 덮어쓰고, 다른 단원이면 새로 들어갑니다." });
+        if (valid.length === 0) return fail("넣을 수 있는 문항이 없습니다.");
+        const results: { subject: string; inserted: number; updated: number }[] = [];
+        const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+        for (const sid of new Set(valid.map((q) => q.subjectId!))) {
+          const r = await saveQuestionSet(db, {
+            subjectId: sid,
+            title: set_title ?? `MCP ${stamp}`,
+            sourceFilename: null,
+            createdBy: userId,
+            questions: valid.filter((q) => q.subjectId === sid),
+          });
+          results.push({ subject: [...subjectByName.entries()].find(([, v]) => v === sid)?.[0] ?? sid, inserted: r.inserted, updated: r.updated });
+        }
+        return json({ ...report, results });
+      });
     },
   );
 }

@@ -20,11 +20,18 @@ export type McpClient = ReturnType<typeof clientForToken>;
 /** 토큰 서명을 JWKS 로 검증하고(비대칭 키), 사용자 id 를 AuthInfo.extra 에 담는다. 잘못된 토큰이면 undefined */
 export async function verifyMcpToken(_req: Request, token?: string): Promise<AuthInfo | undefined> {
   if (!token) return undefined;
+  const t0 = Date.now();
   try {
     const sb = clientForToken(token);
-    const { data, error } = await sb.auth.getClaims(token);
+    // 검증이 네트워크(JWKS) 때문에 매달리면 10초 뒤 401 로 끝낸다
+    const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("getClaims timeout")), 10_000));
+    const { data, error } = await Promise.race([sb.auth.getClaims(token), timeout]);
     const c = data?.claims;
-    if (error || !c?.sub) return undefined;
+    if (error || !c?.sub) {
+      console.log(`[mcp] auth rejected ${Date.now() - t0}ms ${error?.message ?? "no sub"}`);
+      return undefined;
+    }
+    if (Date.now() - t0 > 1000) console.log(`[mcp] auth slow ${Date.now() - t0}ms`);
     const scopes = typeof c.scope === "string" ? c.scope.split(" ").filter(Boolean) : [];
     return {
       token,
@@ -33,7 +40,8 @@ export async function verifyMcpToken(_req: Request, token?: string): Promise<Aut
       expiresAt: typeof c.exp === "number" ? c.exp : undefined,
       extra: { userId: c.sub, email: typeof c.email === "string" ? c.email : null },
     };
-  } catch {
+  } catch (e) {
+    console.log(`[mcp] auth error ${Date.now() - t0}ms ${e instanceof Error ? e.message : String(e)}`);
     return undefined;
   }
 }
