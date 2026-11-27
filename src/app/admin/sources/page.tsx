@@ -9,7 +9,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
   const { subject, unit } = await searchParams;
   const subjects = await listSubjects();
   const current = subjects.find((s) => s.id === subject) ?? subjects[0];
-  if (!current) return <p className="card text-muted">먼저 주제를 만드세요.</p>;
+  if (!current) return <p className="card text-muted">먼저 과목을 만드세요.</p>;
   const [unitTree, sources] = await Promise.all([getUnitTree(current.id), loadSourcesAdmin(current.id)]);
   return (
     <div className="flex flex-col gap-4">

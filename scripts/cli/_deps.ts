@@ -12,7 +12,7 @@ import type { LearningApi } from "@/contexts/learning";
 import { makeLearningApi } from "@/contexts/learning/server";
 import { knowledgeApi, type KnowledgeApi, type KnowledgeDeps } from "@/contexts/knowledge";
 import { makeKnowledgeDeps } from "@/contexts/knowledge/server";
-import { cliMembershipRepo, cliProfileRepo } from "./_access-ports";
+import { makeAccessDeps } from "@/contexts/access/server";
 import { fail } from "./_io";
 
 export type Cli = {
@@ -46,7 +46,7 @@ function openDb(): Db {
 
 export async function cliDeps(opts: CliOptions = {}): Promise<Cli> {
   const db = openDb();
-  const profiles = cliProfileRepo(db);
+  const profiles = makeAccessDeps(db, null, db).profiles;
   const userByEmail = async (email: string) => {
     const found = await profiles.findByEmail(email);
     return found ? profiles.byId(found.id) : null;
@@ -63,7 +63,7 @@ export async function cliDeps(opts: CliOptions = {}): Promise<Cli> {
     db,
     user,
     serviceUser,
-    access: { user, profiles, members: cliMembershipRepo(db) },
+    access: makeAccessDeps(db, user, db),
     catalog,
     knowledge,
     knowledgeApi: knowledgeApi(knowledge),

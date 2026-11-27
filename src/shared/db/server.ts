@@ -1,4 +1,4 @@
-import "server-only";
+// server-only 를 붙이지 않는다: 스크립트(tsx)도 이 조립을 쓴다. 클라이언트 컴포넌트 유입은 eslint boundaries 가 막는다.
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";

@@ -17,7 +17,19 @@ export function sourceRepo(db: Db): SourceRepo {
       if (unitId) q = q.eq("unit_id", unitId);
       const { data, error } = await q;
       if (error) throw new Error(error.message);
-      return (data ?? []).map(toSource);
+      // 조각·임베딩 수 (MCP list_sources 가 보여 준다)
+      const ids = (data ?? []).map((s) => s.id);
+      const counts = new Map<string, { chunks: number; embedded: number }>();
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data: rows } = await db.schema("knowledge").from("chunks").select("source_id, embedded_at").in("source_id", ids.slice(i, i + 200));
+        for (const c of rows ?? []) {
+          const v = counts.get(c.source_id) ?? { chunks: 0, embedded: 0 };
+          v.chunks++;
+          if (c.embedded_at) v.embedded++;
+          counts.set(c.source_id, v);
+        }
+      }
+      return (data ?? []).map((s) => ({ ...toSource(s), chunkCount: counts.get(s.id)?.chunks ?? 0, embeddedCount: counts.get(s.id)?.embedded ?? 0 }));
     },
     async byId(id) {
       const { data, error } = await t().select("*").eq("id", id).maybeSingle();

@@ -302,7 +302,9 @@ export async function saveQuestionSet(
 
   let setId: string | null = null;
   if (plan.toInsert.length) {
-    setId = await deps.sets.create({ subjectId: input.subjectId, title: input.title, sourceFilename: input.sourceFilename, createdBy: input.createdBy });
+    // created_by 는 profiles FK. UUID 가 아닌 가짜 사용자(CLI 의 "service") 면 null
+    const createdBy = input.createdBy && /^[0-9a-f-]{36}$/i.test(input.createdBy) ? input.createdBy : null;
+    setId = await deps.sets.create({ subjectId: input.subjectId, title: input.title, sourceFilename: input.sourceFilename, createdBy });
     await deps.questions.insertIntoSet(
       setId,
       plan.toInsert.map((q, i) => ({ ...toInsert(input.subjectId, q), ord: q.no ?? i + 1 })),

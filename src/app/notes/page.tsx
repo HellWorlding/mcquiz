@@ -6,7 +6,7 @@ import { FontSizeControl, NoteBox } from "@/contexts/learning/ui/components/Note
 import { cleanExplanation } from "@/shared/labels";
 import { getT } from "@/shared/i18n/server";
 
-export const metadata = { title: "필기" };
+export const metadata = { title: "메모" };
 
 export default async function NotesPage({ searchParams }: { searchParams: Promise<{ subject?: string; unit?: string; group?: string }> }) {
   await requireUser("/notes");

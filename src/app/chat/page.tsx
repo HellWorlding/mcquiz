@@ -10,7 +10,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   await requireUser("/chat");
   const { subject, question } = await searchParams;
   const current = subject ? await getSubject(subject) : (await listSubjects())[0] ?? null;
-  if (!current) return <p className="card text-muted">볼 수 있는 주제가 없습니다.</p>;
+  if (!current) return <p className="card text-muted">볼 수 있는 과목이 없습니다.</p>;
   const data = await loadChatPage(current.id, current.name, question ?? null);
   if (!data) redirect("/login?next=%2Fchat");
   return (

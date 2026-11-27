@@ -6,7 +6,7 @@
  * subject admin <이메일> [--off]
  */
 import { grantMember, revokeMember } from "@/contexts/access";
-import { setAdminFlag } from "./_access-ports";
+import { setAdmin } from "@/contexts/access";
 import { cliDeps, findSubject } from "./_deps";
 import { fail, parseArgs, summary } from "./_io";
 
@@ -76,9 +76,9 @@ export async function run(argv: string[]): Promise<void> {
   if (sub === "admin" && a) {
     const on = !p.flags.has("off");
     const cli = await cliDeps({ ai: false });
-    const email = await setAdminFlag(cli.db, a, on);
-    if (!email) fail(`${a} 계정이 없습니다. 먼저 회원가입을 해야 합니다.`);
-    summary(`${email} 관리자 ${on ? "지정" : "해제"}`);
+    const r = await setAdmin(cli.access, a, on);
+    if (!r.ok) fail(r.error);
+    summary(`${a} 관리자 ${on ? "지정" : "해제"}`);
     return;
   }
 

@@ -7,7 +7,7 @@ export default async function UploadPage({ searchParams }: { searchParams: Promi
   const { subject } = await searchParams;
   const subjects = await listSubjects();
   const current = subjects.find((s) => s.id === subject) ?? subjects[0];
-  if (!current) return <p className="card text-muted">먼저 주제를 만드세요.</p>;
+  if (!current) return <p className="card text-muted">먼저 과목을 만드세요.</p>;
   const unitTree = await getUnitTree(current.id);
   return <UploadWizard subjects={subjects} currentSubjectId={current.id} unitTree={unitTree} />;
 }

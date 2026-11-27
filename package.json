@@ -12,18 +12,14 @@
     "db:start": "supabase start -x realtime,storage-api,imgproxy,edge-runtime,logflare,vector,supavisor",
     "db:reset": "supabase db reset",
     "db:push": "supabase db push",
-    "upload:sources": "tsx scripts/upload-sources.ts",
-    "upload:questions": "tsx scripts/upload-questions.ts",
-    "upload:file": "tsx scripts/upload-file.ts",
-    "admin:grant": "tsx scripts/grant-subject.ts",
-    "unit:priority": "tsx scripts/unit-priority.ts",
-    "export:learning": "tsx scripts/export-learning.ts",
-    "import:questions": "tsx scripts/import-questions.ts",
-    "embed:chunks": "tsx scripts/embed-chunks.ts",
     "icons": "node scripts/make-icons.mjs",
     "test:int": "vitest run --project int",
     "test:all": "vitest run",
-    "db:types": "supabase gen types typescript --local --schema public,access,catalog,learning,knowledge,community > src/shared/db/database.types.ts"
+    "db:types": "supabase gen types typescript --local --schema public,access,catalog,learning,knowledge,community > src/shared/db/database.types.ts",
+    "cli": "tsx scripts/cli.ts",
+    "sources:add": "tsx scripts/cli.ts sources add",
+    "sources:embed": "tsx scripts/cli.ts sources embed",
+    "questions:add": "tsx scripts/cli.ts questions add"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.4.0",

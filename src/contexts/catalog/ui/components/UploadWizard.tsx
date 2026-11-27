@@ -116,7 +116,7 @@ export function UploadWizard({ subjects, currentSubjectId, unitTree }: Props) {
             <span className="badge bg-accent-soft text-accent">형식: {preview.format}</span>
             {Object.entries(preview.subjectOverrides ?? {}).map(([name, n]) => (
               <span key={name} className="badge bg-ok-soft text-ok">
-                파일 지정 주제 &quot;{name}&quot; {n}문항
+                파일 지정 과목 &quot;{name}&quot; {n}문항
               </span>
             ))}
             {needsReview > 0 && <span className="badge bg-warn-soft text-warn">정답 없음 {needsReview}</span>}

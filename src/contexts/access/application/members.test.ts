@@ -11,6 +11,8 @@ function fakeDeps(current: CurrentUser | null) {
   const profiles: ProfileRepo = {
     byId: async () => null,
     findByEmail: async (e) => (e === "b@x" ? { id: "b", email: "b@x" } : null),
+    listAll: async () => [admin, user],
+    setAdmin: async () => undefined,
   };
   const repo: MembershipRepo = {
     list: async (s) => [...(members.get(s) ?? [])].map((id): Member => ({ userId: id, email: null, displayName: null, since: "" })),

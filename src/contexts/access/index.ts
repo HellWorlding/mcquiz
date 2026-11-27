@@ -2,4 +2,4 @@
 export type { CurrentUser, UserId, SubjectId, Visibility } from "./domain/user";
 export { canReadSubject } from "./domain/user";
 export type { AccessDeps, Member, ProfileRepo, MembershipRepo } from "./application/ports";
-export { listMembers, grantMember, revokeMember } from "./application/members";
+export { listMembers, grantMember, revokeMember, listProfiles, setAdmin } from "./application/members";

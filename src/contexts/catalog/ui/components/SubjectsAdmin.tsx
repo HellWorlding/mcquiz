@@ -40,7 +40,7 @@ export function SubjectsAdmin({
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">주제·권한</h1>
+      <h1 className="text-2xl font-bold">과목·권한</h1>
       {msg && <p className="rounded-lg bg-accent-soft px-3 py-2 text-sm">{msg}</p>}
 
       <form
@@ -52,13 +52,13 @@ export function SubjectsAdmin({
           e.currentTarget.reset();
         }}
       >
-        <input name="name" className="input" placeholder="새 주제 이름" required />
+        <input name="name" className="input" placeholder="새 과목 이름" required />
         <select name="visibility" className="input sm:w-40" defaultValue="public">
           <option value="public">공개</option>
           <option value="restricted">제한</option>
         </select>
         <button className="btn-primary shrink-0" disabled={pending}>
-          주제 만들기
+          과목 만들기
         </button>
       </form>
 
