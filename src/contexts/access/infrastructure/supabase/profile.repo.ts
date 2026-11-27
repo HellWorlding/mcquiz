@@ -10,8 +10,10 @@ export function profileRepo(db: Db, admin: Db | null): ProfileRepo {
     },
     async findByEmail(email) {
       const client = admin ?? db;
-      const { data } = await client.schema("access").from("profiles").select("id, email").ilike("email", email).maybeSingle();
-      return data ? { id: data.id, email: data.email ?? email } : null;
+      // 정확히 일치하는 이메일만 (ilike 는 _ % 가 와일드카드로 동작해 다른 계정에 권한을 줄 수 있다 — 검토 I6)
+      const { data } = await client.schema("access").from("profiles").select("id, email").eq("email", email.trim().toLowerCase()).limit(2);
+      if (!data || data.length !== 1) return null;
+      return { id: data[0].id, email: data[0].email ?? email };
     },
   };
 }

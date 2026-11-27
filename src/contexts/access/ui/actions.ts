@@ -1,5 +1,6 @@
 "use server";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { sessionDb } from "@/shared/db/server";
 import { adminDb } from "@/shared/db/admin";
@@ -84,8 +85,12 @@ export async function listMembersAction(subjectId: string): Promise<Result<Membe
   return listMembers(await deps(), subjectId);
 }
 export async function grantMemberAction(subjectId: string, email: string): Promise<Result<{ userId: string }>> {
-  return grantMember(await deps(), subjectId, email);
+  const r = await grantMember(await deps(), subjectId, email);
+  if (r.ok) revalidatePath("/admin");
+  return r;
 }
 export async function revokeMemberAction(subjectId: string, userId: string): Promise<Result<void>> {
-  return revokeMember(await deps(), subjectId, userId);
+  const r = await revokeMember(await deps(), subjectId, userId);
+  if (r.ok) revalidatePath("/admin");
+  return r;
 }

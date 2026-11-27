@@ -24,9 +24,9 @@ declare s text;
 begin
   foreach s in array array['access','catalog','learning','knowledge','community'] loop
     execute format('grant usage on schema %I to anon, authenticated, service_role', s);
-    execute format('alter default privileges in schema %I grant all on tables to anon, authenticated, service_role', s);
-    execute format('alter default privileges in schema %I grant all on sequences to anon, authenticated, service_role', s);
-    execute format('alter default privileges in schema %I grant all on functions to anon, authenticated, service_role', s);
+    execute format('alter default privileges in schema %I grant all on tables to authenticated, service_role', s);
+    execute format('alter default privileges in schema %I grant all on sequences to authenticated, service_role', s);
+    execute format('alter default privileges in schema %I grant all on functions to authenticated, service_role', s);
   end loop;
 end $$;
 
@@ -393,7 +393,8 @@ $$;
 -- ---------------------------------------------------------------
 -- 8. community 뷰
 -- ---------------------------------------------------------------
-create view community.posts_view with (security_invoker = true) as
+-- 소유자(postgres) 권한으로 조인: 글쓴이 표시 이름은 모두에게 보인다(옛 동작). security_invoker 를 쓰면 profiles 정책 때문에 남의 글 작성자가 빈칸이 된다(검토 I1)
+create view community.posts_view as
   select p.id, p.user_id, p.kind, p.title, p.body, p.status, p.admin_reply, p.created_at, p.updated_at,
          coalesce(nullif(pr.display_name, ''), split_part(coalesce(pr.email, ''), '@', 1)) as author
   from community.posts p
@@ -462,11 +463,19 @@ create policy "sources bucket: read if subject allowed" on storage.objects for s
 -- ---------------------------------------------------------------
 -- 10. 권한 (이동한 객체는 기존 grant 유지, 새 함수·뷰는 명시)
 -- ---------------------------------------------------------------
+-- anon(비로그인) 은 schema usage + select 만. 함수 실행은 로그인 사용자와 service role 만 (검토 I7: definer 함수가 anon 에 열리지 않게)
 do $$
 declare s text;
 begin
   foreach s in array array['access','catalog','learning','knowledge','community'] loop
-    execute format('grant all on all tables in schema %I to anon, authenticated, service_role', s);
-    execute format('grant execute on all functions in schema %I to anon, authenticated, service_role', s);
+    execute format('revoke all on all tables in schema %I from anon', s);
+    execute format('grant select on all tables in schema %I to anon', s);
+    execute format('grant all on all tables in schema %I to authenticated, service_role', s);
+    execute format('revoke execute on all functions in schema %I from anon, public', s);
+    execute format('grant execute on all functions in schema %I to authenticated, service_role', s);
+    execute format('alter default privileges in schema %I revoke all on tables from anon', s);
+    execute format('alter default privileges in schema %I grant select on tables to anon', s);
+    execute format('alter default privileges in schema %I revoke execute on functions from anon', s);
   end loop;
 end $$;
+revoke all on community.posts_view from anon;
