@@ -66,21 +66,23 @@ export async function classifyQuestion(
   opts: { preferParent?: string | null; useAI?: boolean } = {},
 ): Promise<UnitAssignment> {
   if (units.length === 0) return { unitId: null, confidence: null, candidates: [], method: "none" };
+  // 상위 단원이 지정됐으면 번호 힌트·키워드·AI 모두 그 하위 단원 안에서만 고른다
+  const allowed = opts.preferParent ? new Set(descendantIds(units, opts.preferParent)) : null;
+  const pickable = allowed ? units.filter((u) => allowed.has(u.id)) : units;
   if (q.unitHint !== null) {
-    const u = findUnitByNo(units, q.unitHint, opts.preferParent ?? null);
+    const u = findUnitByNo(pickable, q.unitHint, opts.preferParent ?? null);
     if (u) return { unitId: u.id, confidence: 1, candidates: [{ unitId: u.id, score: 1 }], method: "hint" };
   }
   const tokens = questionTokens(q);
   let candidates = tokens.length > 0 ? await deps.units.classify(subjectId, tokens).catch(() => []) : [];
-  // 상위 단원이 지정됐으면 그 하위 단원만 후보로 둔다
-  candidates = restrictCandidates(candidates, opts.preferParent ? new Set(descendantIds(units, opts.preferParent)) : null);
+  candidates = restrictCandidates(candidates, allowed);
   const confidence = confidenceFromScores(candidates.map((c) => c.score));
   if (candidates.length > 0 && confidence >= LOW_CONFIDENCE) return { unitId: candidates[0].unitId, confidence, candidates, method: "keyword" };
 
-  if ((opts.useAI ?? true) && deps.ai) {
+  if ((opts.useAI ?? true) && deps.ai && pickable.length > 0) {
     try {
       const pool = candidates.slice(0, 3).map((c) => c.unitId);
-      const ai = await deps.ai.classifyUnit({ subjectId, units, question: q, candidateUnitIds: pool });
+      const ai = await deps.ai.classifyUnit({ subjectId, units: pickable, question: q, candidateUnitIds: pool });
       if (ai) return { unitId: ai.unitId, confidence: ai.confidence, candidates, method: "ai" };
     } catch (e) {
       // AI 는 보조 수단이다. 키 오류·네트워크 오류가 나도 키워드 결과로 계속 간다.

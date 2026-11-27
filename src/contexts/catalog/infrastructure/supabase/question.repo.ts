@@ -56,12 +56,15 @@ export function questionRepo(db: Db): QuestionRepo {
     },
     async findByPrompts(subjectId, prompts) {
       if (prompts.length === 0) return [];
-      const { data } = await t().select("id, unit_id, prompt").eq("subject_id", subjectId).in("prompt", prompts);
+      const { data, error } = await t().select("id, unit_id, prompt").eq("subject_id", subjectId).in("prompt", prompts);
+      // 조회 실패를 "기존 문항 없음" 으로 보면 전부 새 문항으로 저장돼 중복이 생긴다 → 반입을 멈춘다
+      if (error) throw new Error(error.message);
       return (data ?? []).map((r) => ({ id: r.id, unitId: r.unit_id, prompt: r.prompt }));
     },
     async findBySets(setIds) {
       if (setIds.length === 0) return [];
-      const { data } = await t().select("id, unit_id, ord").in("set_id", setIds);
+      const { data, error } = await t().select("id, unit_id, ord").in("set_id", setIds);
+      if (error) throw new Error(error.message);
       return (data ?? []).map((r) => ({ id: r.id, unitId: r.unit_id, ord: r.ord }));
     },
     async sampleOf(subjectId) {

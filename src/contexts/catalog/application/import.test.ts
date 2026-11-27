@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { admin, fakeDeps, unit, user } from "./fakes.test-util";
-import { authoringGuide, classifyQuestion, commitImport, importQuestions, previewImport } from "./import";
+import { authoringGuide, classifyQuestion, commitImport, importQuestions, previewImport, saveQuestionSet } from "./import";
 import { questionIds, questionsByIds, deleteSet } from "./questions";
 import { emptyQuestion } from "../domain/import/types";
 
@@ -84,6 +84,33 @@ describe("import use cases", () => {
     expect(await classifyQuestion(f.deps, "s", units, q)).toMatchObject({ unitId: "u1", method: "keyword", confidence: 0.1 });
     expect(await classifyQuestion(f.deps, "s", units, { ...q, unitHint: 9 })).toMatchObject({ unitId: "u9", method: "hint", confidence: 1 });
     expect(await classifyQuestion(f.deps, "s", [], q)).toMatchObject({ unitId: null, method: "none" });
+  });
+  it("classifyQuestion: 상위 단원을 고르면 번호 힌트도 그 하위 단원 안에서만 찾는다", async () => {
+    // A(u1) 아래에는 7번이 없고, 바깥 B(u9) 아래에만 7번이 있다
+    const tree = [...units, unit("a3", "s", "u1", 3, "A-3"), unit("b7", "s", "u9", 7, "B-7")];
+    const f = fakeDeps(admin, { units: tree });
+    const q = { ...emptyQuestion(1), prompt: "학교 경영 계획", choices: [{ text: "가", explanation: null }] };
+    f.classifyScores.set("s", [{ unitId: "b7", score: 5 }]);
+    const r = await classifyQuestion(f.deps, "s", tree, { ...q, unitHint: 7 }, { preferParent: "u1", useAI: false });
+    expect(r.unitId).not.toBe("b7");
+    expect(r.method).not.toBe("hint");
+    // A 아래의 정상적인 번호 힌트는 그대로
+    expect(await classifyQuestion(f.deps, "s", tree, { ...q, unitHint: 3 }, { preferParent: "u1" })).toMatchObject({ unitId: "a3", method: "hint" });
+    // 상위 단원을 안 고르면 예전처럼 어디서든 찾는다
+    expect(await classifyQuestion(f.deps, "s", tree, { ...q, unitHint: 7 })).toMatchObject({ unitId: "b7", method: "hint" });
+  });
+  it("C7 saveQuestionSet: 번호 없는 새 문항은 반입 목록 위치를 번호(ord)로 저장해 다음 반입에서 다시 찾는다", async () => {
+    const f = fakeDeps(admin, { subjects: [subjectA], units });
+    const mk = (prompt: string) => ({ ...emptyQuestion(null), prompt, key: prompt, unitId: "u1", unitConfidence: 1, unitCandidates: [], correct: 1, choices: [1, 2, 3, 4].map((n) => ({ text: `${prompt}${n}`, explanation: null })) });
+    const r1 = await saveQuestionSet(f.deps, { subjectId: "s", title: "t", sourceFilename: "f.txt", createdBy: null, questions: [mk("A")] });
+    expect(r1).toMatchObject({ inserted: 1 });
+    const r2 = await saveQuestionSet(f.deps, { subjectId: "s", title: "t", sourceFilename: "f.txt", createdBy: null, questions: [mk("A"), mk("B")] });
+    expect(r2).toMatchObject({ inserted: 1, updated: 1 });
+    expect(f.questions.find((x) => x.prompt === "B")?.ord).toBe(2);
+    // B 의 질문문을 고쳐 다시 올리면 같은 파일·같은 번호(2)로 찾아 덮어쓴다
+    const r3 = await saveQuestionSet(f.deps, { subjectId: "s", title: "t", sourceFilename: "f.txt", createdBy: null, questions: [mk("A"), mk("B2")] });
+    expect(r3).toMatchObject({ inserted: 0, updated: 2 });
+    expect(f.questions.filter((x) => x.subjectId === "s")).toHaveLength(2);
   });
   it("C1·C7 commitImport: 검증 실패는 failed 로, 같은 단원·같은 질문은 덮어쓰고 세트는 유지, C5 세트 삭제", async () => {
     const f = fakeDeps(admin, { subjects: [subjectA], units });

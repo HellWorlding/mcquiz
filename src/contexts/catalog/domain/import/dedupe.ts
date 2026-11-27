@@ -10,6 +10,7 @@ export type ExistingQuestion = { id: string; unitId: string | null; prompt?: str
  *  1) 같은 파일(source_filename)에서 온 같은 단원·같은 번호 → 질문문이 바뀌어도 같은 문항
  *  2) 같은 과목·같은 단원·같은 질문문 → 같은 문항 (다른 단원이면 새 문항)
  * 기존 문항 하나는 한 번만 덮어쓴다.
+ * 번호가 없는 문항의 번호는 반입 목록 안의 위치(1부터)이며, toInsert 의 문항에는 그 번호가 no 로 채워진다.
  */
 export function planImport(
   questions: PreviewQuestion[],
@@ -28,7 +29,8 @@ export function planImport(
     if (id && !used.has(id)) {
       used.add(id);
       toUpdate.push({ id, q });
-    } else toInsert.push(q);
+      // 새 문항은 여기서 정한 번호(no)를 그대로 저장한다 — 다음 반입에서 같은 파일·같은 번호로 다시 찾을 수 있게
+    } else toInsert.push(q.no === no ? q : { ...q, no });
   });
   return { toInsert, toUpdate };
 }

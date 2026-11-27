@@ -37,6 +37,11 @@ describe("C7 반입 중복 판정", () => {
     const r = planImport([pq("a", null), pq("b", null)], existing);
     expect(r.toUpdate.map((x) => x.q.prompt)).toEqual(["b"]);
   });
+  it("새로 넣을 문항에는 분리 전에 정한 번호가 no 로 남는다 (명시한 번호는 그대로)", () => {
+    const existing = { byFilePos: [{ id: "q1", unitId: null, ord: 1 }], byPrompt: [] };
+    const r = planImport([pq("a", null), pq("b", null), pq("c", null, 9)], existing);
+    expect(r.toInsert.map((x) => [x.prompt, x.no])).toEqual([["b", 2], ["c", 9]]);
+  });
   it("findDuplicatePrompts 는 정규화 비교로 기존 문항과 겹치는 질문문을 돌려준다", () => {
     expect(findDuplicatePrompts([{ prompt: "Make a decision" }, { prompt: "새 질문" }], ["make a  decision"])).toEqual(["Make a decision"]);
   });
