@@ -1,7 +1,7 @@
 "use server";
 import type { Result } from "@/shared/result";
 import { cookies } from "next/headers";
-import { GUEST_TRIAL_COOKIE, trialDateKey } from "../domain/guest";
+import { GUEST_TRIAL_COOKIE, trialCookieValue } from "../domain/guest";
 import type { Collection } from "@/contexts/catalog";
 import { sessionCatalogApi, sessionLearningDeps } from "../infrastructure/session-deps";
 import { deleteSession, recordAttempt, saveProgress, toggleConfused, type RecordAttemptInput, type SaveProgressInput } from "../application/quiz";
@@ -75,6 +75,6 @@ export async function addToCollectionAction(collectionId: string, questionIds: s
 }
 
 /** 게스트가 체험 문항을 다 풀면 오늘 날짜를 쿠키에 적어 하루 한 번만 체험하게 한다 (D-009) */
-export async function markGuestTrialAction(): Promise<void> {
-  (await cookies()).set(GUEST_TRIAL_COOKIE, trialDateKey(new Date()), { path: "/", maxAge: 60 * 60 * 36, sameSite: "lax", httpOnly: true });
+export async function markGuestTrialAction(quizKey: string): Promise<void> {
+  (await cookies()).set(GUEST_TRIAL_COOKIE, trialCookieValue(new Date(), quizKey.slice(0, 32)), { path: "/", maxAge: 60 * 60 * 36, sameSite: "lax", httpOnly: true });
 }

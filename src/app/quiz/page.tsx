@@ -19,6 +19,7 @@ export default async function QuizPage({ searchParams }: { searchParams: Promise
       isGuest={!user}
       guestLimit={quiz.guestLimit}
       guestLocked={quiz.guestLocked}
+      guestQuizKey={quiz.guestQuizKey}
       isAdmin={user?.isAdmin ?? false}
       backHref={backHref}
       seed={quiz.seed}

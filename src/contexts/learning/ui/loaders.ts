@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { difficultyLabel, unitPathLabel } from "@/shared/labels";
 import { hashString } from "../domain/shuffle";
 import { pickWeakMix } from "../domain/weak-mix";
-import { capForGuest, GUEST_TRIAL_COOKIE, GUEST_TRIAL_LIMIT, isTrialUsed } from "../domain/guest";
+import { capForGuest, GUEST_TRIAL_COOKIE, GUEST_TRIAL_LIMIT, isTrialUsed, quizKeyOf } from "../domain/guest";
 import type { Subject } from "@/contexts/catalog";
 import { parseQuizParams, type QuizSearchParams } from "../domain/quiz";
 import type { LearningUnit, NoteItem, QuizQuestion, ResumeState, SavedBoxSummary, SubjectActivity, UnfinishedSession, UnitAttemptCounts, UnitProgressRow, UnitRoundScores } from "../domain/types";
@@ -21,6 +21,8 @@ export type ResolvedQuiz = {
   guestLocked: boolean;
   /** 게스트면 체험 문항 수, 로그인은 null */
   guestLimit: number | null;
+  /** 게스트 체험 쿠키에 쓰는 이 퀴즈의 키 */
+  guestQuizKey: string;
   /** 순서·개수 적용 전 문항 수 */
   total: number;
   title: string;
@@ -56,9 +58,10 @@ export async function loadQuiz(params: QuizSearchParams): Promise<ResolvedQuiz> 
   const seed = deps.rng.seed();
   const p = parseQuizParams(params, seed);
   const isGuest = !deps.user;
-  // 게스트는 하루 한 번만 체험 (쿠키). 잠겼으면 문항 없이 안내 카드
-  if (isGuest && isTrialUsed((await cookies()).get(GUEST_TRIAL_COOKIE)?.value, new Date(deps.clock.now()))) {
-    return { questions: [], total: 0, title: TITLE.quiz, subjectId: p.subjectId ?? null, seed, resume: null, notes: {}, savedIds: [], unitLabels: {}, guestLocked: true, guestLimit: GUEST_TRIAL_LIMIT };
+  const guestQuizKey = quizKeyOf(params as Record<string, string | string[] | undefined>);
+  // 게스트는 하루 한 번만 체험 (쿠키 "날짜:퀴즈키"). 같은 퀴즈는 이어서, 다른 퀴즈를 새로 열면 잠김 카드
+  if (isGuest && isTrialUsed((await cookies()).get(GUEST_TRIAL_COOKIE)?.value, new Date(deps.clock.now()), guestQuizKey)) {
+    return { questions: [], total: 0, title: TITLE.quiz, subjectId: p.subjectId ?? null, seed, resume: null, notes: {}, savedIds: [], unitLabels: {}, guestLocked: true, guestLimit: GUEST_TRIAL_LIMIT, guestQuizKey };
   }
   let questions: QuizQuestion[] = [];
   let total = 0;
@@ -88,7 +91,7 @@ export async function loadQuiz(params: QuizSearchParams): Promise<ResolvedQuiz> 
   const [notes, savedIds, units] = await Promise.all([notesFor(deps, ids), savedIdsFor(deps, ids), subjectId ? deps.catalog.listUnits(subjectId) : Promise.resolve([] as LearningUnit[])]);
   const unitLabels: Record<string, string> = {};
   for (const q of questions) if (q.unit_id && !(q.unit_id in unitLabels)) unitLabels[q.unit_id] = unitPathLabel(units, q.unit_id) ?? "";
-  return { questions, total, title, subjectId, seed: resolvedSeed, resume, notes: Object.fromEntries(notes), savedIds, unitLabels, guestLocked: false, guestLimit: isGuest ? GUEST_TRIAL_LIMIT : null };
+  return { questions, total, title, subjectId, seed: resolvedSeed, resume, notes: Object.fromEntries(notes), savedIds, unitLabels, guestLocked: false, guestLimit: isGuest ? GUEST_TRIAL_LIMIT : null, guestQuizKey };
 }
 
 /** 과목 목록을 활동순(저장함 많음 → 최근 풀이 → 만든 순)으로. 홈·저장함·메모·AI 질문 페이지가 같이 쓴다 */

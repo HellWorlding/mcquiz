@@ -51,3 +51,9 @@ CLAUDE.md
 AGENTS.md
 .claude
 PRD*.md
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

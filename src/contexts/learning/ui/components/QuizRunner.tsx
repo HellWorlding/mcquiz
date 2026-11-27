@@ -36,6 +36,8 @@ type Props = {
   guestLimit?: number | null;
   /** 오늘 체험을 이미 써서 잠김 */
   guestLocked?: boolean;
+  /** 게스트 체험 쿠키용 퀴즈 키 */
+  guestQuizKey?: string;
   isAdmin?: boolean;
   backHref: string;
   /** 선지 셔플 seed. 서버에서 만들어 넘겨야 hydration 이 어긋나지 않는다 */
@@ -106,7 +108,7 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
   return shuffled(q.choices, hashString(q.id) ^ salt);
 }
 
-export function QuizRunner({ questions: initial, title, subjectId, isGuest, guestLimit = null, guestLocked = false, isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [], unitLabels = {} }: Props) {
+export function QuizRunner({ questions: initial, title, subjectId, isGuest, guestLimit = null, guestLocked = false, guestQuizKey = "", isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [], unitLabels = {} }: Props) {
   const t = useT();
   const [questions, setQuestions] = useState(initial);
   const [idx, setIdx] = useState(resume?.position ?? 0);
@@ -255,8 +257,8 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
   const markTrial = useCallback(() => {
     if (!isGuest || trialMarked.current) return;
     trialMarked.current = true;
-    void markGuestTrialAction();
-  }, [isGuest]);
+    void markGuestTrialAction(guestQuizKey);
+  }, [isGuest, guestQuizKey]);
   const pathname = usePathname();
   const search = useSearchParams();
   const loginHref = `/login?next=${encodeURIComponent(pathname + (search?.size ? `?${search.toString()}` : ""))}`;
