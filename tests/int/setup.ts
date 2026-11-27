@@ -15,5 +15,15 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??=
 
 beforeAll(() => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  if (!/127\.0\.0\.1|localhost/.test(url)) throw new Error(`통합 테스트는 로컬 Supabase 에서만 돈다 (URL=${url})`);
+  if (!isLocalUrl(url)) throw new Error(`통합 테스트는 로컬 Supabase 에서만 돈다 (URL=${url})`);
 });
+
+/** http(s) 이고 hostname 이 정확히 127.0.0.1 / localhost 일 때만 참 (localhost.example.com 같은 주소는 거짓) */
+export function isLocalUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return (u.protocol === "http:" || u.protocol === "https:") && (u.hostname === "127.0.0.1" || u.hostname === "localhost");
+  } catch {
+    return false;
+  }
+}

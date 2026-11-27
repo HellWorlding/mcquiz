@@ -18,5 +18,15 @@ export const PASSWORD = "e2e-password-123";
 export const PREFIX = "__e2e_";
 
 export function assertLocal() {
-  if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?/.test(E2E_SUPABASE_URL)) throw new Error(`e2e 는 로컬 Supabase 에서만 돈다 (URL=${E2E_SUPABASE_URL})`);
+  if (!isLocalUrl(E2E_SUPABASE_URL)) throw new Error(`e2e 는 로컬 Supabase 에서만 돈다 (URL=${E2E_SUPABASE_URL})`);
+}
+
+/** http(s) 이고 hostname 이 정확히 127.0.0.1 / localhost 일 때만 참 */
+function isLocalUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return (u.protocol === "http:" || u.protocol === "https:") && (u.hostname === "127.0.0.1" || u.hostname === "localhost");
+  } catch {
+    return false;
+  }
 }

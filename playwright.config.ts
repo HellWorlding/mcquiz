@@ -29,7 +29,8 @@ export default defineConfig({
   webServer: {
     command: `npx next dev -H 127.0.0.1 -p ${E2E_PORT}`,
     url: E2E_BASE_URL,
-    reuseExistingServer: true,
+    // 이미 떠 있는 서버(운영 .env.local 로 띄웠을 수 있음)는 재사용하지 않는다. 같은 e2e 환경으로 띄운 서버를 일부러 재사용할 때만 E2E_REUSE_SERVER=1
+    reuseExistingServer: process.env.E2E_REUSE_SERVER === "1",
     timeout: 180_000,
     env: {
       NEXT_PUBLIC_SUPABASE_URL: E2E_SUPABASE_URL,
