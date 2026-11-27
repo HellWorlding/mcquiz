@@ -1,7 +1,7 @@
-import { requireUser } from "@/domains/auth/session";
-import { PasswordForm } from "@/domains/auth/components/PasswordForm";
-import { getT } from "@/domains/shared/i18n-server";
-import { McpConnectCard } from "@/domains/mcp/components/McpConnectCard";
+import { requireUser } from "@/contexts/access/server";
+import { PasswordForm } from "@/contexts/access/ui/components/PasswordForm";
+import { getT } from "@/shared/i18n/server";
+import { McpConnectCard } from "@/contexts/integration/ui";
 import { headers } from "next/headers";
 
 export const metadata = { title: "내 계정" };

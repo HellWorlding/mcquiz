@@ -1,7 +1,7 @@
-import { requireUser } from "@/domains/auth/session";
-import { listPosts } from "@/domains/board/queries";
-import { BoardView } from "@/domains/board/components/BoardView";
-import { env } from "@/domains/shared/env";
+import { requireUser } from "@/contexts/access/server";
+import { listPosts } from "@/contexts/community/ui/loaders";
+import { BoardView } from "@/contexts/community/ui/components/BoardView";
+import { env } from "@/shared/env";
 
 export const metadata = { title: "게시판" };
 

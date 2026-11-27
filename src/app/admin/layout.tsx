@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAdmin } from "@/domains/auth/session";
+import { requireAdmin } from "@/contexts/access/server";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();

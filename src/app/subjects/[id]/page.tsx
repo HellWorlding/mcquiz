@@ -1,11 +1,9 @@
 import { notFound } from "next/navigation";
-import { getSubject, getUnitTree, listCollections } from "@/domains/subjects/queries";
-import { countQuestionsByCollection, countQuestionsByUnit, listSets } from "@/domains/questions/queries";
-import { getCurrentUser } from "@/domains/auth/session";
-import { QuizStart } from "@/domains/quiz/components/QuizStart";
-import { buildTree } from "@/domains/shared/tree";
-import { listUnfinishedSessions } from "@/domains/quiz/sessions";
-import { getUnitProgress, getUnitRoundScores, getUnitRounds } from "@/domains/progress/queries";
+import { getCurrentUser } from "@/contexts/access/server";
+import { buildTree } from "@/contexts/catalog";
+import { countQuestionsByCollection, countQuestionsByUnit, getSubject, getUnitTree, listCollections, listSets } from "@/contexts/catalog/ui/loaders";
+import { getUnitAttemptCounts, getUnitProgress, getUnitRoundScores, listUnfinishedSessions } from "@/contexts/learning/ui/loaders";
+import { QuizStart } from "@/contexts/learning/ui/components/QuizStart";
 
 export default async function SubjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,7 +17,7 @@ export default async function SubjectPage({ params }: { params: Promise<{ id: st
     countQuestionsByCollection(id),
     getCurrentUser(),
     listUnfinishedSessions(id),
-    getUnitRounds(id),
+    getUnitAttemptCounts(id),
     getUnitProgress(id),
     getUnitRoundScores(id),
   ]);

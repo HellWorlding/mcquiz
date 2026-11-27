@@ -21,7 +21,7 @@ export async function Nav() {
               <Link href="/" className="btn-ghost btn-sm">
                 {tr("nav.subjects")}
               </Link>
-              <Link href="/weak" className="btn-ghost btn-sm">
+              <Link href="/saved" className="btn-ghost btn-sm">
                 {tr("nav.saved")}
               </Link>
               <Link href="/notes" className="btn-ghost btn-sm">

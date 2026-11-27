@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/domains/auth/session";
-import { listSubjects } from "@/domains/subjects/queries";
-import { env } from "@/domains/shared/env";
-import { getT } from "@/domains/shared/i18n-server";
+import { getCurrentUser } from "@/contexts/access/server";
+import { listSubjects } from "@/contexts/catalog/ui/loaders";
+import { subjectActivity } from "@/contexts/learning/ui/loaders";
+import { env } from "@/shared/env";
+import { getT } from "@/shared/i18n/server";
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -23,7 +24,14 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       </section>
     );
   }
-  const subjects = await listSubjects();
+  // 활동이 많은 과목(저장함 많음 → 최근 풀이 → 만든 순)을 먼저 보인다
+  const [list, activity] = await Promise.all([listSubjects(), subjectActivity()]);
+  const score = new Map(activity.map((a) => [a.subjectId, { weak: a.weakCount, last: a.lastAt ?? "" }]));
+  const subjects = [...list].sort((a, b) => {
+    const sa = score.get(a.id) ?? { weak: 0, last: "" };
+    const sb = score.get(b.id) ?? { weak: 0, last: "" };
+    return sb.weak - sa.weak || (sb.last > sa.last ? 1 : sb.last < sa.last ? -1 : 0) || a.createdAt.localeCompare(b.createdAt);
+  });
   return (
     <section>
       {error === "forbidden" && <p className="mb-4 rounded-lg bg-bad-soft px-3 py-2 text-sm text-bad">{t("home.forbidden")}</p>}

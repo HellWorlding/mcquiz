@@ -1,4 +1,4 @@
-import { AuthForm } from "@/domains/auth/components/AuthForm";
+import { AuthForm } from "@/contexts/access/ui/components/AuthForm";
 
 export const metadata = { title: "회원가입" };
 

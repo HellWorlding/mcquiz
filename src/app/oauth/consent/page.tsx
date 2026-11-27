@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { requireUser } from "@/domains/auth/session";
-import { createClient } from "@/domains/auth/supabase/server";
-import { ConsentForm } from "@/domains/mcp/components/ConsentForm";
+import { requireUser } from "@/contexts/access/server";
+import { ConsentForm } from "@/contexts/integration/ui";
+import { sessionDb } from "@/shared/db/server";
 
 export const metadata = { title: "앱 연결 허용" };
 
@@ -13,7 +13,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
   const { authorization_id: id } = await searchParams;
   if (!id) redirect("/");
   await requireUser(`/oauth/consent?authorization_id=${encodeURIComponent(id)}`);
-  const db = await createClient();
+  const db = await sessionDb();
   const { data, error } = await db.auth.oauth.getAuthorizationDetails(id);
   if (error || !data) {
     return (

@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { requireUser } from "@/domains/auth/session";
-import { listSubjects } from "@/domains/subjects/queries";
-import { listMyNotes } from "@/domains/notes/queries";
-import { FontSizeControl, NoteBox } from "@/domains/notes/components/NoteBox";
-import { cleanExplanation } from "@/domains/shared/labels";
-import { getT } from "@/domains/shared/i18n-server";
+import { requireUser } from "@/contexts/access/server";
+import { listSubjects } from "@/contexts/catalog/ui/loaders";
+import { listMyNotes } from "@/contexts/learning/ui/loaders";
+import { FontSizeControl, NoteBox } from "@/contexts/learning/ui/components/NoteBox";
+import { cleanExplanation } from "@/shared/labels";
+import { getT } from "@/shared/i18n/server";
 
 export const metadata = { title: "필기" };
 
