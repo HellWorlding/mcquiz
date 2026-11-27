@@ -183,3 +183,6 @@ npm run typecheck && npm run lint && npm test
 ## 아이콘
 
 `src/app/icon.svg` 가 원본입니다. 바꾼 뒤 `npm run icons` 를 실행하면 파비콘(`favicon.ico`), 애플 홈 화면 아이콘, 매니페스트용 PNG(`public/icons/`), 링크 공유 미리보기(`opengraph-image.png`)가 다시 만들어집니다.
+
+## 문서
+- `docs/glossary.md` — 용어사전(한국어 UI 용어 ↔ 코드 이름). 새 이름은 이 표를 따른다.
