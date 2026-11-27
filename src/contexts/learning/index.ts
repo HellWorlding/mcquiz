@@ -56,6 +56,3 @@ export { markSaved, dismiss, undismiss, savedIdsFor, savedBox, savedBoxIds, save
 export { saveNote, notesFor, listNotes } from "./application/notes";
 export { questionStats, attemptCounts, unitRoundScores, unitRoundScoreMap, unitAttemptCounts, unitAttemptCountMap, unitProgress, subjectActivity } from "./application/stats";
 export { exportSavedBox, learningSummary, type ExportSavedBoxInput, type SavedExportResult } from "./application/export";
-
-export { makeLearningDeps, makeLearningApi, type LearningExtra } from "./infrastructure/make-deps";
-export { catalogQuestions, toQuizQuestion, toLearningUnit, type CatalogApiSubset, type CatalogQuestionShape } from "./infrastructure/catalog.adapter";

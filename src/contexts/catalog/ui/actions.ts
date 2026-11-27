@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { sessionDb } from "@/shared/db/server";
 import type { Result } from "@/shared/result";
-import { getCurrentUser } from "@/contexts/access";
+import { getCurrentUser } from "@/contexts/access/server";
 import type { Collection, Visibility } from "../domain/types";
 import type { PreviewQuestion } from "../domain/import/types";
 import { makeCatalogDeps } from "../infrastructure/make-deps";

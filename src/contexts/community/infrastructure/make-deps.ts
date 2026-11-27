@@ -1,5 +1,6 @@
 import type { CurrentUser } from "@/contexts/access";
-import { makeCatalogApi, type CatalogApi } from "@/contexts/catalog";
+import { type CatalogApi } from "@/contexts/catalog";
+import { makeCatalogApi } from "@/contexts/catalog/server";
 import type { Db } from "@/shared/db/types";
 import type { CommunityDeps } from "../application/ports";
 import { catalogQuestions } from "./catalog-adapter";

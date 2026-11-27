@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/contexts/access/infrastructure/session";
-import { signoutAction } from "@/contexts/access/ui/actions";
+import { getCurrentUser } from "../infrastructure/session";
+import { signoutAction } from "./actions";
 import { getLang } from "@/shared/i18n/server";
 import { t } from "@/shared/i18n/messages";
 import { setLangAction } from "@/shared/i18n/actions";

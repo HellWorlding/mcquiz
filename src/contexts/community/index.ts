@@ -8,7 +8,4 @@ export type { CommunityApi } from "./application/api";
 export type { ReportRow } from "./application/reports";
 export { listPosts, createPost, deletePost, updatePost, PAGE_SIZE } from "./application/posts";
 export { reportQuestion, resolveReport, listReports } from "./application/reports";
-export { makeCommunityDeps } from "./infrastructure/make-deps";
-export { makeCommunityApi } from "./infrastructure/api";
 /** 문항 신고 버튼(learning ui)이 호출하는 서버 액션. 다른 컨텍스트의 ui 는 index 를 거쳐야 하므로 여기서 내보낸다 */
-export { reportQuestionAction } from "./ui/actions";

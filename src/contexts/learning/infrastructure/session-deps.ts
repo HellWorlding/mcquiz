@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
-import { getCurrentUser } from "@/contexts/access";
-import { makeCatalogApi } from "@/contexts/catalog";
+import { getCurrentUser } from "@/contexts/access/server";
+import { makeCatalogApi } from "@/contexts/catalog/server";
 import { sessionDb } from "@/shared/db/server";
 import type { LearningDeps } from "../application/ports";
 import { learningApiFrom, type LearningApi } from "../application/api";

@@ -22,7 +22,3 @@ export { listSubjects, getSubject, createSubject, setSubjectVisibility } from ".
 export { listUnits, unitTree, expandUnitIds, questionCountsByUnit, createUnit, bulkCreateUnits, renameUnit, moveUnit, deleteUnit, setUnitPriority } from "./application/units";
 export { questionIds, questionsByIds, searchQuestions, listSets, listAllSets, getSet, updateQuestion, updateChoice, deleteQuestion, deleteSet, type UpdateQuestionInput } from "./application/questions";
 export { listCollections, getCollection, questionCountsByCollection, myCollections, createCollection, renameCollection, deleteCollection, addToCollection, removeFromCollection } from "./application/collections";
-
-export { makeCatalogDeps, makeCatalogApi, type CatalogExtra } from "./infrastructure/make-deps";
-export { openAiParser, type UnitExcerptProvider } from "./infrastructure/openai";
-export { extractText } from "./infrastructure/text-extract";

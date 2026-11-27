@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { sessionDb } from "@/shared/db/server";
 import { env } from "@/shared/env";
-import { getCurrentUser } from "@/contexts/access";
+import { getCurrentUser } from "@/contexts/access/server";
 import type { Collection, Question, QuestionScope, QuestionSet, Subject, Unit } from "../domain/types";
 import type { TreeNode } from "../domain/tree";
 import { makeApi } from "../application/api";

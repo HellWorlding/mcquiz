@@ -1,6 +1,6 @@
 import "server-only";
-import { getCurrentUser } from "@/contexts/access";
-import { makeCatalogApi } from "@/contexts/catalog";
+import { getCurrentUser } from "@/contexts/access/server";
+import { makeCatalogApi } from "@/contexts/catalog/server";
 import { sessionDb } from "@/shared/db/server";
 import type { KnowledgeDeps } from "../application/ports";
 import { makeKnowledgeDeps } from "../infrastructure/make-deps";

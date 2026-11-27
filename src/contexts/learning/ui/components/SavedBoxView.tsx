@@ -7,7 +7,7 @@ import type { GroupStat, LearningUnit as Unit, QuizQuestion as QuestionWithChoic
 import { dismissQuestionAction, dismissQuestionsAction, exportSavedAction } from "../actions";
 import { AddToCollection } from "./AddToCollection";
 import { QuestionBadges, SourceQuote } from "@/shared/ui/QuestionMeta";
-import { EvidencePanel } from "@/contexts/knowledge";
+import { EvidencePanel } from "@/contexts/knowledge/ui";
 import { useT } from "@/shared/i18n/client";
 import { isKoreanTitle, qNoLabel } from "@/shared/labels";
 import { ReportButton } from "./ReportModal";

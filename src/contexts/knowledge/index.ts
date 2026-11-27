@@ -14,7 +14,6 @@ export type { EmbedTarget, EmbedOptions } from "./application/embed";
 export type { FilePage, SplitResult } from "./application/files";
 export type { KnowledgeApi } from "./application/api";
 export type { KnowledgeDeps, SubjectFile, CatalogPort, EmbeddingProvider, ChatModel, FileStorage, TextExtractor, PdfSplitter } from "./application/ports";
-export type { CatalogApiLike } from "./infrastructure/catalog-adapter";
 
 // 순수 함수 (스크립트·다른 컨텍스트가 쓸 수 있는 것)
 export { SOURCE_KINDS, toSourceKind } from "./domain/source";
@@ -33,8 +32,5 @@ export { filePage, filePageUrl, hasFileForPage, uploadWholeFile, splitBookFile }
 export { knowledgeApi } from "./application/api";
 
 // 조립
-export { makeKnowledgeDeps, makeKnowledgeApi } from "./infrastructure/make-deps";
 
 // 다른 컨텍스트의 화면(Learning 의 풀이 화면)이 쓰는 컴포넌트
-export { EvidencePanel } from "./ui/components/EvidencePanel";
-export { ChatDock, type ChatDockQuestion } from "./ui/components/ChatDock";

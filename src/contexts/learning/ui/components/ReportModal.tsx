@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { reportQuestionAction } from "@/contexts/community";
+import { reportQuestionAction } from "@/contexts/community/ui";
 import { useT } from "@/shared/i18n/client";
 
 /** "신고" 버튼 + 모달 (새 페이지로 가지 않는다) */

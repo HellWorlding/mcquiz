@@ -5,7 +5,7 @@ import type { QuizChoice as Choice, QuizQuestion as QuestionWithChoices, ResumeS
 import { hashString, shuffled } from "../../domain/shuffle";
 import { dismissQuestionsAction, recordAttemptAction, saveProgressAction, saveQuestionAction, setConfusedAction, undismissQuestionsAction, markGuestTrialAction } from "../actions";
 import { QuestionBadges, SourceQuote } from "@/shared/ui/QuestionMeta";
-import { EvidencePanel, ChatDock, type ChatDockQuestion } from "@/contexts/knowledge";
+import { EvidencePanel, ChatDock, type ChatDockQuestion } from "@/contexts/knowledge/ui";
 import { cleanExplanation } from "@/shared/labels";
 import { NoteBox } from "./NoteBox";
 import { useT } from "@/shared/i18n/client";

@@ -1,5 +1,5 @@
 import "server-only";
-import { getCurrentUser } from "@/contexts/access";
+import { getCurrentUser } from "@/contexts/access/server";
 import { sessionDb } from "@/shared/db/server";
 import type { CommunityDeps } from "../application/ports";
 import { makeCommunityDeps } from "../infrastructure/make-deps";
