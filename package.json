@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --project unit",
     "db:start": "supabase start -x realtime,storage-api,imgproxy,edge-runtime,logflare,vector,supavisor",
     "db:reset": "supabase db reset",
     "db:push": "supabase db push",
@@ -20,7 +20,10 @@
     "export:learning": "tsx scripts/export-learning.ts",
     "import:questions": "tsx scripts/import-questions.ts",
     "embed:chunks": "tsx scripts/embed-chunks.ts",
-    "icons": "node scripts/make-icons.mjs"
+    "icons": "node scripts/make-icons.mjs",
+    "test:int": "vitest run --project int",
+    "test:all": "vitest run",
+    "db:types": "supabase gen types typescript --local --schema public,access,catalog,learning,knowledge,community > src/shared/db/database.types.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.4.0",
@@ -41,6 +44,7 @@
     "dotenv": "^18.0.9",
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
+    "eslint-plugin-boundaries": "^7.4.5",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "tailwindcss": "^4",
