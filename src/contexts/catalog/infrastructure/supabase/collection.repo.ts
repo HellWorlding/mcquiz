@@ -1,4 +1,5 @@
 import type { Db } from "@/shared/db/types";
+import { allRows } from "@/shared/paginate";
 import type { CollectionRepo } from "../../application/ports";
 import { check, must, toCollection } from "./mappers";
 
@@ -20,16 +21,21 @@ export function collectionRepo(db: Db): CollectionRepo {
     },
     async itemIds(collectionIds) {
       if (collectionIds.length === 0) return [];
-      const { data } = await items().select("question_id, added_at").in("collection_id", collectionIds).order("added_at");
-      return (data ?? []).map((r) => r.question_id);
+      // 1,000행 넘는 묶음도 끝까지 (페이지 경계가 흔들리지 않게 (collection_id, question_id) 로 보조 정렬)
+      const rows = await allRows<{ question_id: string }>((f, to) =>
+        items().select("question_id").in("collection_id", collectionIds).order("added_at").order("collection_id").order("question_id").range(f, to),
+      );
+      return rows.map((r) => r.question_id);
     },
     async itemCounts(subjectId) {
       const { data: cols } = await t().select("id").eq("subject_id", subjectId);
       const ids = (cols ?? []).map((c) => c.id);
       const out = new Map<string, number>();
       if (ids.length === 0) return out;
-      const { data } = await items().select("collection_id").in("collection_id", ids);
-      for (const r of data ?? []) out.set(r.collection_id, (out.get(r.collection_id) ?? 0) + 1);
+      const rows = await allRows<{ collection_id: string }>((f, to) =>
+        items().select("collection_id").in("collection_id", ids).order("collection_id").order("question_id").range(f, to),
+      );
+      for (const r of rows) out.set(r.collection_id, (out.get(r.collection_id) ?? 0) + 1);
       return out;
     },
     async create(r) {
