@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/domains/auth/session";
 import { listSubjects } from "@/domains/subjects/queries";
-import { getWeakSummary } from "@/domains/progress/queries";
+import { getUnitRoundScores, getWeakSummary } from "@/domains/progress/queries";
 import { getQuestionsByIds } from "@/domains/questions/queries";
 import { listUnits } from "@/domains/subjects/queries";
 import { WeakView } from "@/domains/progress/components/WeakView";
@@ -17,7 +17,7 @@ export default async function WeakPage({ searchParams }: { searchParams: Promise
   const current = subjects.find((s) => s.id === subject) ?? subjects[0];
   if (!current) return <p className="card text-muted">{t("saved.no_subject")}</p>;
   // 요약과 단원 목록은 서로 독립이라 동시에 요청한다
-  const [summary, units] = await Promise.all([getWeakSummary(current.id), listUnits(current.id)]);
+  const [summary, units, roundScores] = await Promise.all([getWeakSummary(current.id), listUnits(current.id), getUnitRoundScores(current.id)]);
   const ids = (summary?.items ?? []).map((i) => i.questionId);
   const questions = await getQuestionsByIds(ids);
   return (
@@ -34,7 +34,7 @@ export default async function WeakPage({ searchParams }: { searchParams: Promise
           </Link>
         ))}
       </div>
-      {summary && <WeakView subject={current} summary={summary} questions={questions} units={units} />}
+      {summary && <WeakView subject={current} summary={summary} questions={questions} units={units} roundScores={roundScores} />}
     </section>
   );
 }

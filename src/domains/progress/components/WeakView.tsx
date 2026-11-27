@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { QuestionWithChoices, Subject, Unit } from "@/domains/shared/types";
-import type { GroupStat, SavedItem, WeakSummary } from "@/domains/progress/queries";
+import type { GroupStat, SavedItem, UnitRoundScores, WeakSummary } from "@/domains/progress/queries";
 import { dismissQuestionAction, dismissQuestionsAction, exportSavedAction } from "@/domains/progress/actions";
 import { AddToCollection } from "@/domains/quiz/components/AddToCollection";
 import { QuestionBadges, SourceQuote } from "@/domains/shared/components/QuestionMeta";
@@ -59,7 +59,20 @@ export function questionNoLabel(units: Unit[], q: { unit_id: string | null; ord:
   return u.no !== null ? `${u.no}강 ${q.ord}번` : qNoLabel(q.ord, true);
 }
 
-export function WeakView({ subject, summary, questions, units }: { subject: Subject; summary: WeakSummary; questions: QuestionWithChoices[]; units: Unit[] }) {
+export function WeakView({
+  subject,
+  summary,
+  questions,
+  units,
+  roundScores,
+}: {
+  subject: Subject;
+  summary: WeakSummary;
+  questions: QuestionWithChoices[];
+  units: Unit[];
+  /** unit_id → 회독 i → { n: i번째 풀이를 한 문항 수, correct: 그중 정답 } */
+  roundScores: UnitRoundScores;
+}) {
   const t = useT();
   const [tab, setTab] = useState<"list" | "stats">("list");
   const [filters, setFilters] = useState<Set<Filter>>(new Set());
@@ -105,6 +118,30 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
   const headStat = groupFilter ? summary.byGroup.find((g) => g.key === groupFilter) : null;
   const headTotal = headStat ? headStat.total : summary.totalAttempts;
   const headAcc = headStat ? headStat.accuracy : summary.accuracy;
+  // 회독별 점수: k회독 = 각 문항의 k번째 풀이. 분모는 k번 이상 푼 문항 수. 대단원을 골랐으면 그 아래 단원만 합산
+  const roundRows = (() => {
+    const inScope = new Set<string>();
+    if (groupFilter) {
+      const stack = [groupFilter];
+      while (stack.length) {
+        const id = stack.pop()!;
+        inScope.add(id);
+        for (const u of units) if (u.parent_id === id) stack.push(u.id);
+      }
+    }
+    const acc = new Map<number, { n: number; correct: number }>();
+    for (const [unitId, rounds] of Object.entries(roundScores)) {
+      if (groupFilter && !inScope.has(unitId)) continue;
+      for (const [k, v] of Object.entries(rounds)) {
+        const cur = acc.get(+k) ?? { n: 0, correct: 0 };
+        acc.set(+k, { n: cur.n + v.n, correct: cur.correct + v.correct });
+      }
+    }
+    return [...acc.entries()]
+      .filter(([, v]) => v.n > 0)
+      .sort((a, b) => a[0] - b[0])
+      .map(([k, v]) => ({ round: k, n: v.n, correct: v.correct, pct: Math.round((v.correct / v.n) * 100) }));
+  })();
   // 칩의 숫자: 그 조건을 (이미 고른 다른 조건과 함께) 켰을 때 남는 문항 수
   const countWith = (f: Filter) => {
     const fs = new Set(filters);
@@ -133,11 +170,27 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
   return (
     <div className="flex flex-col gap-4">
       <div className="card flex flex-wrap items-center gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="text-sm text-muted">
-            {headStat ? `${headStat.label} · ` : ""}{t("saved.practiced", { n: headTotal })}
+            {headStat ? `${headStat.label} · ` : ""}
+            {t("saved.practiced", { n: headTotal })}
           </div>
-          <div className="text-2xl font-bold">{t("saved.accuracy", { pct: Math.round(headAcc * 100) })}</div>
+          {roundRows.length > 0 ? (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5" title={t("saved.round_hint")}>
+              {roundRows.map((r) => (
+                <span key={r.round} className={`badge text-sm ${r.pct >= 90 ? "bg-ok-soft text-ok" : r.pct >= 70 ? "bg-warn-soft text-warn" : "bg-bad-soft text-bad"}`}>
+                  {t("start.round_done", { k: r.round, c: r.correct, n: r.n, pct: r.pct })}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="text-2xl font-bold">{t("saved.accuracy", { pct: Math.round(headAcc * 100) })}</div>
+          )}
+          {roundRows.length > 0 && (
+            <div className="mt-1 text-xs text-muted">
+              {t("saved.round_hint")} · {t("saved.accuracy_last", { pct: Math.round(headAcc * 100) })}
+            </div>
+          )}
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           <Link href={`/quiz?subject=${subject.id}&mode=saved&count=all&order=random`} className="btn-secondary btn-sm">
@@ -241,6 +294,7 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
       )}
       {tab === "stats" && (
         <div className="flex flex-col gap-4">
+          <p className="text-xs text-muted">{t("saved.stats_basis")}</p>
           <StatTable title={t("saved.stat_group")} rows={summary.byGroup} />
           <StatTable title={t("saved.stat_unit")} rows={summary.byUnit} />
           <StatTable title={t("saved.stat_topic")} rows={summary.byTopic.filter((r) => r.weak > 0)} empty={t("saved.no_weak_topic")} />
