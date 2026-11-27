@@ -13,7 +13,7 @@ const CTX = "src/contexts/([^/]+)";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "src/domains/**"]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
   {
     files: ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
     plugins: { boundaries },
