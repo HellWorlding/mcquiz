@@ -348,6 +348,44 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
     }
   };
 
+  /** 단축키: 1~9 선지 고르기, ←/→ 문항 이동, Ctrl/⌘+Enter 는 마지막 문항에서 결과 보기 */
+  useEffect(() => {
+    if (finished || !q) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        if (idx + 1 >= questions.length) {
+          e.preventDefault();
+          goNext();
+        }
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goNext();
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        if (idx > 0) {
+          e.preventDefault();
+          goTo(idx - 1);
+        }
+        return;
+      }
+      if (/^[1-9]$/.test(e.key) && !answered) {
+        const c = order[Number(e.key) - 1];
+        if (!c || struck.has(`${q.id}:${c.ord}`)) return;
+        e.preventDefault();
+        void select(c);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   const retryWrong = () => {
     const wrong = questions.filter((x) => answers[x.id]?.isCorrect === false || answers[x.id]?.isCorrect === null);
     if (wrong.length === 0) return;
@@ -664,6 +702,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
           </button>
         </div>
       </div>
+      <p className="hidden text-right text-xs text-muted sm:block">{t("quiz.shortcuts")}</p>
       {showHint && q.hint && <p className="card whitespace-pre-wrap text-base">{q.hint}</p>}
       <div className="card lg:hidden">
         <div className="mb-2 flex items-center justify-between text-xs text-muted">

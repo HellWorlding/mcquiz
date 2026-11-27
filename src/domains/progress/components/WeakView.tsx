@@ -254,13 +254,13 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
   );
 }
 
-/** 저장함을 JSON / Markdown 파일로 내려받기. 조건을 고르면 그 목록만, 아니면 이 주제의 저장함 전체 */
-function ExportBar({ subjectId, questionIds, filterLabel }: { subjectId: string; questionIds: string[]; filterLabel: string | null }) {
-  const t = useT();
-  const [busy, setBusy] = useState<"json" | "md" | null>(null);
+type ExportKind = "json" | "md";
+/** 내보내기 공용 로직: 서버 액션으로 문자열을 받아 파일로 내려받는다 */
+function useSavedExport(subjectId: string) {
+  const [busy, setBusy] = useState<ExportKind | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const run = async (kind: "json" | "md") => {
-    if (busy) return;
+  const run = async (kind: ExportKind, questionIds: string[], filterLabel: string | null) => {
+    if (busy || questionIds.length === 0) return;
     setBusy(kind);
     setError(null);
     try {
@@ -285,6 +285,14 @@ function ExportBar({ subjectId, questionIds, filterLabel }: { subjectId: string;
       setBusy(null);
     }
   };
+  return { busy, error, run };
+}
+
+/** 저장함을 JSON / Markdown 파일로 내려받기. 조건을 고르면 그 목록만, 아니면 이 주제의 저장함 전체 */
+function ExportBar({ subjectId, questionIds, filterLabel }: { subjectId: string; questionIds: string[]; filterLabel: string | null }) {
+  const t = useT();
+  const { busy, error, run: runExport } = useSavedExport(subjectId);
+  const run = (kind: ExportKind) => runExport(kind, questionIds, filterLabel);
   return (
     <div className="flex w-full flex-wrap items-center gap-2 border-t border-border pt-3" title={t("saved.export_title")}>
       <span className="text-sm font-semibold">{t("saved.export")}</span>
@@ -323,6 +331,7 @@ function SavedList({
   // 여러 개 고르기 → 한 번에 빼기
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const exp = useSavedExport(subjectId);
   if (items.length === 0) {
     return <p className="card text-muted">{t("saved.empty")}</p>;
   }
@@ -364,6 +373,20 @@ function SavedList({
               <button className="btn-secondary btn-sm" onClick={() => setPicked(pickedVisible.length === ids.length ? new Set() : new Set(ids))}>
                 {pickedVisible.length === ids.length ? t("saved.pick_none") : t("saved.pick_all")}
               </button>
+              <button
+                className="btn-secondary btn-sm disabled:opacity-40"
+                disabled={exp.busy !== null || pickedVisible.length === 0}
+                onClick={() => exp.run("md", pickedVisible, t("saved.export_picked", { n: pickedVisible.length }))}
+              >
+                {exp.busy === "md" ? t("saved.exporting") : t("saved.export_picked_md")}
+              </button>
+              <button
+                className="btn-secondary btn-sm disabled:opacity-40"
+                disabled={exp.busy !== null || pickedVisible.length === 0}
+                onClick={() => exp.run("json", pickedVisible, t("saved.export_picked", { n: pickedVisible.length }))}
+              >
+                {exp.busy === "json" ? t("saved.exporting") : t("saved.export_picked_json")}
+              </button>
               <button className="btn-sm rounded-xl bg-bad px-3 py-1.5 font-semibold text-white disabled:opacity-40" disabled={pending || pickedVisible.length === 0} onClick={removePicked}>
                 {pending ? t("saved.removing") : t("saved.remove_picked", { n: pickedVisible.length })}
               </button>
@@ -390,6 +413,7 @@ function SavedList({
           )}
         </div>
       </div>
+      {exp.error && <p className="mb-2 text-xs text-bad">{t("saved.export_fail", { e: exp.error })}</p>}
       <div className="flex flex-col gap-5">
         {groups.map((g) => (
           <section key={g.key}>

@@ -137,6 +137,7 @@ const M = {
   "quiz.dismiss_title": ["저장함에서 빼기. 이번 틀림·헷갈림·저장 표시를 지워 저장함에 남지 않습니다.", "Remove from saved: clears this round's wrong/confusing/saved marks so it won't stay in your saved list."],
   "quiz.dismissed_n": ["저장함에서 {n}개 뺐습니다.", "Removed {n} from saved."],
   "quiz.undo": ["되돌리기", "Undo"],
+  "quiz.shortcuts": ["단축키: 1~5 선지 · ←/→ 이동 · ⌘/Ctrl+Enter 마지막에서 결과 보기", "Keys: 1–5 choose · ←/→ move · ⌘/Ctrl+Enter results on last question"],
   "quiz.dismiss": ["저장함에서 빼기", "Remove from saved"],
   "quiz.dismissed_on": ["✓ 뺌 · 되돌리기", "✓ Removed · Undo"],
   "quiz.saved": ["✓ 저장됨", "✓ Saved"],
@@ -242,6 +243,9 @@ const M = {
   "saved.export_title": ["아래에서 조건이나 단원을 고르면 그 목록만 나갑니다. Markdown 은 AI 채팅에 붙여 넣기용, JSON 은 다른 프로그램·다시 가져오기용입니다.", "Pick filters or a unit below to export only that list. Markdown is for pasting into an AI chat; JSON is for other tools or re-import."],
   "saved.export_scope_all": ["이 주제 전체 {n}문항", "Whole subject, {n} questions"],
   "saved.export_scope": ["{f} · {n}문항", "{f} · {n} questions"],
+  "saved.export_picked": ["직접 고른 {n}문항", "{n} hand-picked"],
+  "saved.export_picked_md": ["선택 → Markdown", "Selected → Markdown"],
+  "saved.export_picked_json": ["선택 → JSON", "Selected → JSON"],
   "saved.export_fail": ["내보내기에 실패했습니다: {e}", "Export failed: {e}"],
 
   // 필기
