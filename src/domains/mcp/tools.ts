@@ -185,13 +185,15 @@ export function registerTools(server: McpServer) {
     async (_args, ctx) => {
       return timed("list_subjects", async () => {
         const { db } = clientFromAuth(ctx.http?.authInfo);
-        const { data, error } = await db.from("subjects").select("id, name, visibility").order("name");
+        // 과목과 문항 수를 한 번에 (왕복 1회). 과목마다 count 를 따로 세면 지역이 멀 때 수 초가 걸린다
+        const { data, error } = await db.from("subjects").select("id, name, visibility, questions(count)").order("name");
         if (error) return fail(error.message);
-        const out = [];
-        for (const s of data ?? []) {
-          const { count } = await db.from("questions").select("id", { count: "exact", head: true }).eq("subject_id", s.id);
-          out.push({ id: s.id, name: s.name, visibility: s.visibility, question_count: count ?? 0 });
-        }
+        const out = (data ?? []).map((s) => ({
+          id: s.id,
+          name: s.name,
+          visibility: s.visibility,
+          question_count: (s.questions as unknown as { count: number }[] | null)?.[0]?.count ?? 0,
+        }));
         return json(out);
       });
     },

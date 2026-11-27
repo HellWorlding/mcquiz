@@ -8,15 +8,19 @@ import { verifyMcpToken } from "@/domains/mcp/auth";
  */
 // 한 요청이 매달려도 플랫폼 상한(300초)까지 가지 않게 60초에서 끊는다
 export const maxDuration = 60;
+// DB(Supabase, ap-southeast-1)와 같은 지역에서 돌려야 왕복이 수십 ms 로 끝난다. 다른 지역이면 왕복마다 0.5초가 든다
+export const preferredRegion = "sin1";
 
 const handler = createMcpHandler((server) => registerTools(server), {
   serverInfo: { name: "mcquiz", version: "1.0.0" },
+  // subscriptions/listen 은 오래 열어 두는 스트림이라 서버리스에서 함수가 시간 제한까지 매달린다. 구독은 받지 않는다
+  maxSubscriptions: 0,
   // 어떤 메서드·도구가 얼마나 걸렸는지 로그로 남긴다 (Vercel 런타임 로그에서 본다)
   onEvent: (e) => {
     if (e.type === "ERROR") console.error("[mcp] error", e.context ?? "", e.error instanceof Error ? e.error.message : String(e.error));
     else {
       const p = e.parameters as { params?: { name?: string } } | undefined;
-      console.log(`[mcp] ${e.type === "REQUEST_RECEIVED" ? "start" : "done"} ${e.method}${p?.params?.name ? " " + p.params.name : ""}${e.duration !== undefined ? ` ${e.duration}ms` : ""} ${e.status}`);
+      console.log(`[mcp] ${e.type === "REQUEST_RECEIVED" ? `start@${process.env.VERCEL_REGION ?? "local"}` : "done"} ${e.method}${p?.params?.name ? " " + p.params.name : ""}${e.duration !== undefined ? ` ${e.duration}ms` : ""} ${e.status}`);
     }
   },
   instructions:
