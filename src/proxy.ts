@@ -40,7 +40,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const guestAccess = (process.env.PUBLIC_GUEST_ACCESS ?? "false").toLowerCase() === "true";
+  const guestAccess = (process.env.PUBLIC_GUEST_ACCESS ?? "true").toLowerCase() === "true";
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
   const guestAllowed = guestAccess && !["/admin", "/saved", "/weak", "/account", "/chat", "/notes", "/board", "/sources", "/oauth"].some((p) => pathname.startsWith(p));
 

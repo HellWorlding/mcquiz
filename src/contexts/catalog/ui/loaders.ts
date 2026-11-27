@@ -1,7 +1,6 @@
 import "server-only";
 import { cache } from "react";
 import { sessionDb } from "@/shared/db/server";
-import { adminDb } from "@/shared/db/admin";
 import { env } from "@/shared/env";
 import { getCurrentUser } from "@/contexts/access";
 import type { Collection, Question, QuestionScope, QuestionSet, Subject, Unit } from "../domain/types";
@@ -15,7 +14,8 @@ import { makeCatalogDeps } from "../infrastructure/make-deps";
  */
 const sessionCatalog = cache(async () => {
   const user = await getCurrentUser();
-  const db = user ? await sessionDb() : env.publicGuestAccess && env.serviceRoleKey ? adminDb() : await sessionDb();
+  // 비로그인도 세션(anon) 클라이언트: 공개 과목만 보이는 것은 DB 의 anon 정책이 결정한다 (service role 게스트 경로 제거, 검토 B2)
+  const db = await sessionDb();
   const deps = makeCatalogDeps(db, user, { ai: null });
   return { deps, api: makeApi(deps), user, guest: !user };
 });

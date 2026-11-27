@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { QuizChoice as Choice, QuizQuestion as QuestionWithChoices, ResumeState, SessionAnswer } from "../../domain/types";
 import { hashString, shuffled } from "../../domain/shuffle";
-import { dismissQuestionsAction, recordAttemptAction, saveProgressAction, saveQuestionAction, setConfusedAction, undismissQuestionsAction } from "../actions";
+import { dismissQuestionsAction, recordAttemptAction, saveProgressAction, saveQuestionAction, setConfusedAction, undismissQuestionsAction, markGuestTrialAction } from "../actions";
 import { QuestionBadges, SourceQuote } from "@/shared/ui/QuestionMeta";
 import { EvidencePanel, ChatDock, type ChatDockQuestion } from "@/contexts/knowledge";
 import { cleanExplanation } from "@/shared/labels";
@@ -31,6 +31,10 @@ type Props = {
   title: string;
   subjectId: string | null;
   isGuest: boolean;
+  /** 게스트 체험 문항 수 (로그인은 null) */
+  guestLimit?: number | null;
+  /** 오늘 체험을 이미 써서 잠김 */
+  guestLocked?: boolean;
   isAdmin?: boolean;
   backHref: string;
   /** 선지 셔플 seed. 서버에서 만들어 넘겨야 hydration 이 어긋나지 않는다 */
@@ -101,7 +105,7 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
   return shuffled(q.choices, hashString(q.id) ^ salt);
 }
 
-export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [], unitLabels = {} }: Props) {
+export function QuizRunner({ questions: initial, title, subjectId, isGuest, guestLimit = null, guestLocked = false, isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [], unitLabels = {} }: Props) {
   const t = useT();
   const [questions, setQuestions] = useState(initial);
   const [idx, setIdx] = useState(resume?.position ?? 0);
@@ -245,6 +249,10 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   const [showHint, setShowHint] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [finished, setFinished] = useState(false);
+  // 게스트가 체험을 끝내면 쿠키에 기록 (하루 1회)
+  useEffect(() => {
+    if (finished && isGuest) void markGuestTrialAction();
+  }, [finished, isGuest]);
   const [salt, setSalt] = useState(seed);
 
   const q = questions[idx];
@@ -403,10 +411,17 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
   if (questions.length === 0) {
     return (
       <div className="card mt-6 text-center">
-        <p className="text-muted">{t("quiz.empty")}</p>
-        <Link href={backHref} className="btn-secondary mt-4">
-          {t("quiz.back")}
-        </Link>
+        <p className="text-muted">{guestLocked ? t("quiz.guest_locked", { n: guestLimit ?? 5 }) : t("quiz.empty")}</p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {guestLocked && (
+            <Link href={`/login?next=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search : "/")}`} className="btn-primary">
+              {t("quiz.guest_trial_login")}
+            </Link>
+          )}
+          <Link href={backHref} className="btn-secondary">
+            {t("quiz.back")}
+          </Link>
+        </div>
       </div>
     );
   }
@@ -432,7 +447,20 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, isAd
             {t("quiz.score_count", { correct: correct.length, total: graded.length, pct: totalPts ? Math.round((gotPts / totalPts) * 100) : 0 })}
           </div>
           {timerOn && totalSec > 0 && <div className="mt-1 font-mono text-sm tabular-nums text-muted">⏱ {t("quiz.total_time", { t: formatTotal(totalSec) })}</div>}
-          {isGuest && <p className="mt-2 text-sm text-warn">{t("quiz.guest_warn")}</p>}
+          {isGuest && (
+            <div className="mt-4 rounded-lg border border-warn/40 bg-warn/5 p-4 text-left">
+              <p className="font-semibold">{t("quiz.guest_trial_title", { n: guestLimit ?? questions.length })}</p>
+              <p className="mt-1 text-sm text-muted">{t("quiz.guest_trial_body")}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link href={`/login?next=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search : "/")}`} className="btn-primary">
+                  {t("quiz.guest_trial_login")}
+                </Link>
+                <Link href="/signup" className="btn-secondary">
+                  {t("quiz.guest_trial_signup")}
+                </Link>
+              </div>
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {wrong.length > 0 && (
               <button className="btn-primary" onClick={retryWrong}>

@@ -430,6 +430,13 @@ create policy "collections: delete own or admin" on catalog.collections for dele
 create policy "items: read" on catalog.collection_items for select to authenticated using (catalog.can_read_collection(collection_id));
 create policy "items: write" on catalog.collection_items for all to authenticated using (catalog.can_edit_collection(collection_id)) with check (catalog.can_edit_collection(collection_id));
 
+-- 비로그인(anon): 공개 과목의 교재만 읽기 (게스트 체험. D-009). service role 게스트 경로는 없다
+create policy "subjects: anon read public" on catalog.subjects for select to anon using (visibility = 'public');
+create policy "units: anon read public" on catalog.units for select to anon using (subject_id in (select id from catalog.subjects where visibility = 'public'));
+create policy "sets: anon read public" on catalog.question_sets for select to anon using (subject_id in (select id from catalog.subjects where visibility = 'public'));
+create policy "questions: anon read public" on catalog.questions for select to anon using (subject_id in (select id from catalog.subjects where visibility = 'public'));
+create policy "choices: anon read public" on catalog.choices for select to anon using (question_id in (select q.id from catalog.questions q));
+
 -- learning (본인 행만)
 create policy "attempts: own" on learning.attempts for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 create policy "quiz_sessions: own" on learning.quiz_sessions for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
@@ -479,3 +486,5 @@ begin
   end loop;
 end $$;
 revoke all on community.posts_view from anon;
+-- 게스트 퀴즈 조립에 필요한 읽기 함수만 anon 에 허용 (invoker, 과목 권한은 위 정책이 거른다)
+grant execute on function catalog.unit_subtree(uuid[]), catalog.question_counts_by_unit(uuid) to anon;

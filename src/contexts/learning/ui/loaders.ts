@@ -1,7 +1,9 @@
 import "server-only";
+import { cookies } from "next/headers";
 import { difficultyLabel, unitPathLabel } from "@/shared/labels";
 import { hashString } from "../domain/shuffle";
 import { pickWeakMix } from "../domain/weak-mix";
+import { capForGuest, GUEST_TRIAL_COOKIE, GUEST_TRIAL_LIMIT, isTrialUsed } from "../domain/guest";
 import { parseQuizParams, type QuizSearchParams } from "../domain/quiz";
 import type { LearningUnit, NoteItem, QuizQuestion, ResumeState, SavedBoxSummary, SubjectActivity, UnfinishedSession, UnitAttemptCounts, UnitProgressRow, UnitRoundScores } from "../domain/types";
 import { sessionLearningDeps } from "../infrastructure/session-deps";
@@ -14,6 +16,10 @@ export type { QuizSearchParams };
 
 export type ResolvedQuiz = {
   questions: QuizQuestion[];
+  /** 게스트 체험: 오늘 이미 체험해 잠김 */
+  guestLocked: boolean;
+  /** 게스트면 체험 문항 수, 로그인은 null */
+  guestLimit: number | null;
   /** 순서·개수 적용 전 문항 수 */
   total: number;
   title: string;
@@ -48,6 +54,11 @@ export async function loadQuiz(params: QuizSearchParams): Promise<ResolvedQuiz> 
   const deps = await sessionLearningDeps();
   const seed = deps.rng.seed();
   const p = parseQuizParams(params, seed);
+  const isGuest = !deps.user;
+  // 게스트는 하루 한 번만 체험 (쿠키). 잠겼으면 문항 없이 안내 카드
+  if (isGuest && isTrialUsed((await cookies()).get(GUEST_TRIAL_COOKIE)?.value, new Date(deps.clock.now()))) {
+    return { questions: [], total: 0, title: TITLE.quiz, subjectId: p.subjectId ?? null, seed, resume: null, notes: {}, savedIds: [], unitLabels: {}, guestLocked: true, guestLimit: GUEST_TRIAL_LIMIT };
+  }
   let questions: QuizQuestion[] = [];
   let total = 0;
   let title = TITLE.quiz;
@@ -63,7 +74,7 @@ export async function loadQuiz(params: QuizSearchParams): Promise<ResolvedQuiz> 
     resume = { id: ses.id, position: Math.min(ses.position, Math.max(0, questions.length - 1)), answers: ses.answers ?? {} };
   } else if (p.scope) {
     const r = await resolveQuizIds(deps, { scope: p.scope, filter: p.filter, order: p.order, count: p.count, weakMix: p.weakMix, difficulty: p.difficulty, under: p.under });
-    const ids = r.ok ? r.data.ids : [];
+    const ids = capForGuest(r.ok ? r.data.ids : [], !deps.user);
     total = r.ok ? r.data.total : 0;
     title = await scopeTitle(deps, p.scope, TITLE[p.titleKind]);
     if (p.difficulty) title += ` · 난이도 ${difficultyLabel(p.difficulty) ?? p.difficulty}`;
@@ -76,7 +87,7 @@ export async function loadQuiz(params: QuizSearchParams): Promise<ResolvedQuiz> 
   const [notes, savedIds, units] = await Promise.all([notesFor(deps, ids), savedIdsFor(deps, ids), subjectId ? deps.catalog.listUnits(subjectId) : Promise.resolve([] as LearningUnit[])]);
   const unitLabels: Record<string, string> = {};
   for (const q of questions) if (q.unit_id && !(q.unit_id in unitLabels)) unitLabels[q.unit_id] = unitPathLabel(units, q.unit_id) ?? "";
-  return { questions, total, title, subjectId, seed: resolvedSeed, resume, notes: Object.fromEntries(notes), savedIds, unitLabels };
+  return { questions, total, title, subjectId, seed: resolvedSeed, resume, notes: Object.fromEntries(notes), savedIds, unitLabels, guestLocked: false, guestLimit: isGuest ? GUEST_TRIAL_LIMIT : null };
 }
 
 /** 과목 안에서 아직 끝내지 않은 내 퀴즈 (이어서 풀기 목록) */
