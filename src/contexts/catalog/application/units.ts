@@ -1,7 +1,7 @@
-import { err, ok, type Result } from "@/shared/result";
+import { err, type Result } from "@/shared/result";
 import type { Unit } from "../domain/types";
 import { buildTree, type TreeNode } from "../domain/tree";
-import { bulkUnitRows, moveSibling, nextSort, sortSiblings } from "../domain/unit";
+import { bulkUnitRows, moveSibling, nextSort, sortSiblings, unitNoConflict } from "../domain/unit";
 import { attempt, requireAdmin } from "./guards";
 import type { CatalogDeps } from "./ports";
 
@@ -38,14 +38,19 @@ export async function createUnit(deps: CatalogDeps, input: { subjectId: string; 
   });
 }
 
-/** "파트1~파트30 한 번에 만들기". 이미 있는 번호는 건너뛴다. 만든(요청한) 개수를 돌려준다 */
+/** "파트1~파트30 한 번에 만들기". 같은 부모 아래 이미 있는 번호는 건너뛴다(C3). 새로 만든 개수를 돌려준다 */
 export async function bulkCreateUnits(deps: CatalogDeps, input: { subjectId: string; parentId: string | null; prefix: string; from: number; to: number; suffix?: string }): Promise<Result<number>> {
   const g = requireAdmin(deps);
   if (!g.ok) return g;
   const rows = bulkUnitRows(input);
   if (!rows) return err("번호 범위가 올바르지 않습니다 (최대 500개).");
-  const r = await attempt(() => deps.units.insertMany(rows));
-  return r.ok ? ok(rows.length) : r;
+  return attempt(async () => {
+    // (부모, no) 고유 인덱스는 coalesce 식이라 upsert 충돌 대상으로 못 쓴다 → 기존 형제를 먼저 읽어 거른다
+    const siblings = (await deps.units.list(input.subjectId)).filter((u) => u.parentId === input.parentId);
+    const fresh = rows.filter((r) => unitNoConflict(siblings, input.parentId, r.no) === null);
+    if (fresh.length) await deps.units.insertMany(fresh);
+    return fresh.length;
+  });
 }
 
 export async function renameUnit(deps: CatalogDeps, unitId: string, title: string): Promise<Result<void>> {

@@ -65,7 +65,9 @@ export function fakeDeps(current: CurrentUser | null, seed: { subjects?: Subject
         return u;
       },
       insertMany: async (rows) => {
-        for (const r of rows) if (!units.some((u) => u.subjectId === r.subjectId && u.parentId === r.parentId && u.no === r.no)) units.push({ id: id("u"), ...r, priority: null });
+        // 실제 DB 처럼 (과목, 부모, no) 고유 인덱스 위반이면 문장 전체가 실패한다 (C3)
+        if (rows.some((r) => r.no !== null && units.some((u) => u.subjectId === r.subjectId && u.parentId === r.parentId && u.no === r.no))) throw new Error("duplicate key value violates unique constraint \"units_subject_parent_no_uq\"");
+        for (const r of rows) units.push({ id: id("u"), ...r, priority: null });
       },
       update: async (uid, patch) => void Object.assign(units.find((u) => u.id === uid)!, patch),
       delete: async (uid) => {

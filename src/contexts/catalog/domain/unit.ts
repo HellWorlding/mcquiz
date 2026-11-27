@@ -34,7 +34,7 @@ export function sortSiblings<T extends Pick<Unit, "sort" | "no">>(list: T[]): T[
 /** "파트1~파트30 한 번에 만들기" 의 행. 범위가 틀리면 null */
 export function bulkUnitRows(input: { subjectId: string; parentId: string | null; prefix: string; from: number; to: number; suffix?: string }) {
   const { from, to } = input;
-  if (!Number.isInteger(from) || !Number.isInteger(to) || from > to || to - from > 500) return null;
+  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from > to || to - from > 500) return null;
   const rows = [];
   for (let n = from; n <= to; n++) {
     rows.push({ subjectId: input.subjectId, parentId: input.parentId, title: `${input.prefix}${n}${input.suffix ?? ""}`.trim(), no: n, sort: n });

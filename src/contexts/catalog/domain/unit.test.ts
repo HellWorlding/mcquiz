@@ -22,6 +22,8 @@ describe("C3 단원 no 중복", () => {
     expect(rows[2]).toMatchObject({ no: 3, sort: 3 });
     expect(bulkUnitRows({ subjectId: "s", parentId: null, prefix: "p", from: 5, to: 1 })).toBeNull();
     expect(bulkUnitRows({ subjectId: "s", parentId: null, prefix: "p", from: 1, to: 600 })).toBeNull();
+    // 안전한 정수가 아니면 n++ 가 값을 못 바꿔 끝나지 않는다 → 거부
+    expect(bulkUnitRows({ subjectId: "s", parentId: null, prefix: "p", from: 2 ** 53, to: 2 ** 53 })).toBeNull();
   });
 });
 

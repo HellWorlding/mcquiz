@@ -23,12 +23,16 @@ describe("units use cases", () => {
     const r = await createUnit(f.deps, { subjectId: "s", parentId: "top", title: "중복", no: 2 });
     expect(r.ok).toBe(false);
   });
-  it("bulkCreateUnits: 이미 있는 번호는 건너뛰고 요청 개수를 돌려준다, 범위 오류는 err", async () => {
+  it("C3 bulkCreateUnits: 같은 부모 아래 이미 있는 번호는 건너뛰고 새로 만든 개수를 돌려준다, 범위 오류는 err", async () => {
     const f = fakeDeps(admin, { units: seedUnits });
     const r = await bulkCreateUnits(f.deps, { subjectId: "s", parentId: "top", prefix: "", from: 1, to: 5, suffix: "강" });
-    expect(r).toEqual({ ok: true, data: 5 });
-    expect(f.units.filter((u) => u.parentId === "top")).toHaveLength(5);
+    expect(r).toEqual({ ok: true, data: 2 });
+    expect(f.units.filter((u) => u.parentId === "top").map((u) => u.no).sort()).toEqual([1, 2, 3, 4, 5]);
+    // 최상위(parentId null)도 같은 규칙: 이미 있는 1 은 건너뜀
+    expect(await bulkCreateUnits(f.deps, { subjectId: "s", parentId: null, prefix: "p", from: 1, to: 2 })).toEqual({ ok: true, data: 1 });
+    expect(await bulkCreateUnits(f.deps, { subjectId: "s", parentId: "top", prefix: "", from: 1, to: 3 })).toEqual({ ok: true, data: 0 });
     expect((await bulkCreateUnits(f.deps, { subjectId: "s", parentId: null, prefix: "p", from: 3, to: 1 })).ok).toBe(false);
+    expect((await bulkCreateUnits(f.deps, { subjectId: "s", parentId: null, prefix: "p", from: 2 ** 53, to: 2 ** 53 })).ok).toBe(false);
   });
   it("moveUnit: 형제 안에서 한 칸 이동, 끝에서는 그대로 성공", async () => {
     const f = fakeDeps(admin, { units: seedUnits });
