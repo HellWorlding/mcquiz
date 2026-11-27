@@ -62,17 +62,24 @@ export async function registerSource(deps: KnowledgeDeps, input: RegisterInput):
     } else unitTitle = units.find((u) => u.id === unitId)?.title ?? null;
 
     const title = titleFromFilename(input.filename);
-    // K6. 같은 과목에 같은 제목의 자료가 이미 있으면 새 내용으로 바꾼다 (조각은 FK cascade 로 함께 삭제)
+    // K6. 같은 과목에 같은 제목의 자료가 이미 있으면 새 내용으로 바꾼다.
+    // 새 자료와 조각을 모두 넣은 뒤에 옛 자료를 지운다 (조각은 FK cascade). 중간에 실패하면 새로 넣은 것만 지워 옛 자료를 남긴다.
     const dup = await deps.sources.idsByTitle(input.subjectId, title);
-    if (dup.length) await deps.sources.deleteMany(dup);
 
     const chunks = chunkText(text);
     const pages = chunks.map((c) => c.page).filter((p): p is number => p !== null);
     const range = extracted.pageRange ?? pageRangeOf(pages);
     const sourceId = await deps.sources.insert({ subjectId: input.subjectId, unitId, kind: input.kind, title, content: text, pageRange: range, url });
-    for (let i = 0; i < chunks.length; i += CHUNK_INSERT_BATCH) {
-      await deps.chunks.insertMany(chunks.slice(i, i + CHUNK_INSERT_BATCH).map((c) => ({ sourceId, subjectId: input.subjectId, unitId, ord: c.ord, page: c.page, heading: c.heading, content: c.content })));
+    try {
+      for (let i = 0; i < chunks.length; i += CHUNK_INSERT_BATCH) {
+        await deps.chunks.insertMany(chunks.slice(i, i + CHUNK_INSERT_BATCH).map((c) => ({ sourceId, subjectId: input.subjectId, unitId, ord: c.ord, page: c.page, heading: c.heading, content: c.content })));
+      }
+    } catch (e) {
+      await deps.sources.deleteMany([sourceId]).catch(() => undefined);
+      throw e;
     }
+    const old = dup.filter((id) => id !== sourceId);
+    if (old.length) await deps.sources.deleteMany(old);
     const budget = input.embedBudgetMs ?? DEFAULT_EMBED_BUDGET_MS;
     const progress = await embedPending(deps, { sourceId }, { budgetMs: budget > 0 ? budget : undefined });
     const pageNote = pages.length ? ` (p.${Math.min(...pages)}-${Math.max(...pages)})` : "";

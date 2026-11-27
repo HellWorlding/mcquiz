@@ -42,6 +42,22 @@ describe("registerSource", () => {
     expect(await listSources(deps, "S")).toHaveLength(1);
   });
 
+  it("K6 교체 중 조각 저장이 실패하면 옛 자료와 조각은 남고 새 자료만 지운다", async () => {
+    const { deps, st } = makeFakeDeps(admin);
+    const a = await registerSource(deps, { subjectId: "S", filename: "노트.txt", bytes: bytes("첫 내용"), kind: "note", embedBudgetMs: 0 });
+    const oldId = a.ok ? a.data.sourceId : "";
+    const insertMany = deps.chunks.insertMany;
+    deps.chunks.insertMany = async () => {
+      throw new Error("조각 저장 실패");
+    };
+    const b = await registerSource(deps, { subjectId: "S", filename: "노트.txt", bytes: bytes("둘째 내용"), kind: "note", embedBudgetMs: 0 });
+    deps.chunks.insertMany = insertMany;
+    expect(b).toEqual({ ok: false, error: "조각 저장 실패" });
+    const list = await listSources(deps, "S");
+    expect(list.map((s) => s.id)).toEqual([oldId]);
+    expect([...st.chunks.values()].filter((c) => c.sourceId === oldId)).toHaveLength(1);
+  });
+
   it("목차 파일은 단원만 만들고 자료를 넣지 않는다 (중복 no 는 건너뜀)", async () => {
     const { deps, st } = makeFakeDeps(admin);
     st.units.push({ id: "u1", no: 1, title: "있던 단원", parentId: null });
