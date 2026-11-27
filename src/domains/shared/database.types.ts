@@ -357,14 +357,14 @@ isOneToOne: false
                   ]
                 },"source_chunks": {
                   Row: {
-                    "content": string,"id": string,"ord": number,"page": number | null,"source_id": string,"subject_id": string,"tsv": unknown,"unit_id": string | null
+                    "content": string,"embedded_at": string | null,"embedding": string | null,"embedding_model": string | null,"heading": string | null,"id": string,"ord": number,"page": number | null,"source_id": string,"subject_id": string,"tsv": unknown,"unit_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "content": string,"id"?: string,"ord": number,"page"?: number | null,"source_id": string,"subject_id": string,"tsv"?: never,"unit_id"?: string | null
+                    "content": string,"embedded_at"?: string | null,"embedding"?: string | null,"embedding_model"?: string | null,"heading"?: string | null,"id"?: string,"ord": number,"page"?: number | null,"source_id": string,"subject_id": string,"tsv"?: never,"unit_id"?: string | null
                   }
                   Update: {
-                    "content"?: string,"id"?: string,"ord"?: number,"page"?: number | null,"source_id"?: string,"subject_id"?: string,"tsv"?: never,"unit_id"?: string | null
+                    "content"?: string,"embedded_at"?: string | null,"embedding"?: string | null,"embedding_model"?: string | null,"heading"?: string | null,"id"?: string,"ord"?: number,"page"?: number | null,"source_id"?: string,"subject_id"?: string,"tsv"?: never,"unit_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -389,14 +389,14 @@ isOneToOne: false
                   ]
                 },"sources": {
                   Row: {
-                    "content": string,"created_at": string,"id": string,"kind": string,"page_range": string | null,"subject_id": string,"title": string,"tsv": unknown,"unit_id": string | null
+                    "content": string,"created_at": string,"id": string,"kind": string,"page_range": string | null,"subject_id": string,"title": string,"tsv": unknown,"unit_id": string | null,"url": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "content": string,"created_at"?: string,"id"?: string,"kind"?: string,"page_range"?: string | null,"subject_id": string,"title": string,"tsv"?: never,"unit_id"?: string | null
+                    "content": string,"created_at"?: string,"id"?: string,"kind"?: string,"page_range"?: string | null,"subject_id": string,"title": string,"tsv"?: never,"unit_id"?: string | null,"url"?: string | null
                   }
                   Update: {
-                    "content"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"page_range"?: string | null,"subject_id"?: string,"title"?: string,"tsv"?: never,"unit_id"?: string | null
+                    "content"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"page_range"?: string | null,"subject_id"?: string,"title"?: string,"tsv"?: never,"unit_id"?: string | null,"url"?: string | null
                   }
                   Relationships: [
                     {
@@ -541,6 +541,11 @@ isOneToOne: false
                            },
 "is_admin":
 { Args: Record<PropertyKey, never>; Returns: boolean
+                           },
+"match_chunks":
+{ Args: { "p_embedding"?: string,"p_limit"?: number,"p_subject": string,"p_tokens"?: (string)[],"p_unit_ids"?: (string)[] }; Returns: {
+              "chunk_id": string,"content": string,"heading": string,"kind": string,"kw_rank": number,"ord": number,"page": number,"score": number,"source_id": string,"source_title": string,"source_url": string,"unit_id": string,"unit_no": number,"vec_rank": number
+            }[]
                            },
 "my_question_stats":
 { Args: { "p_subject": string }; Returns: {
