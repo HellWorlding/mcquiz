@@ -1,0 +1,38 @@
+# CodeRabbit 설정 — https://docs.coderabbit.ai/reference/configuration
+language: "ko-KR"
+early_access: false
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!content/**"
+    - "!**/.env*"
+    - "!src/shared/db/database.types.ts"
+    - "!package-lock.json"
+    - "!public/**"
+  path_instructions:
+    - path: "src/contexts/**"
+      instructions: |
+        DDD 계층 규칙을 검토한다. domain 은 순수(TS 만, @/shared 만 import), application 은 use case `(deps, input) => Promise<Result>` 와 포트,
+        infrastructure 는 포트 구현(리포지토리는 반드시 db.schema("<ctx>")), ui 는 use case 호출만.
+        다른 컨텍스트는 `@/contexts/<ctx>`(index) · `/server` · `/ui` 진입점으로만 import 하고 그 컨텍스트의 테이블을 .from() 으로 직접 읽지 않는다.
+        "use client" 컴포넌트가 server 진입점·infrastructure 를 import 하면 지적한다. 예외를 던지지 않고 Result 를 돌려주는지 본다.
+        이름은 docs/glossary.md 를 따른다(과목 Subject, 문항 Question, 저장함 SavedBox, 자료 Source, 조각 Chunk, 근거 Evidence, 회독 Round).
+    - path: "supabase/migrations/**"
+      instructions: |
+        새 테이블은 컨텍스트 스키마(access/catalog/learning/knowledge/community)에 두고 public 에 두지 않는다. RLS enable + 정책 필수.
+        정책은 쿼리당 한 번 평가되는 패턴(`subject_id in (select access.readable_subject_ids())`, `(select access.is_admin())`)을 쓰고 행별 함수 호출을 피한다.
+        함수는 `set search_path = ''` 와 스키마 한정 이름. anon 에게 열리는 권한(grant, definer 함수 execute)을 특히 지적한다.
+    - path: "src/app/**"
+      instructions: "페이지는 컨텍스트 로더·컴포넌트만 부른다. Supabase .from() 직접 호출, service role(adminDb) 사용을 지적한다."
+    - path: "tests/**"
+      instructions: "통합·e2e 테스트가 운영 DB(.env.local)를 가리킬 가능성이 있으면 지적한다. 로컬 Supabase 전용이어야 한다."
+chat:
+  auto_reply: true
