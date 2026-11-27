@@ -53,7 +53,8 @@ export async function uploadWholeFile(deps: KnowledgeDeps, input: { subjectId: s
 export type SplitResult = { files: { key: string; title: string; from: number; to: number; storagePath: string; bytes: number }[]; skipped: string[]; removedWhole: string | null };
 
 /**
- * 책 자료(kind=book)의 page_range 대로 교재 PDF 를 단원별로 잘라 올리고 files 에 등록한다. 통째 파일이 있었다면 지운다.
+ * 책 자료(kind=book)의 page_range 대로 교재 PDF 를 단원별로 잘라 올리고 files 에 등록한다.
+ * 모든 범위를 잘랐으면 통째 파일을 지우고, 건너뛴 범위가 있으면 통째 파일을 남긴다. PDF 끝에서 잘린 범위는 실제 끝 쪽으로 기록한다.
  * pageOffset: 교재에 인쇄된 쪽수 + offset = PDF 쪽 번호. 관리자
  */
 export async function splitBookFile(deps: KnowledgeDeps, input: { subjectId: string; bytes: Uint8Array; pageOffset?: number; onFile?: (f: SplitResult["files"][number]) => void }): Promise<Result<SplitResult>> {
@@ -84,12 +85,15 @@ export async function splitBookFile(deps: KnowledgeDeps, input: { subjectId: str
       const key = r.unitNo !== null ? String(r.unitNo).padStart(3, "0") : r.id;
       const storagePath = `${input.subjectId}/book/${key}.pdf`;
       await deps.storage.upload(storagePath, bytes, "application/pdf");
-      await deps.files.upsert({ subjectId: input.subjectId, unitId: r.unitId, name: `book:${key}`, title: r.unitTitle, storagePath, pageOffset: offset, pageFrom: r.from, pageTo: r.to, pages: r.to - r.from + 1 });
-      const f = { key, title: r.unitTitle, from: r.from, to: r.to, storagePath, bytes: bytes.byteLength };
+      // PDF 가 자료 범위보다 짧으면 끝 쪽이 잘린다 → 실제로 자른 범위를 기록해야 filePage 의 쪽 계산이 맞다
+      const to = last - offset;
+      await deps.files.upsert({ subjectId: input.subjectId, unitId: r.unitId, name: `book:${key}`, title: r.unitTitle, storagePath, pageOffset: offset, pageFrom: r.from, pageTo: to, pages: last - first + 1 });
+      const f = { key, title: r.unitTitle, from: r.from, to, storagePath, bytes: bytes.byteLength };
       out.files.push(f);
       input.onFile?.(f);
     }
-    const whole = await deps.files.findWhole(input.subjectId);
+    // 건너뛴 범위가 있거나 하나도 못 잘랐으면 통째 파일을 남긴다 (그 쪽수는 통째 파일로 연다)
+    const whole = out.skipped.length === 0 && out.files.length > 0 ? await deps.files.findWhole(input.subjectId) : null;
     if (whole) {
       await deps.storage.remove([whole.storagePath]);
       await deps.files.delete(whole.id);

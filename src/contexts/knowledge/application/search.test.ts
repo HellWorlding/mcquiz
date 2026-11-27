@@ -91,22 +91,42 @@ describe("교재 PDF 올리기·분할 (관리자)", () => {
     expect((await uploadWholeFile(deps, { subjectId: "S", bytes: bytes("pdf"), title: "책" })).ok).toBe(false);
     expect((await splitBookFile(deps, { subjectId: "S", bytes: bytes("pdf") })).ok).toBe(false);
   });
-  it("책 자료의 page_range 대로 잘라 올리고 통째 파일은 지운다, 범위 밖은 건너뜀", async () => {
+  it("책 자료의 page_range 대로 잘라 올리고 모두 잘랐으면 통째 파일은 지운다", async () => {
     const { deps, st } = makeFakeDeps(admin);
     await uploadWholeFile(deps, { subjectId: "S", bytes: bytes("pdf"), title: "책", pageOffset: 2 });
     expect(st.storage.has("S/book.pdf")).toBe(true);
     st.units.push({ id: "u3", no: 3, title: "3강 제목", parentId: null });
     await deps.sources.insert({ subjectId: "S", unitId: "u3", kind: "book", title: "b3", content: "", pageRange: "1-4", url: null });
     await deps.sources.insert({ subjectId: "S", unitId: null, kind: "book", title: "b-late", content: "", pageRange: "5-8", url: null });
-    await deps.sources.insert({ subjectId: "S", unitId: null, kind: "book", title: "b-out", content: "", pageRange: "20-25", url: null });
     const r = await splitBookFile(deps, { subjectId: "S", bytes: bytes("pdf"), pageOffset: 2 });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.data.files.map((f) => [f.key, f.from, f.to, f.bytes])).toEqual([["003", 1, 4, 4], [expect.stringMatching(/^s/), 5, 8, 4]]); // 5+2..min(8+2,10) → 7..10 = 4쪽
-    expect(r.data.skipped).toHaveLength(1);
+    expect(r.data.skipped).toHaveLength(0);
     expect(r.data.removedWhole).toBe("S/book.pdf");
     expect(st.storage.has("S/book.pdf")).toBe(false);
     expect(await filePage(deps, "S", 2)).toMatchObject({ storagePath: "S/book/003.pdf", pageInFile: 2 });
+  });
+  it("범위 밖 자료가 있으면 건너뛰고 통째 파일은 남긴다", async () => {
+    const { deps, st } = makeFakeDeps(admin);
+    await uploadWholeFile(deps, { subjectId: "S", bytes: bytes("pdf"), title: "책" });
+    await deps.sources.insert({ subjectId: "S", unitId: null, kind: "book", title: "b1", content: "", pageRange: "1-4", url: null });
+    await deps.sources.insert({ subjectId: "S", unitId: null, kind: "book", title: "b-out", content: "", pageRange: "20-25", url: null });
+    const r = await splitBookFile(deps, { subjectId: "S", bytes: bytes("pdf") });
+    expect(r.ok && r.data.skipped).toHaveLength(1);
+    expect(r.ok && r.data.removedWhole).toBeNull();
+    expect(st.storage.has("S/book.pdf")).toBe(true);
+    expect(await filePage(deps, "S", 22)).toMatchObject({ storagePath: "S/book.pdf", pageInFile: 22 });
+  });
+  it("PDF 끝에서 잘린 범위는 실제로 자른 끝 쪽으로 기록한다", async () => {
+    const { deps } = makeFakeDeps(admin);
+    // PDF 는 10쪽, 자료 범위는 8-12 → 8..10 만 잘린다
+    await deps.sources.insert({ subjectId: "S", unitId: null, kind: "book", title: "b-tail", content: "", pageRange: "8-12", url: null });
+    const r = await splitBookFile(deps, { subjectId: "S", bytes: bytes("pdf") });
+    expect(r.ok && r.data.files.map((f) => [f.from, f.to, f.bytes])).toEqual([[8, 10, 3]]);
+    expect(await filePage(deps, "S", 10)).toMatchObject({ pageInFile: 3 });
+    // 11쪽은 잘린 파일에 없다 → 단원 파일로 열지 않는다
+    expect(await filePage(deps, "S", 11)).toBeNull();
   });
   it("책 자료가 없으면 오류", async () => {
     const { deps } = makeFakeDeps(admin);
