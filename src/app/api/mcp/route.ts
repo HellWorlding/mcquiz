@@ -8,8 +8,8 @@ import { verifyMcpToken } from "@/domains/mcp/auth";
  */
 // 한 요청이 매달려도 플랫폼 상한(300초)까지 가지 않게 60초에서 끊는다
 export const maxDuration = 60;
-// DB(Supabase, ap-southeast-1)와 같은 지역에서 돌려야 왕복이 수십 ms 로 끝난다. 다른 지역이면 왕복마다 0.5초가 든다
-export const preferredRegion = "sin1";
+// DB(Supabase, ap-northeast-2 서울)와 같은 지역에서 돌린다 (vercel.json 의 regions 와 맞출 것)
+export const preferredRegion = "icn1";
 
 const handler = createMcpHandler((server) => registerTools(server), {
   serverInfo: { name: "mcquiz", version: "1.0.0" },
