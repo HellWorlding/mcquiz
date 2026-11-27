@@ -49,5 +49,5 @@ next-env.d.ts
 # 에이전트 지침 파일은 저장소에 올리지 않는다
 CLAUDE.md
 AGENTS.md
-.claude/
+.claude
 PRD*.md
