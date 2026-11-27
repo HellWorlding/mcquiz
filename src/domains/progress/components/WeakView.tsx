@@ -147,6 +147,7 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
             {t("saved.weak_mix")}
           </Link>
         </div>
+        {counts.all > 0 && <ExportBar subjectId={subject.id} questionIds={items.map((i) => i.questionId)} filterLabel={filterLabel} />}
       </div>
 
       <div className="flex gap-1 rounded-xl bg-card p-1">
@@ -236,7 +237,6 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
             </div>
           )}
           <SavedList subjectId={subject.id} items={items} groups={visibleGroups} byId={byId} units={units} />
-          {items.length > 0 && <ExportBar subjectId={subject.id} questionIds={items.map((i) => i.questionId)} filterLabel={filterLabel} />}
         </>
       )}
       {tab === "stats" && (
@@ -254,7 +254,7 @@ export function WeakView({ subject, summary, questions, units }: { subject: Subj
   );
 }
 
-/** 지금 보이는 목록을 JSON / Markdown 파일로 내려받기 */
+/** 저장함을 JSON / Markdown 파일로 내려받기. 조건을 고르면 그 목록만, 아니면 이 주제의 저장함 전체 */
 function ExportBar({ subjectId, questionIds, filterLabel }: { subjectId: string; questionIds: string[]; filterLabel: string | null }) {
   const t = useT();
   const [busy, setBusy] = useState<"json" | "md" | null>(null);
@@ -286,9 +286,9 @@ function ExportBar({ subjectId, questionIds, filterLabel }: { subjectId: string;
     }
   };
   return (
-    <div className="card flex flex-wrap items-center gap-2" title={t("saved.export_title", { n: questionIds.length })}>
+    <div className="flex w-full flex-wrap items-center gap-2 border-t border-border pt-3" title={t("saved.export_title")}>
       <span className="text-sm font-semibold">{t("saved.export")}</span>
-      <span className="text-xs text-muted">{t("common.count_questions", { n: questionIds.length })}</span>
+      <span className="text-xs text-muted">{filterLabel ? t("saved.export_scope", { f: filterLabel, n: questionIds.length }) : t("saved.export_scope_all", { n: questionIds.length })}</span>
       <div className="ml-auto flex gap-2">
         <button type="button" className="btn-secondary btn-sm" disabled={busy !== null} onClick={() => run("md")}>
           {busy === "md" ? t("saved.exporting") : t("saved.export_md")}
@@ -297,7 +297,7 @@ function ExportBar({ subjectId, questionIds, filterLabel }: { subjectId: string;
           {busy === "json" ? t("saved.exporting") : t("saved.export_json")}
         </button>
       </div>
-      <p className="w-full text-xs text-muted">{t("saved.export_title", { n: questionIds.length })}</p>
+      <p className="w-full text-xs text-muted">{t("saved.export_title")}</p>
       {error && <p className="w-full text-xs text-bad">{t("saved.export_fail", { e: error })}</p>}
     </div>
   );

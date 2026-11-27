@@ -239,7 +239,9 @@ const M = {
   "saved.export_json": ["JSON", "JSON"],
   "saved.export_md": ["Markdown", "Markdown"],
   "saved.exporting": ["만드는 중…", "Preparing…"],
-  "saved.export_title": ["지금 보이는 목록 {n}개를 파일로 받습니다. Markdown 은 AI 채팅에 붙여 넣기용, JSON 은 다른 프로그램·다시 가져오기용입니다.", "Download the {n} questions shown. Markdown is for pasting into an AI chat; JSON is for other tools or re-import."],
+  "saved.export_title": ["아래에서 조건이나 단원을 고르면 그 목록만 나갑니다. Markdown 은 AI 채팅에 붙여 넣기용, JSON 은 다른 프로그램·다시 가져오기용입니다.", "Pick filters or a unit below to export only that list. Markdown is for pasting into an AI chat; JSON is for other tools or re-import."],
+  "saved.export_scope_all": ["이 주제 전체 {n}문항", "Whole subject, {n} questions"],
+  "saved.export_scope": ["{f} · {n}문항", "{f} · {n} questions"],
   "saved.export_fail": ["내보내기에 실패했습니다: {e}", "Export failed: {e}"],
 
   // 필기
