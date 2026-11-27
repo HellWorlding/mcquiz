@@ -1,0 +1,69 @@
+import { describe, expect, it } from "vitest";
+import { chunkText, extractSourceUrl, htmlToText } from "./chunk";
+
+describe("K1 chunkText", () => {
+  it("책은 [p.N] 기준 쪽 단위, 머리말은 첫 쪽에 붙는다", () => {
+    const c = chunkText(`# [책] 31강 교원의 연수 (p.235-240)\n\n[p.235]\n첫 쪽 내용\n\n[p.236]\n둘째 쪽 내용\n[p.237]\n`);
+    expect(c.map((x) => x.page)).toEqual([235, 236]);
+    expect(c[0].content).toContain("31강 교원의 연수");
+    expect(c[0].content).toContain("첫 쪽 내용");
+    expect(c[1].content).toBe("둘째 쪽 내용");
+    expect(c.map((x) => x.ord)).toEqual([1, 2]);
+  });
+
+  it("스크립트는 문단 묶음으로 나누고 page 는 null, ord 는 1..n 연속", () => {
+    const para = "교원연수는 기관과 개인 중심으로 구분합니다. ".repeat(30); // ~1200자
+    const c = chunkText(`${para}\n\n${para}\n\n${para}`);
+    expect(c.length).toBeGreaterThan(1);
+    expect(c.every((x) => x.page === null)).toBe(true);
+    expect(c.every((x) => x.content.length <= 1700)).toBe(true);
+    expect(c.map((x) => x.ord)).toEqual(c.map((_, i) => i + 1));
+  });
+
+  it("긴 쪽은 같은 page 번호로 더 나눈다", () => {
+    const long = "문장입니다. ".repeat(400); // ~2800자
+    const c = chunkText(`[p.5]\n${long}`);
+    expect(c.length).toBeGreaterThan(1);
+    expect(c.every((x) => x.page === 5)).toBe(true);
+    expect(c.map((x) => x.ord)).toEqual(c.map((_, i) => i + 1));
+  });
+
+  it("마크다운 제목 경로를 heading 에 남기고 제목 앞에서 끊는다", () => {
+    const md = `# Tool use\n\n소개 문단입니다.\n\n## Streaming\n\n스트리밍 설명입니다.\n\n### Events\n\n이벤트 목록입니다.\n\n## Errors\n\n오류 설명입니다.`;
+    const c = chunkText(md);
+    expect(c.map((x) => x.heading)).toEqual(["Tool use", "Tool use > Streaming", "Tool use > Streaming > Events", "Tool use > Errors"]);
+    expect(c[1].content.startsWith("## Streaming")).toBe(true);
+    expect(c.map((x) => x.ord)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("제목이 없는 글은 heading 이 null", () => {
+    expect(chunkText("그냥 문단입니다.").map((x) => x.heading)).toEqual([null]);
+  });
+});
+
+describe("htmlToText", () => {
+  it("제목은 # 로, 목록은 - 로, 태그·스크립트는 제거", () => {
+    const t = htmlToText(`<html><head><style>a{}</style></head><body><h1>Prompt caching</h1><p>Caching &amp; reuse.</p><ul><li>one</li><li>two</li></ul><script>x()</script></body></html>`);
+    expect(t).toContain("# Prompt caching");
+    expect(t).toContain("Caching & reuse.");
+    expect(t).toContain("- one");
+    expect(t).not.toContain("x()");
+    expect(t).not.toContain("<p>");
+  });
+});
+
+describe("extractSourceUrl", () => {
+  it("YAML 머리말의 url 을 떼어낸다", () => {
+    const r = extractSourceUrl("---\ntitle: Tool use\nurl: https://example.com/docs/tool-use\n---\n# Tool use\n본문");
+    expect(r.url).toBe("https://example.com/docs/tool-use");
+    expect(r.text.startsWith("# Tool use")).toBe(true);
+  });
+  it("첫 줄의 '출처: URL' 도 읽는다", () => {
+    const r = extractSourceUrl("출처: https://example.com/a\n# 제목\n본문");
+    expect(r.url).toBe("https://example.com/a");
+    expect(r.text.startsWith("# 제목")).toBe(true);
+  });
+  it("없으면 null 이고 본문은 그대로", () => {
+    expect(extractSourceUrl("본문만")).toEqual({ url: null, text: "본문만" });
+  });
+});

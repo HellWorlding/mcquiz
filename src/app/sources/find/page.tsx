@@ -1,45 +1,22 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/domains/auth/session";
-import { createClient } from "@/domains/auth/supabase/server";
-import { findEvidence } from "@/domains/evidence/search";
-import { tokenize } from "@/domains/import/tokenize";
-import { getT } from "@/domains/shared/i18n-server";
+import { requireUser } from "@/contexts/access/server";
+import { locateSourceHref } from "@/contexts/knowledge/ui/loaders";
+import { getT } from "@/shared/i18n/server";
 
 export const metadata = { title: "원문 보기" };
 
 /**
  * 문항의 "근거 · 책 p.N" 에서 원문으로 가는 중간 경로.
- * 책 쪽수가 있으면 그 쪽의 조각으로, 없으면 근거 문장으로 자료를 검색해 가장 가까운 조각으로 보낸다.
+ * 책 쪽수가 있으면 그 쪽의 조각(또는 교재 PDF)으로, 없으면 근거 문장으로 자료를 검색해 가장 가까운 조각으로 보낸다.
  */
 export default async function FindSourcePage({ searchParams }: { searchParams: Promise<{ subject?: string; unit?: string; page?: string; text?: string }> }) {
   const { subject, unit, page, text } = await searchParams;
   const qs = new URLSearchParams(Object.entries({ subject, unit, page, text }).filter((e): e is [string, string] => !!e[1]));
   await requireUser(`/sources/find?${qs}`);
   const t = await getT();
-  if (subject) {
-    const db = await createClient();
-    const q = text ? `&q=${encodeURIComponent(text.slice(0, 200))}` : "";
-    // 그 쪽이 든 교재 PDF 파일이 있으면 PDF 로 (예전 링크로 들어와도 PDF 가 우선)
-    if (page && /^\d+$/.test(page)) {
-      const { data: f } = await db.from("subject_files").select("id").eq("subject_id", subject).lte("page_from", Number(page)).gte("page_to", Number(page)).limit(1).maybeSingle();
-      if (f) redirect(`/sources/pdf?${qs}`);
-    }
-    if (page && /^\d+$/.test(page)) {
-      const { data } = await db.from("source_chunks").select("id, source_id, unit_id, content").eq("subject_id", subject).eq("page", Number(page)).order("ord").limit(30);
-      if (data?.length) {
-        // 같은 쪽에 조각이 여럿이면: 단원이 맞고, 근거 문장의 단어가 가장 많이 들어 있는 조각
-        const toks = text ? tokenize(text) : [];
-        const score = (c: (typeof data)[number]) => (unit && c.unit_id === unit ? 1000 : 0) + toks.filter((tk) => c.content.includes(tk)).length;
-        const hit = [...data].sort((a, b) => score(b) - score(a))[0];
-        redirect(`/sources/${hit.source_id}?chunk=${hit.id}&page=${page}${q}`);
-      }
-    }
-    if (text) {
-      const hits = await findEvidence(db, { subjectId: subject, unitIds: unit ? [unit] : null, query: text, limit: 1 });
-      if (hits[0]) redirect(`/sources/${hits[0].sourceId}?chunk=${hits[0].chunkId}${q}`);
-    }
-  }
+  const href = await locateSourceHref({ subject, unit, page, text });
+  if (href) redirect(href);
   return (
     <div className="card flex flex-col gap-2">
       <p className="text-muted">{t("source.not_found")}</p>

@@ -1,6 +1,6 @@
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
-import { registerTools } from "@/domains/mcp/tools";
-import { verifyMcpToken } from "@/domains/mcp/auth";
+import { SERVER_INSTRUCTIONS, SERVER_VERSION } from "@/contexts/integration";
+import { registerTools, verifyMcpToken } from "@/contexts/integration/server";
 
 /**
  * 원격 MCP 엔드포인트 (Streamable HTTP). Claude·ChatGPT 등이 이 주소를 커넥터로 등록한다.
@@ -12,7 +12,7 @@ export const maxDuration = 60;
 export const preferredRegion = "icn1";
 
 const handler = createMcpHandler((server) => registerTools(server), {
-  serverInfo: { name: "mcquiz", version: "1.0.0" },
+  serverInfo: { name: "mcquiz", version: SERVER_VERSION },
   // subscriptions/listen 은 오래 열어 두는 스트림이라 서버리스에서 함수가 시간 제한까지 매달린다. 구독은 받지 않는다
   maxSubscriptions: 0,
   // 어떤 메서드·도구가 얼마나 걸렸는지 로그로 남긴다 (Vercel 런타임 로그에서 본다)
@@ -23,8 +23,7 @@ const handler = createMcpHandler((server) => registerTools(server), {
       console.log(`[mcp] ${e.type === "REQUEST_RECEIVED" ? `start@${process.env.VERCEL_REGION ?? "local"}` : "done"} ${e.method}${p?.params?.name ? " " + p.params.name : ""}${e.duration !== undefined ? ` ${e.duration}ms` : ""} ${e.status}`);
     }
   },
-  instructions:
-    "mcquiz 는 객관식 퀴즈 앱입니다. 먼저 list_subjects 로 과목 id 를 얻고, list_units / list_questions / get_learning_summary 로 문항과 학습 기록을 읽으세요. 자료가 올라온 과목은 list_sources / search_sources(하이브리드 검색) / get_source 로 원자료 조각을 읽고 근거로 삼으세요. 새 문항을 만들 때는 get_authoring_guide 를 읽고 import_questions(mode=check) 로 검사한 뒤 commit 하세요.",
+  instructions: SERVER_INSTRUCTIONS,
 });
 
 const authed = withMcpAuth(handler, verifyMcpToken, { required: true });

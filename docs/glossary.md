@@ -112,7 +112,7 @@
 - use case 이름: `<context>.<동사><명사>` — `learning.recordAttempt`, `catalog.importQuestions`, `knowledge.searchSources`, `access.grantMember`
 - 서버 액션은 use case 1:1 래퍼, 파일은 컨텍스트별 `ui/actions.ts` 하나
 - MCP 도구: 명사는 용어사전 영어, 동사는 list/get/search/create/update/delete/import/export. `serverInfo.version = "2.0.0"`, 도구 설명에 v2 명시, v1 도구 이름은 당분간 별칭 유지
-- DB 함수: `<context>_<이름>` 접두어 (`learning_question_stats`, `knowledge_match_chunks`), 옛 이름은 뷰/래퍼로 한 배포 동안 유지
+- DB 함수: `<context>_<이름>` 접두어 (`learning_question_stats`, `knowledge_match_chunks`)
 - 파일 형식: 반입 JSON 에 `format: "mcquiz-questions", version: 2` 추가, 저장함 내보내기 `version: 2`
 
 ## 8. 결정 이력

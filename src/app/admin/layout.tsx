@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { requireAdmin } from "@/domains/auth/session";
+import { requireAdmin } from "@/contexts/access/server";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();
   const links = [
-    ["/admin", "주제·권한"],
+    ["/admin", "과목·권한"],
     ["/admin/units", "단원"],
     ["/admin/sources", "스크립트"],
     ["/admin/upload", "문제 업로드"],

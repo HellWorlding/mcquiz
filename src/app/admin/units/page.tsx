@@ -1,30 +1,22 @@
-import { createClient } from "@/domains/auth/supabase/server";
-import { buildTree } from "@/domains/shared/tree";
-import { allRows } from "@/domains/shared/paginate";
-import { UnitsAdmin } from "@/domains/subjects/components/UnitsAdmin";
-import { SubjectPicker } from "@/domains/subjects/components/SubjectPicker";
+import { countQuestionsByUnit, getUnitTree, listSubjects } from "@/contexts/catalog/ui/loaders";
+import { UnitsAdmin } from "@/contexts/catalog/ui/components/UnitsAdmin";
+import { SubjectPicker } from "@/contexts/catalog/ui/components/SubjectPicker";
 
 export const metadata = { title: "단원 관리" };
 
 export default async function UnitsAdminPage({ searchParams }: { searchParams: Promise<{ subject?: string }> }) {
   const { subject } = await searchParams;
-  const db = await createClient();
-  const { data: subjects } = await db.from("subjects").select("*").order("created_at");
-  const current = (subjects ?? []).find((s) => s.id === subject) ?? subjects?.[0];
-  if (!current) return <p className="card text-muted">먼저 주제를 만드세요.</p>;
-  const [{ data: units }, qs] = await Promise.all([
-    db.from("units").select("*").eq("subject_id", current.id),
-    allRows<{ unit_id: string | null }>((f, t) => db.from("questions").select("unit_id").eq("subject_id", current.id).range(f, t)),
-  ]);
-  const counts: Record<string, number> = {};
-  for (const q of qs) if (q.unit_id) counts[q.unit_id] = (counts[q.unit_id] ?? 0) + 1;
+  const subjects = await listSubjects();
+  const current = subjects.find((s) => s.id === subject) ?? subjects[0];
+  if (!current) return <p className="card text-muted">먼저 과목을 만드세요.</p>;
+  const [tree, counts] = await Promise.all([getUnitTree(current.id), countQuestionsByUnit(current.id)]);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">단원 관리</h1>
-        <SubjectPicker subjects={subjects ?? []} current={current.id} basePath="/admin/units" />
+        <SubjectPicker subjects={subjects} current={current.id} basePath="/admin/units" />
       </div>
-      <UnitsAdmin subjectId={current.id} tree={buildTree(units ?? [])} counts={counts} />
+      <UnitsAdmin subjectId={current.id} tree={tree} counts={counts} />
     </div>
   );
 }

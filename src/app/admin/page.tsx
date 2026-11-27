@@ -1,28 +1,22 @@
-import { createClient } from "@/domains/auth/supabase/server";
-import { SubjectsAdmin } from "@/domains/subjects/components/SubjectsAdmin";
+import { listAllProfiles, listMembersOf } from "@/contexts/access/ui/loaders";
+import { grantMemberAction, revokeMemberAction } from "@/contexts/access/ui/actions";
+import { listAllSets, listSubjects } from "@/contexts/catalog/ui/loaders";
+import { SubjectsAdmin } from "@/contexts/catalog/ui/components/SubjectsAdmin";
 
 export const metadata = { title: "관리" };
 
 export default async function AdminPage() {
-  const db = await createClient();
-  const [{ data: subjects }, { data: members }, { data: profiles }, { data: sets }] = await Promise.all([
-    db.from("subjects").select("*").order("created_at"),
-    db.from("subject_members").select("subject_id, user_id"),
-    db.from("profiles").select("id, email, display_name, is_admin").order("created_at"),
-    db.from("question_sets").select("id, subject_id, title, created_at, questions(count)").order("created_at", { ascending: false }),
-  ]);
+  const [subjects, sets] = await Promise.all([listSubjects(), listAllSets()]);
+  const [members, all] = await Promise.all([listMembersOf(subjects.map((s) => s.id)), listAllProfiles()]);
+  const profiles = all.map((u) => ({ id: u.id, email: u.email, displayName: u.displayName, isAdmin: u.isAdmin }));
   return (
     <SubjectsAdmin
-      subjects={subjects ?? []}
-      members={members ?? []}
-      profiles={profiles ?? []}
-      sets={(sets ?? []).map((s) => ({
-        id: s.id,
-        subject_id: s.subject_id,
-        title: s.title,
-        created_at: s.created_at,
-        count: (s.questions as unknown as { count: number }[])?.[0]?.count ?? 0,
-      }))}
+      subjects={subjects}
+      members={members.map((m) => ({ subjectId: m.subjectId, userId: m.userId }))}
+      profiles={profiles}
+      sets={sets}
+      grantMember={grantMemberAction}
+      revokeMember={revokeMemberAction}
     />
   );
 }

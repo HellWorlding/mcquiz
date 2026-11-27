@@ -1,40 +1,13 @@
-import Link from "next/link";
-import { requireUser } from "@/domains/auth/session";
-import { listSubjects } from "@/domains/subjects/queries";
-import { getUnitRoundScores, getWeakSummary } from "@/domains/progress/queries";
-import { getQuestionsByIds } from "@/domains/questions/queries";
-import { listUnits } from "@/domains/subjects/queries";
-import { WeakView } from "@/domains/progress/components/WeakView";
-import { getT } from "@/domains/shared/i18n-server";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "저장된 문제" };
-
-export default async function WeakPage({ searchParams }: { searchParams: Promise<{ subject?: string }> }) {
-  await requireUser("/weak");
-  const t = await getT();
-  const { subject } = await searchParams;
-  const subjects = await listSubjects();
-  const current = subjects.find((s) => s.id === subject) ?? subjects[0];
-  if (!current) return <p className="card text-muted">{t("saved.no_subject")}</p>;
-  // 요약과 단원 목록은 서로 독립이라 동시에 요청한다
-  const [summary, units, roundScores] = await Promise.all([getWeakSummary(current.id), listUnits(current.id), getUnitRoundScores(current.id)]);
-  const ids = (summary?.items ?? []).map((i) => i.questionId);
-  const questions = await getQuestionsByIds(ids);
-  return (
-    <section className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">{t("saved.title")}</h1>
-      <div className="flex flex-wrap gap-2">
-        {subjects.map((s) => (
-          <Link
-            key={s.id}
-            href={`/weak?subject=${s.id}`}
-            className={`rounded-full border px-3 py-1 text-sm font-semibold ${s.id === current.id ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
-          >
-            {s.name}
-          </Link>
-        ))}
-      </div>
-      {summary && <WeakView subject={current} summary={summary} questions={questions} units={units} roundScores={roundScores} />}
-    </section>
-  );
+/** 옛 주소 /weak → /saved (쿼리 유지). 저장함 라우트 이름 변경 (용어사전 G) */
+export default async function WeakRedirectPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const p = await searchParams;
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(p)) {
+    if (typeof v === "string") qs.set(k, v);
+    else if (Array.isArray(v)) for (const x of v) qs.append(k, x);
+  }
+  const q = qs.toString();
+  redirect(q ? `/saved?${q}` : "/saved");
 }

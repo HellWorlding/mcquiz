@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/subjects", "/quiz", "/weak", "/admin", "/collections", "/account", "/chat", "/notes", "/board", "/sources", "/oauth"];
+const PROTECTED_PREFIXES = ["/subjects", "/quiz", "/saved", "/weak", "/admin", "/collections", "/account", "/chat", "/notes", "/board", "/sources", "/oauth"];
 
 const CANONICAL_HOST = process.env.NEXT_PUBLIC_CANONICAL_HOST || "mcquiz.site";
 
@@ -40,9 +40,9 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const guestAccess = (process.env.PUBLIC_GUEST_ACCESS ?? "false").toLowerCase() === "true";
+  const guestAccess = (process.env.PUBLIC_GUEST_ACCESS ?? "true").toLowerCase() === "true";
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  const guestAllowed = guestAccess && !["/admin", "/weak", "/account", "/chat", "/notes", "/board", "/sources", "/oauth"].some((p) => pathname.startsWith(p));
+  const guestAllowed = guestAccess && !["/admin", "/saved", "/weak", "/account", "/chat", "/notes", "/board", "/sources", "/oauth"].some((p) => pathname.startsWith(p));
 
   if (!user && isProtected && !guestAllowed) {
     const url = request.nextUrl.clone();

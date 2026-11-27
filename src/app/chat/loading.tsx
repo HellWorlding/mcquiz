@@ -1,5 +1,5 @@
 /** 페이지 데이터가 오기 전에 먼저 보이는 틀. 탭을 누르자마자 반응이 있게 한다. */
-import { getT } from "@/domains/shared/i18n-server";
+import { getT } from "@/shared/i18n/server";
 
 export default async function Loading() {
   const t = await getT();
