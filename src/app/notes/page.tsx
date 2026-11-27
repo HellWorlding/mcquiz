@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/contexts/access/server";
-import { listSubjects } from "@/contexts/catalog/ui/loaders";
+import { listSubjectsByActivity as listSubjects } from "@/contexts/learning/ui/loaders";
 import { listMyNotes } from "@/contexts/learning/ui/loaders";
 import { FontSizeControl, NoteBox } from "@/contexts/learning/ui/components/NoteBox";
 import { cleanExplanation } from "@/shared/labels";

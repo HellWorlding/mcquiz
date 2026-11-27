@@ -206,16 +206,22 @@ $$;
 -- ---------------------------------------------------------------
 -- 6. learning 함수 (읽기 모델: catalog.questions 를 읽는다)
 -- ---------------------------------------------------------------
-create function learning.question_stats(p_subject uuid)
+-- 학습 읽기 모델의 대상 사용자: 보통 auth.uid(). service role(CLI·관리 도구) 만 p_user 로 다른 사용자를 지정할 수 있다
+create function learning.effective_user(p_user uuid)
+returns uuid language sql stable set search_path = '' as $$
+  select case when auth.role() = 'service_role' then coalesce(p_user, auth.uid()) else auth.uid() end
+$$;
+
+create function learning.question_stats(p_subject uuid, p_user uuid default null)
 returns table (
   question_id uuid, unit_id uuid, set_id uuid, tags text[], topic text, difficulty text, trap_types text[],
   attempt_count integer, wrong_count integer, last_correct boolean, last_graded_at timestamptz,
   wrong_after boolean, confused_after boolean, saved boolean, last_weak_at timestamptz
 ) language sql stable set search_path = '' as $$
   with q as (select id, unit_id, set_id, tags, topic, difficulty, trap_types from catalog.questions where subject_id = p_subject),
-  d as (select m.question_id, m.at from learning.marks m join q on q.id = m.question_id where m.user_id = (select auth.uid()) and m.kind = 'dismissed'),
-  sv as (select m.question_id, m.at from learning.marks m join q on q.id = m.question_id where m.user_id = (select auth.uid()) and m.kind = 'saved'),
-  a as (select a.* from learning.attempts a join q on q.id = a.question_id where a.user_id = (select auth.uid())),
+  d as (select m.question_id, m.at from learning.marks m join q on q.id = m.question_id where m.user_id = (select learning.effective_user(p_user)) and m.kind = 'dismissed'),
+  sv as (select m.question_id, m.at from learning.marks m join q on q.id = m.question_id where m.user_id = (select learning.effective_user(p_user)) and m.kind = 'saved'),
+  a as (select a.* from learning.attempts a join q on q.id = a.question_id where a.user_id = (select learning.effective_user(p_user))),
   graded as (
     select question_id,
       count(*) filter (where selected_ord is not null) as cnt,
@@ -246,19 +252,19 @@ returns table (
   left join d dd on dd.question_id = i.question_id
 $$;
 
-create function learning.unsolved_questions(p_subject uuid)
+create function learning.unsolved_questions(p_subject uuid, p_user uuid default null)
 returns table (id uuid, unit_id uuid, set_id uuid, tags text[]) language sql stable set search_path = '' as $$
   select q.id, q.unit_id, q.set_id, q.tags
   from catalog.questions q
   where q.subject_id = p_subject
-    and not exists (select 1 from learning.attempts a where a.user_id = (select auth.uid()) and a.question_id = q.id and a.selected_ord is not null)
+    and not exists (select 1 from learning.attempts a where a.user_id = (select learning.effective_user(p_user)) and a.question_id = q.id and a.selected_ord is not null)
 $$;
 
-create function learning.unit_progress(p_subject uuid)
+create function learning.unit_progress(p_subject uuid, p_user uuid default null)
 returns table (session_id uuid, unit_id uuid, covered bigint, answered bigint) language sql stable set search_path = '' as $$
   with s as (
     select id, question_ids, answers from learning.quiz_sessions
-    where user_id = (select auth.uid()) and subject_id = p_subject and finished = false
+    where user_id = (select learning.effective_user(p_user)) and subject_id = p_subject and finished = false
   ),
   sq as (
     select s.id as session_id, q.unit_id, (s.answers -> q.id::text ->> 'selectedOrd') is not null as answered
@@ -269,45 +275,45 @@ returns table (session_id uuid, unit_id uuid, covered bigint, answered bigint) l
 $$;
 
 -- 문항별 "몇 번 풀었나" 분포 (옛 my_unit_rounds). 회독 점수는 unit_round_scores
-create function learning.unit_attempt_counts(p_subject uuid)
+create function learning.unit_attempt_counts(p_subject uuid, p_user uuid default null)
 returns table (unit_id uuid, attempts integer, n bigint, n_correct bigint) language sql stable set search_path = '' as $$
   with q as (select id, unit_id from catalog.questions where subject_id = p_subject),
   c as (
     select q.unit_id, q.id,
            count(a.id) filter (where a.selected_ord is not null) as cnt,
            (array_agg(a.is_correct order by a.created_at desc) filter (where a.selected_ord is not null))[1] as latest_correct
-    from q left join learning.attempts a on a.question_id = q.id and a.user_id = (select auth.uid())
+    from q left join learning.attempts a on a.question_id = q.id and a.user_id = (select learning.effective_user(p_user))
     group by q.unit_id, q.id
   )
   select c.unit_id, c.cnt::int, count(*), count(*) filter (where c.latest_correct) from c group by c.unit_id, c.cnt
 $$;
 
 -- k회독 점수: 각 문항의 k번째 채점 풀이만 모아 단원별 정답률
-create function learning.unit_round_scores(p_subject uuid)
+create function learning.unit_round_scores(p_subject uuid, p_user uuid default null)
 returns table (unit_id uuid, round_no integer, n bigint, n_correct bigint) language sql stable set search_path = '' as $$
   with q as (select id, unit_id from catalog.questions where subject_id = p_subject),
   a as (
     select q.unit_id, a.is_correct, row_number() over (partition by a.question_id order by a.created_at, a.id) as rn
-    from q join learning.attempts a on a.question_id = q.id and a.user_id = (select auth.uid())
+    from q join learning.attempts a on a.question_id = q.id and a.user_id = (select learning.effective_user(p_user))
     where a.selected_ord is not null
   )
   select a.unit_id, a.rn::int, count(*), count(*) filter (where a.is_correct) from a group by a.unit_id, a.rn
 $$;
 
-create function learning.subject_activity()
+create function learning.subject_activity(p_user uuid default null)
 returns table (subject_id uuid, weak_count bigint, attempt_count bigint, last_at timestamptz) language sql stable set search_path = '' as $$
   with a as (
     select q.subject_id,
       count(*) filter (where at.is_correct = false or at.confused) as weak_count,
       count(*) as attempt_count, max(at.created_at) as last_at
     from learning.attempts at join catalog.questions q on q.id = at.question_id
-    where at.user_id = (select auth.uid())
+    where at.user_id = (select learning.effective_user(p_user))
     group by q.subject_id
   ),
   m as (
     select q.subject_id, count(*) as saved_count, max(mk.at) as last_at
     from learning.marks mk join catalog.questions q on q.id = mk.question_id
-    where mk.user_id = (select auth.uid()) and mk.kind = 'saved'
+    where mk.user_id = (select learning.effective_user(p_user)) and mk.kind = 'saved'
     group by q.subject_id
   )
   select coalesce(a.subject_id, m.subject_id), coalesce(a.weak_count, 0) + coalesce(m.saved_count, 0), coalesce(a.attempt_count, 0), greatest(a.last_at, m.last_at)
@@ -435,7 +441,8 @@ create policy "subjects: anon read public" on catalog.subjects for select to ano
 create policy "units: anon read public" on catalog.units for select to anon using (subject_id in (select id from catalog.subjects where visibility = 'public'));
 create policy "sets: anon read public" on catalog.question_sets for select to anon using (subject_id in (select id from catalog.subjects where visibility = 'public'));
 create policy "questions: anon read public" on catalog.questions for select to anon using (subject_id in (select id from catalog.subjects where visibility = 'public'));
-create policy "choices: anon read public" on catalog.choices for select to anon using (question_id in (select q.id from catalog.questions q));
+create policy "choices: anon read public" on catalog.choices for select to anon
+  using (question_id in (select q.id from catalog.questions q join catalog.subjects s on s.id = q.subject_id where s.visibility = 'public'));
 
 -- learning (본인 행만)
 create policy "attempts: own" on learning.attempts for all to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
@@ -470,21 +477,21 @@ create policy "sources bucket: read if subject allowed" on storage.objects for s
 -- ---------------------------------------------------------------
 -- 10. 권한 (이동한 객체는 기존 grant 유지, 새 함수·뷰는 명시)
 -- ---------------------------------------------------------------
--- anon(비로그인) 은 schema usage + select 만. 함수 실행은 로그인 사용자와 service role 만 (검토 I7: definer 함수가 anon 에 열리지 않게)
+-- anon(비로그인): schema usage + catalog 테이블 select 만 (정책이 공개 과목으로 거른다). 함수 실행은 로그인 사용자와 service role 만 (검토 I7·m3)
 do $$
 declare s text;
 begin
   foreach s in array array['access','catalog','learning','knowledge','community'] loop
     execute format('revoke all on all tables in schema %I from anon', s);
-    execute format('grant select on all tables in schema %I to anon', s);
     execute format('grant all on all tables in schema %I to authenticated, service_role', s);
     execute format('revoke execute on all functions in schema %I from anon, public', s);
     execute format('grant execute on all functions in schema %I to authenticated, service_role', s);
     execute format('alter default privileges in schema %I revoke all on tables from anon', s);
-    execute format('alter default privileges in schema %I grant select on tables to anon', s);
-    execute format('alter default privileges in schema %I revoke execute on functions from anon', s);
   end loop;
 end $$;
+grant select on all tables in schema catalog to anon;
+-- 앞으로 postgres 가 만드는 함수는 PUBLIC 기본 실행 권한을 갖지 않는다 (새 definer 함수가 anon 에 열리는 것 방지)
+alter default privileges for role postgres revoke execute on functions from public;
 revoke all on community.posts_view from anon;
 -- 게스트 퀴즈 조립에 필요한 읽기 함수만 anon 에 허용 (invoker, 과목 권한은 위 정책이 거른다)
 grant execute on function catalog.unit_subtree(uuid[]), catalog.question_counts_by_unit(uuid) to anon;

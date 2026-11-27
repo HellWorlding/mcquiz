@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/contexts/access/server";
-import { listSubjects } from "@/contexts/catalog/ui/loaders";
+import { listSubjectsByActivity as listSubjects } from "@/contexts/learning/ui/loaders";
 import { loadSavedBox } from "@/contexts/learning/ui/loaders";
 import { SavedBoxView } from "@/contexts/learning/ui/components/SavedBoxView";
 import { getT } from "@/shared/i18n/server";

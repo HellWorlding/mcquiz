@@ -4,9 +4,10 @@ import { difficultyLabel, unitPathLabel } from "@/shared/labels";
 import { hashString } from "../domain/shuffle";
 import { pickWeakMix } from "../domain/weak-mix";
 import { capForGuest, GUEST_TRIAL_COOKIE, GUEST_TRIAL_LIMIT, isTrialUsed } from "../domain/guest";
+import type { Subject } from "@/contexts/catalog";
 import { parseQuizParams, type QuizSearchParams } from "../domain/quiz";
 import type { LearningUnit, NoteItem, QuizQuestion, ResumeState, SavedBoxSummary, SubjectActivity, UnfinishedSession, UnitAttemptCounts, UnitProgressRow, UnitRoundScores } from "../domain/types";
-import { sessionLearningDeps } from "../infrastructure/session-deps";
+import { sessionCatalogApi, sessionLearningDeps } from "../infrastructure/session-deps";
 import { getSession, listUnfinishedSessions as listUnfinished, resolveQuizIds, scopeTitle } from "../application/quiz";
 import { savedBoxIds, savedBoxSummary as summary, savedIdsFor } from "../application/saved-box";
 import { listNotes, notesFor } from "../application/notes";
@@ -88,6 +89,17 @@ export async function loadQuiz(params: QuizSearchParams): Promise<ResolvedQuiz> 
   const unitLabels: Record<string, string> = {};
   for (const q of questions) if (q.unit_id && !(q.unit_id in unitLabels)) unitLabels[q.unit_id] = unitPathLabel(units, q.unit_id) ?? "";
   return { questions, total, title, subjectId, seed: resolvedSeed, resume, notes: Object.fromEntries(notes), savedIds, unitLabels, guestLocked: false, guestLimit: isGuest ? GUEST_TRIAL_LIMIT : null };
+}
+
+/** 과목 목록을 활동순(저장함 많음 → 최근 풀이 → 만든 순)으로. 홈·저장함·메모·AI 질문 페이지가 같이 쓴다 */
+export async function listSubjectsByActivity(): Promise<Subject[]> {
+  const catalog = await sessionCatalogApi();
+  const [list, activity] = await Promise.all([catalog.listSubjects(), subjectActivity()]);
+  const act = new Map(activity.map((a) => [a.subjectId, a]));
+  return [...list].sort((a, b) => {
+    const x = act.get(a.id), y = act.get(b.id);
+    return (y?.weakCount ?? 0) - (x?.weakCount ?? 0) || (y?.lastAt ?? "").localeCompare(x?.lastAt ?? "") || a.createdAt.localeCompare(b.createdAt);
+  });
 }
 
 /** 과목 안에서 아직 끝내지 않은 내 퀴즈 (이어서 풀기 목록) */

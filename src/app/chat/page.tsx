@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/contexts/access/server";
-import { getSubject, listSubjects } from "@/contexts/catalog/ui/loaders";
+import { getSubject } from "@/contexts/catalog/ui/loaders";
+import { listSubjectsByActivity as listSubjects } from "@/contexts/learning/ui/loaders";
 import { loadChatPage } from "@/contexts/knowledge/ui/loaders";
 import { ChatPanel } from "@/contexts/knowledge/ui/components/ChatPanel";
 

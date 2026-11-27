@@ -396,6 +396,10 @@ create view public.board_posts_view as  SELECT p.id,
    FROM (board_posts p
      LEFT JOIN profiles pr ON ((pr.id = p.user_id)));;
 
+-- 4b. 옛 뷰 권한 (anon 은 게시판을 못 읽는다 — 검토 N1)
+revoke all on public.board_posts_view from anon;
+grant select on public.board_posts_view to authenticated;
+
 -- 5. 옛 정책 40개 (pg_policies 그대로)
 create policy "ai_questions: admin read" on public.ai_questions as PERMISSIVE for SELECT to authenticated using (( SELECT is_admin() AS is_admin));
 create policy "ai_questions: own" on public.ai_questions as PERMISSIVE for ALL to authenticated using ((user_id = ( SELECT auth.uid() AS uid))) with check ((user_id = ( SELECT auth.uid() AS uid)));
@@ -438,5 +442,8 @@ create policy "subjects: admin write" on public.subjects as PERMISSIVE for ALL t
 create policy "subjects: read if allowed" on public.subjects as PERMISSIVE for SELECT to authenticated using ((id IN ( SELECT readable_subject_ids() AS readable_subject_ids)));
 create policy "units: admin write" on public.units as PERMISSIVE for ALL to authenticated using (( SELECT is_admin() AS is_admin)) with check (( SELECT is_admin() AS is_admin));
 create policy "units: read" on public.units as PERMISSIVE for SELECT to authenticated using ((subject_id IN ( SELECT readable_subject_ids() AS readable_subject_ids)));
+
+-- 6. 마이그레이션 이력에서 이 버전을 지운다 (main 코드로 db push 할 때 불일치 방지)
+delete from supabase_migrations.schema_migrations where version = '20261129100000';
 
 commit;

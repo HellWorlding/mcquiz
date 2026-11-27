@@ -76,16 +76,17 @@ export async function signoutAction() {
   redirect("/login");
 }
 
-async function deps() {
+/** admin 클라이언트는 "이메일로 다른 사람 찾기"(멤버 부여) 에만 붙인다 */
+async function deps(withAdmin = false) {
   const [db, user] = await Promise.all([sessionDb(), getCurrentUser()]);
-  return makeAccessDeps(db, user, env.serviceRoleKey ? adminDb() : null);
+  return makeAccessDeps(db, user, withAdmin && env.serviceRoleKey ? adminDb() : null);
 }
 
 export async function listMembersAction(subjectId: string): Promise<Result<Member[]>> {
   return listMembers(await deps(), subjectId);
 }
 export async function grantMemberAction(subjectId: string, email: string): Promise<Result<{ userId: string }>> {
-  const r = await grantMember(await deps(), subjectId, email);
+  const r = await grantMember(await deps(true), subjectId, email);
   if (r.ok) revalidatePath("/admin");
   return r;
 }

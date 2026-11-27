@@ -29,7 +29,25 @@ describe("게스트(anon) 읽기 정책 (D-009 / A2)", () => {
     expect(resQ).toEqual([]);
     const { error } = await a.schema("catalog").from("question_sets").insert({ subject_id: pub.id, title: "x" });
     expect(error).not.toBeNull();
-    const { data: chunks } = await a.schema("knowledge").from("chunks").select("id").limit(1);
-    expect(chunks).toEqual([]);
+    // 다른 컨텍스트 스키마는 anon 에게 select 권한 자체가 없다 (I7)
+    const { data: chunks, error: chunkErr } = await a.schema("knowledge").from("chunks").select("id").limit(1);
+    expect(chunks).toBeNull();
+    expect(chunkErr).not.toBeNull();
+    // 단원·세트도 공개 과목만
+    await admin.schema("catalog").from("units").insert([{ subject_id: pub.id, no: 1, title: "u", sort: 1 }, { subject_id: res.id, no: 1, title: "u", sort: 1 }]);
+    const units = (await a.schema("catalog").from("units").select("subject_id").in("subject_id", [pub.id, res.id])).data?.map((u) => u.subject_id);
+    expect(units).toEqual([pub.id]);
+    const sets = (await a.schema("catalog").from("question_sets").select("subject_id").in("subject_id", [pub.id, res.id])).data?.map((u) => u.subject_id);
+    expect(sets).toEqual([pub.id]);
+  });
+
+  it("anon 은 보안 함수를 실행할 수 없고 읽기 전용 함수만 쓴다 (I7)", async () => {
+    const a = anon();
+    const denied = await a.schema("access").rpc("readable_subject_ids");
+    expect(denied.error?.message ?? "").toMatch(/permission|denied/i);
+    const stats = await a.schema("learning").rpc("question_stats", { p_subject: "00000000-0000-0000-0000-000000000000" });
+    expect(stats.error).not.toBeNull();
+    const ok = await a.schema("catalog").rpc("unit_subtree", { root_ids: [] });
+    expect(ok.error).toBeNull();
   });
 });

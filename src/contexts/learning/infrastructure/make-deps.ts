@@ -19,7 +19,7 @@ export function makeLearningDeps(db: Db, user: CurrentUser | null, extra: Learni
     sessions: sessionRepo(db),
     marks: markRepo(db),
     notes: noteRepo(db),
-    stats: statsReadModel(db),
+    stats: statsReadModel(db, user?.id ?? null),
     catalog: catalogQuestions(extra.catalog),
     clock: { now: () => new Date().toISOString() },
     rng: { seed: () => Date.now() & 0xffff },

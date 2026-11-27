@@ -462,33 +462,36 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "question_stats":
-{ Args: { "p_subject": string }; Returns: {
+            "effective_user":
+{ Args: { "p_user": string }; Returns: string
+                           },
+"question_stats":
+{ Args: { "p_subject": string,"p_user"?: string }; Returns: {
               "attempt_count": number,"confused_after": boolean,"difficulty": string,"last_correct": boolean,"last_graded_at": string,"last_weak_at": string,"question_id": string,"saved": boolean,"set_id": string,"tags": (string)[],"topic": string,"trap_types": (string)[],"unit_id": string,"wrong_after": boolean,"wrong_count": number
             }[]
                            },
 "subject_activity":
-{ Args: Record<PropertyKey, never>; Returns: {
+{ Args: { "p_user"?: string }; Returns: {
               "attempt_count": number,"last_at": string,"subject_id": string,"weak_count": number
             }[]
                            },
 "unit_attempt_counts":
-{ Args: { "p_subject": string }; Returns: {
+{ Args: { "p_subject": string,"p_user"?: string }; Returns: {
               "attempts": number,"n": number,"n_correct": number,"unit_id": string
             }[]
                            },
 "unit_progress":
-{ Args: { "p_subject": string }; Returns: {
+{ Args: { "p_subject": string,"p_user"?: string }; Returns: {
               "answered": number,"covered": number,"session_id": string,"unit_id": string
             }[]
                            },
 "unit_round_scores":
-{ Args: { "p_subject": string }; Returns: {
+{ Args: { "p_subject": string,"p_user"?: string }; Returns: {
               "n": number,"n_correct": number,"round_no": number,"unit_id": string
             }[]
                            },
 "unsolved_questions":
-{ Args: { "p_subject": string }; Returns: {
+{ Args: { "p_subject": string,"p_user"?: string }; Returns: {
               "id": string,"set_id": string,"tags": (string)[],"unit_id": string
             }[]
                            }

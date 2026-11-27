@@ -18,18 +18,18 @@ export function sourceRepo(db: Db): SourceRepo {
       const { data, error } = await q;
       if (error) throw new Error(error.message);
       // 조각·임베딩 수 (MCP list_sources 가 보여 준다)
-      const ids = (data ?? []).map((s) => s.id);
-      const counts = new Map<string, { chunks: number; embedded: number }>();
-      for (let i = 0; i < ids.length; i += 200) {
-        const { data: rows } = await db.schema("knowledge").from("chunks").select("source_id, embedded_at").in("source_id", ids.slice(i, i + 200));
-        for (const c of rows ?? []) {
-          const v = counts.get(c.source_id) ?? { chunks: 0, embedded: 0 };
-          v.chunks++;
-          if (c.embedded_at) v.embedded++;
-          counts.set(c.source_id, v);
-        }
-      }
-      return (data ?? []).map((s) => ({ ...toSource(s), chunkCount: counts.get(s.id)?.chunks ?? 0, embeddedCount: counts.get(s.id)?.embedded ?? 0 }));
+      // 행을 내려받지 않고 자료마다 count 만 (1,000행 상한에 안 걸린다 — 검토 m8)
+      const c = () => db.schema("knowledge").from("chunks");
+      const counts = await Promise.all(
+        (data ?? []).map(async (s) => {
+          const [all, emb] = await Promise.all([
+            c().select("id", { count: "exact", head: true }).eq("source_id", s.id),
+            c().select("id", { count: "exact", head: true }).eq("source_id", s.id).not("embedded_at", "is", null),
+          ]);
+          return { chunks: all.count ?? 0, embedded: emb.count ?? 0 };
+        }),
+      );
+      return (data ?? []).map((s, i) => ({ ...toSource(s), chunkCount: counts[i].chunks, embeddedCount: counts[i].embedded }));
     },
     async byId(id) {
       const { data, error } = await t().select("*").eq("id", id).maybeSingle();

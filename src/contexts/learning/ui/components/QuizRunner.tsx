@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { QuizChoice as Choice, QuizQuestion as QuestionWithChoices, ResumeState, SessionAnswer } from "../../domain/types";
 import { hashString, shuffled } from "../../domain/shuffle";
 import { dismissQuestionsAction, recordAttemptAction, saveProgressAction, saveQuestionAction, setConfusedAction, undismissQuestionsAction, markGuestTrialAction } from "../actions";
@@ -249,10 +250,16 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
   const [showHint, setShowHint] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [finished, setFinished] = useState(false);
-  // 게스트가 체험을 끝내면 쿠키에 기록 (하루 1회)
-  useEffect(() => {
-    if (finished && isGuest) void markGuestTrialAction();
-  }, [finished, isGuest]);
+  // 게스트 체험은 첫 답을 고른 순간 쿠키에 기록한다 (결과 화면까지 안 가고 다른 세트를 열어 상한을 넘기지 못하게 — 검토 N4)
+  const trialMarked = useRef(false);
+  const markTrial = useCallback(() => {
+    if (!isGuest || trialMarked.current) return;
+    trialMarked.current = true;
+    void markGuestTrialAction();
+  }, [isGuest]);
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const loginHref = `/login?next=${encodeURIComponent(pathname + (search?.size ? `?${search.toString()}` : ""))}`;
   const [salt, setSalt] = useState(seed);
 
   const q = questions[idx];
@@ -307,7 +314,10 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
       const confused = prev?.confused ?? false;
       const nextAnswers = { ...answers, [q.id]: { selectedOrd: choice.ord, isCorrect, confused, attemptId: prev?.attemptId ?? null } };
       setAnswers(nextAnswers);
-      if (isGuest) return;
+      if (isGuest) {
+        markTrial();
+        return;
+      }
       persist(questions, idx, nextAnswers, false);
       if (prev?.attemptId) {
         // 플래시카드에서 먼저 헷갈림을 눌러 둔 경우: 기존 기록은 두고 새 기록을 남긴다
@@ -320,7 +330,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
         setSyncError(true);
       }
     },
-    [q, answered, answers, isGuest, persist, questions, idx, elapsed],
+    [q, answered, answers, isGuest, persist, questions, idx, elapsed, markTrial],
   );
 
   const toggleConfused = useCallback(async () => {
@@ -414,7 +424,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
         <p className="text-muted">{guestLocked ? t("quiz.guest_locked", { n: guestLimit ?? 5 }) : t("quiz.empty")}</p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {guestLocked && (
-            <Link href={`/login?next=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search : "/")}`} className="btn-primary">
+            <Link href={loginHref} className="btn-primary">
               {t("quiz.guest_trial_login")}
             </Link>
           )}
@@ -449,10 +459,10 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
           {timerOn && totalSec > 0 && <div className="mt-1 font-mono text-sm tabular-nums text-muted">⏱ {t("quiz.total_time", { t: formatTotal(totalSec) })}</div>}
           {isGuest && (
             <div className="mt-4 rounded-lg border border-warn/40 bg-warn/5 p-4 text-left">
-              <p className="font-semibold">{t("quiz.guest_trial_title", { n: guestLimit ?? questions.length })}</p>
+              <p className="font-semibold">{t("quiz.guest_trial_title", { n: questions.length })}</p>
               <p className="mt-1 text-sm text-muted">{t("quiz.guest_trial_body")}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Link href={`/login?next=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search : "/")}`} className="btn-primary">
+                <Link href={loginHref} className="btn-primary">
                   {t("quiz.guest_trial_login")}
                 </Link>
                 <Link href="/signup" className="btn-secondary">
