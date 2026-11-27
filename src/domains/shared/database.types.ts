@@ -577,6 +577,9 @@ isOneToOne: false
               "n": number,"unit_id": string
             }[]
                            },
+"readable_subject_ids":
+{ Args: Record<PropertyKey, never>; Returns: string[]
+                           },
 "search_chunks":
 { Args: { "p_limit"?: number,"p_subject": string,"p_tokens": (string)[],"p_unit_ids"?: (string)[] }; Returns: {
               "chunk_id": string,"content": string,"kind": string,"ord": number,"page": number,"score": number,"source_id": string,"source_title": string,"unit_id": string,"unit_no": number
