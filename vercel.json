@@ -1,3 +1,10 @@
 {
-  "regions": ["icn1"]
+  "regions": [
+    "icn1"
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "refactor/ddd-v2": false
+    }
+  }
 }
