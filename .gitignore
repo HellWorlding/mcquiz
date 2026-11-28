@@ -57,3 +57,7 @@ PRD*.md
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# 다른 에이전트 하네스 미러 (저장소에 넣지 않음)
+.codex
+.agents
