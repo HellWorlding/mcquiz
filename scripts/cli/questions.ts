@@ -1,5 +1,6 @@
 /**
- * questions add "<과목>" <파일|폴더...> [--set "<세트 이름>"] [--answers <정답파일>] [--no-ai]
+ * questions add "<과목>" <파일|폴더...> [--set "<세트 이름>"] [--answers <정답파일>] [--no-ai] [--check]
+ *   --check: 저장하지 않고 파싱·검증 결과(문항 수, 정답 없음, 단원 미배정, 분류 신뢰도 낮음, 경고)만 보고한다. 먼저 --check 로 보고 나서 저장.
  *   JSON(v1/v2)·텍스트·마크다운·PDF·HTML. 폴더를 주면 그 안의 문항 파일 전부(단원 번호 순).
  *   파일 하나 = 세트 하나. 같은 (과목, 단원, 질문) 문항은 덮어쓴다 (catalog C7).
  *   정답 없는 문항은 검토 필요(needs_review)로 저장되며 /admin/sets/<id> 에서 지정한다.
@@ -12,7 +13,7 @@ import { cliDeps, findSubject } from "./_deps";
 import { fail, parseArgs, secs, short, summary } from "./_io";
 
 const USAGE = `사용법:
-  questions add "<과목>" <파일|폴더...> [--set "<세트 이름>"] [--answers <정답파일>] [--no-ai]`;
+  questions add "<과목>" <파일|폴더...> [--set "<세트 이름>"] [--answers <정답파일>] [--no-ai] [--check]`;
 
 const QUESTION_FILE = /\.(json|txt|md|pdf|html?)$/i;
 
@@ -60,6 +61,18 @@ export async function run(argv: string[]): Promise<void> {
     const noAnswer = questions.filter((q) => q.correct === null).length;
     const noUnit = questions.filter((q) => q.unitId === null).length;
     const low = questions.filter((q) => q.unitId !== null && q.unitConfidence !== null && q.unitConfidence < LOW_CONFIDENCE).length;
+
+    if (p.flags.has("check")) {
+      // 검사만: 저장하지 않는다 (중복 판정은 저장 단계에서 같은 질문문을 덮어쓰므로 여기서는 개수·경고만)
+      console.log(`  [검사] ${name}: 문항 ${questions.length}개 (${format}) · 정답 없음 ${noAnswer} · 단원 미배정 ${noUnit} · 분류 신뢰도 낮음 ${low} · 경고 ${warnings.length}`);
+      for (const w of warnings.slice(0, 5)) console.log(`      - ${short(w, 140)}`);
+      total.files++;
+      total.questions += questions.length;
+      total.noAnswer += noAnswer;
+      total.noUnit += noUnit;
+      total.lowConfidence += low;
+      continue;
+    }
 
     const commit = await cli.catalog.commitImport({ subjectId: subject.id, title: p.options.set ?? suggestedTitle, sourceFilename: name, questions });
     if (!commit.ok) {
