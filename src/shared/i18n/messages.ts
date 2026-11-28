@@ -137,6 +137,7 @@ const M = {
   "quiz.flip_hint": ["문항 · 탭하면 정답", "Question · tap to reveal"],
   "quiz.no_answer_set": ["정답이 아직 지정되지 않은 문항입니다.", "This question has no answer set yet."],
   "quiz.no_answer_warn": ["정답이 지정되지 않은 문항입니다. 선택은 기록되지만 채점되지 않습니다.", "No answer is set for this question. Your choice is recorded but not graded."],
+  "quiz.needs_review_warn": ["검토 필요 표시가 있는 문항입니다. 정답은 있고 채점되지만, 공식 정답이 아닐 수 있으니 틀려도 참고만 하세요.", "This question is flagged for review. It is graded, but the answer may not be official — treat it as a reference."],
   "quiz.correct": ["정답!", "Correct!"],
   "quiz.wrong": ["오답", "Wrong"],
   "quiz.ungraded": ["채점 불가", "Not graded"],
