@@ -58,6 +58,17 @@ export async function magicLinkAction(_prev: AuthState, formData: FormData): Pro
   return { message: "로그인 링크를 메일로 보냈습니다. 메일의 링크를 누르면 바로 로그인됩니다." };
 }
 
+/** 비밀번호 재설정 메일. 링크 → /auth/callback → /account?reset=1 (새 비밀번호 폼) */
+export async function resetPasswordAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) return { error: "이메일을 입력하세요." };
+  const db = await sessionDb();
+  const origin = (await headers()).get("origin") ?? "";
+  const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: `${origin}/auth/callback?next=${encodeURIComponent("/account?reset=1")}` });
+  if (error) return { error: error.message };
+  return { message: "재설정 링크를 메일로 보냈습니다. 메일의 링크를 누르면 새 비밀번호를 정할 수 있습니다." };
+}
+
 /** 로그인한 상태에서 비밀번호 새로 정하기 */
 export async function setPasswordAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const password = String(formData.get("password") ?? "");

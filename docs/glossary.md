@@ -22,6 +22,10 @@
 | 공개 / 제한 | public / restricted | 과목 가시성 | visibility | |
 | 관리자 | Admin | | is_admin | |
 | 멤버 | Member | 제한 과목을 볼 수 있는 사용자 | subject_members, UI "권한" | UI 를 "멤버"로 |
+| 비밀번호 설정 | SetPassword | 로그인한 상태에서 새 비밀번호를 정함 (계정 화면) | setPasswordAction | |
+| 비밀번호 재설정 | PasswordReset | 잊은 비밀번호를 이메일 링크로 다시 정함 (로그인 화면 → 메일 → 계정 화면) | resetPasswordAction | 링크는 `/auth/callback?next=/account?reset=1` |
+| 이메일 로그인 링크 | MagicLink | 비밀번호 없이 이메일 링크로 로그인 | magicLinkAction, UI "비밀번호 없이 이메일로 로그인" | |
+| 아이디 | (Email) | 별도 아이디 없음 — 가입 이메일이 아이디 | auth.id_hint | 아이디 찾기 기능 없음(안내 문구로 대신) |
 
 ## 2. Catalog (교재) — 과목·단원·문항·묶음·반입
 
