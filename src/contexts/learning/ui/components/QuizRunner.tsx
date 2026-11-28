@@ -689,7 +689,8 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
           {unitTitle && <div className="mb-1 truncate text-xs text-muted">{unitTitle}</div>}
           <QuestionBadges q={{ ...q, topic: answered ? q.topic : null }} showTraps={false} />
           <p className="mt-1 whitespace-pre-wrap text-xl font-semibold leading-relaxed">{q.prompt}</p>
-          {q.needs_review && <p className="mt-2 text-sm text-warn">{t("quiz.no_answer_warn")}</p>}
+          {q.correct_choice === null && <p className="mt-2 text-sm text-warn">{t("quiz.no_answer_warn")}</p>}
+          {q.correct_choice !== null && q.needs_review && <p className="mt-2 text-sm text-warn">{t("quiz.needs_review_warn")}</p>}
           <ul className="mt-4 flex flex-col gap-2">
             {order.map((c, i) => {
               const picked = a?.selectedOrd === c.ord;
