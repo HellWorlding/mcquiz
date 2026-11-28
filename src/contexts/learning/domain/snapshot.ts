@@ -1,6 +1,7 @@
 /**
  * 풀이 화면 스냅샷 (순수). 뒤로가기·새로고침으로 화면이 다시 조립돼도 그 자리에서 이어 풀게
- * 탭 저장소(sessionStorage)에 진행 상태를 적어 둔다 (D-021). 저장소는 밖에서 받는다.
+ * 탭 저장소(sessionStorage)에 진행 상태를 적어 둔다 (D-021). 여기는 순수 부분(키·해시·파싱·정리 계산)만,
+ * 저장소 읽기·쓰기는 ui/snapshot-store.ts 에 있다.
  *
  * 키 = "mcquiz.quiz." + (세션이 있으면 "s-<세션id>", 없으면 "k-<퀴즈키>") + "." + 문항 id 목록 해시.
  * 목록이 다르면 키가 달라 복구하지 않는다. 세션이 생기면 퀴즈키 쪽 스냅샷은 지운다
@@ -26,15 +27,8 @@ export type QuizSnapshot = {
   finished: boolean;
   /** 선지 셔플 seed (복원할 때 같은 선지 순서) */
   salt: number;
-};
-
-/** sessionStorage 와 같은 모양 (테스트는 Map 으로 흉내 낸다) */
-export type SnapshotStore = {
-  readonly length: number;
-  key(i: number): string | null;
-  getItem(k: string): string | null;
-  setItem(k: string, v: string): void;
-  removeItem(k: string): void;
+  /** 지운 선지 "문항id:선지ord" (소거법 표시도 복원) */
+  struck: string[];
 };
 
 /** 문항 id 목록 해시 (순서까지 같아야 같다) */
@@ -88,6 +82,7 @@ export function parseSnapshot(raw: string | null, listHash: string, questionCoun
     dismissed: x.dismissed.filter((d): d is string => typeof d === "string"),
     finished: x.finished,
     salt: x.salt,
+    struck: Array.isArray(x.struck) ? x.struck.filter((d): d is string => typeof d === "string") : [],
   };
 }
 
@@ -100,46 +95,12 @@ export function keysToPrune(entries: { key: string; savedAt: number }[], max = S
     .map((e) => e.key);
 }
 
-/** 저장소의 우리 스냅샷 목록 (읽지 못하는 것은 savedAt 0 → 가장 먼저 지운다) */
-function ourEntries(store: SnapshotStore): { key: string; savedAt: number }[] {
-  const out: { key: string; savedAt: number }[] = [];
-  for (let i = 0; i < store.length; i++) {
-    const key = store.key(i);
-    if (!key || !key.startsWith(SNAPSHOT_PREFIX)) continue;
-    let savedAt = 0;
-    try {
-      const v = JSON.parse(store.getItem(key) ?? "null") as { savedAt?: unknown } | null;
-      if (v && isNum(v.savedAt)) savedAt = v.savedAt;
-    } catch {
-      // 깨진 값은 가장 오래된 것으로
-    }
-    out.push({ key, savedAt });
-  }
-  return out;
-}
-
-/** 스냅샷 쓰기 + 개수 정리. 저장소가 꽉 차거나 막혀 있어도 던지지 않는다 */
-export function writeSnapshot(store: SnapshotStore, key: string, snap: QuizSnapshot, max = SNAPSHOT_MAX): void {
+/** 저장된 글의 savedAt (읽지 못하면 0 → 가장 먼저 지운다) */
+export function savedAtOf(raw: string | null): number {
   try {
-    store.setItem(key, JSON.stringify(snap));
-    for (const k of keysToPrune(ourEntries(store), max)) if (k !== key) store.removeItem(k);
+    const v = JSON.parse(raw ?? "null") as { savedAt?: unknown } | null;
+    return v && isNum(v.savedAt) ? v.savedAt : 0;
   } catch {
-    // 저장 못 하면 복구만 못 한다
-  }
-}
-
-export function readSnapshot(store: SnapshotStore, key: string, listHash: string, questionCount: number): QuizSnapshot | null {
-  try {
-    return parseSnapshot(store.getItem(key), listHash, questionCount);
-  } catch {
-    return null;
-  }
-}
-
-export function removeSnapshot(store: SnapshotStore, key: string): void {
-  try {
-    store.removeItem(key);
-  } catch {
-    // 무시
+    return 0;
   }
 }

@@ -5,7 +5,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 import type { QuizChoice as Choice, QuizQuestion as QuestionWithChoices, ResumeState, SessionAnswer } from "../../domain/types";
 import { hashString, shuffled } from "../../domain/shuffle";
 import { firstUnansweredIndex, unansweredCount, visibleMarks } from "../../domain/runner";
-import { listHashOf, readSnapshot, removeSnapshot, snapshotKey, writeSnapshot, type QuizSnapshot, type SnapshotStore } from "../../domain/snapshot";
+import { listHashOf, snapshotKey, type QuizSnapshot } from "../../domain/snapshot";
+import { readSnapshot, removeSnapshot, tabStore, writeSnapshot } from "../snapshot-store";
 import { dismissQuestionsAction, recordAttemptAction, saveProgressAction, saveQuestionAction, setConfusedAction, undismissQuestionsAction, markGuestTrialAction } from "../actions";
 import { QuestionBadges, SourceQuote } from "@/shared/ui/QuestionMeta";
 import { EvidencePanel, ChatDock, type ChatDockQuestion } from "@/contexts/knowledge/ui";
@@ -116,15 +117,6 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
   return shuffled(q.choices, hashString(q.id) ^ salt);
 }
 
-/** 탭 저장소 (막혀 있으면 null) */
-function tabStore(): SnapshotStore | null {
-  try {
-    return typeof window === "undefined" ? null : window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
 const subscribeNone = () => () => {};
 
 /**
@@ -167,8 +159,8 @@ function QuizRunnerInner({ questions: initial, title, subjectId, isGuest, guestL
   // 결과 화면에서 저장함에서 뺀 문항. 목록에서 사라지고, 되돌리기로 복구할 수 있다
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set(restored?.dismissed ?? []));
   const [dismissBusy, setDismissBusy] = useState(false);
-  // 선지 지우기(소거법): "문항id:선지ord" 집합. 화면 상태만, 저장하지 않는다
-  const [struck, setStruck] = useState<Set<string>>(new Set());
+  // 선지 지우기(소거법): "문항id:선지ord" 집합. 서버엔 저장하지 않고 탭 스냅샷으로만 복원된다
+  const [struck, setStruck] = useState<Set<string>>(() => new Set(restored?.struck ?? []));
   const toggleStrike = (qid: string, ord: number) => {
     const k = `${qid}:${ord}`;
     setStruck((s) => {
@@ -333,8 +325,8 @@ function QuizRunnerInner({ questions: initial, title, subjectId, isGuest, guestL
     const key = snapshotKey({ sessionId, quizKey }, ids);
     if (snapKeyRef.current && snapKeyRef.current !== key) removeSnapshot(store, snapKeyRef.current);
     snapKeyRef.current = key;
-    writeSnapshot(store, key, { v: 1, savedAt: Date.now(), listHash: listHashOf(ids), sessionId, idx, answers, elapsed, dismissed: [...dismissed], finished, salt });
-  }, [hydrated, questions, sessionId, quizKey, idx, answers, elapsed, dismissed, finished, salt]);
+    writeSnapshot(store, key, { v: 1, savedAt: Date.now(), listHash: listHashOf(ids), sessionId, idx, answers, elapsed, dismissed: [...dismissed], finished, salt, struck: [...struck] });
+  }, [hydrated, questions, sessionId, quizKey, idx, answers, elapsed, dismissed, finished, salt, struck]);
 
   const q = questions[idx];
   const order = useMemo(() => (q ? shuffleChoices(q, salt) : []), [q, salt]);
