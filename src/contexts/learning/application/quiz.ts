@@ -3,6 +3,7 @@ import { unitLabel } from "@/shared/labels";
 import { savedBoxFilter } from "../domain/saved-box";
 import { pickWeakMix } from "../domain/weak-mix";
 import { clampElapsed, pickByOrder } from "../domain/quiz";
+import { carriedConfusedIds } from "../domain/runner";
 import type { LearningFilter, QuizCount, QuizOrder, QuizScope, QuizSession, SessionAnswer, UnfinishedSession } from "../domain/types";
 import type { LearningDeps } from "./ports";
 
@@ -189,4 +190,24 @@ export async function listUnfinishedSessions(deps: LearningDeps, subjectId: stri
 export async function getSession(deps: LearningDeps, sessionId: string): Promise<QuizSession | null> {
   if (!deps.user) return null;
   return deps.sessions.get(sessionId);
+}
+
+/**
+ * 새 퀴즈·이어서 풀기에서 헷갈림을 켠 채로 시작할 문항 (D-013).
+ * 마지막 빼기 이후 헷갈림 표시가 있고(question_stats.confused_after) 가장 최근 풀이도 헷갈림인 문항. 게스트는 빈 목록.
+ */
+export async function confusedCarryIds(deps: LearningDeps, subjectId: string | null, questionIds: string[]): Promise<string[]> {
+  if (!deps.user || !subjectId || questionIds.length === 0) return [];
+  try {
+    const inQuiz = new Set(questionIds);
+    const stats = (await deps.stats.questionStats(subjectId)).filter((s) => s.confusedAfter && inQuiz.has(s.questionId));
+    if (stats.length === 0) return [];
+    const attempts = await deps.attempts.listForQuestions(
+      deps.user.id,
+      stats.map((s) => s.questionId),
+    );
+    return carriedConfusedIds(stats, attempts);
+  } catch {
+    return [];
+  }
 }

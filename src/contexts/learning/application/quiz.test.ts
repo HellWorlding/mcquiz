@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fakeDeps, makeQuestion, stat, user } from "./fakes.test-util";
-import { assembleQuiz, deleteSession, listUnfinishedSessions, recordAttempt, resolveQuizIds, saveProgress, scopeTitle, toggleConfused } from "./quiz";
+import { assembleQuiz, confusedCarryIds, deleteSession, listUnfinishedSessions, recordAttempt, resolveQuizIds, saveProgress, scopeTitle, toggleConfused } from "./quiz";
 
 const qs = ["q1", "q2", "q3", "q4", "q5", "q6"].map((id) => makeQuestion(id, { difficulty: id === "q2" || id === "q5" ? "hard" : "medium" }));
 
@@ -106,5 +106,20 @@ describe("풀이 기록·진행 상태", () => {
     const { deps } = fakeDeps(user, { sessions: [{ id: "x", userId: "someone", subjectId: "S", title: "", questionIds: [], position: 0, answers: {}, finished: false, updatedAt: "" }] });
     const r = await saveProgress(deps, { sessionId: "x", subjectId: "S", title: "", questionIds: [], position: 0, answers: {}, finished: false });
     expect(r.ok).toBe(false);
+  });
+  it("D-013 헷갈림 이어짐: confusedAfter + 최근 풀이 헷갈림, 끄면 다음 퀴즈부터 꺼짐, 퀴즈 밖 문항·게스트 제외", async () => {
+    const stats = [stat("q1", { confusedAfter: true }), stat("q2", { confusedAfter: true }), stat("q3", { confusedAfter: true })];
+    const { deps } = fakeDeps(user, { stats });
+    await recordAttempt(deps, { questionId: "q1", selectedOrd: 1, isCorrect: true, confused: true });
+    await recordAttempt(deps, { questionId: "q2", selectedOrd: 1, isCorrect: true, confused: true });
+    await recordAttempt(deps, { questionId: "q3", selectedOrd: 1, isCorrect: true, confused: true });
+    expect((await confusedCarryIds(deps, "S", ["q1", "q2"])).sort()).toEqual(["q1", "q2"]);
+    // q2 를 새 풀이에서 끈다 (setConfused) → 다음부터 이어지지 않는다
+    const r = await recordAttempt(deps, { questionId: "q2", selectedOrd: 2, isCorrect: false, confused: true });
+    await toggleConfused(deps, r.ok ? r.data! : "", false);
+    expect(await confusedCarryIds(deps, "S", ["q1", "q2"])).toEqual(["q1"]);
+    const guest = fakeDeps(null, { stats }).deps;
+    expect(await confusedCarryIds(guest, "S", ["q1"])).toEqual([]);
+    expect(await confusedCarryIds(deps, null, ["q1"])).toEqual([]);
   });
 });

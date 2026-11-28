@@ -27,7 +27,8 @@ test.describe("1. 게스트 체험", () => {
     expect(url.searchParams.get("subject")).toBe(s.publicSubject.id);
     expect(url.searchParams.get("count")).toBe("all");
     // 8문항 과목이지만 게스트는 5문항만
-    await expect(page.getByText("1 / 5", { exact: true })).toBeVisible();
+    // 헤더: "1 / 5 · 1.N" (원래 문항 번호 = 단원번호.문항번호)
+    await expect(page.getByText(/^1 \/ 5 · 1\.\d+$/)).toBeVisible();
 
     expect(await hasTrialCookie(context)).toBe(false);
     const no = await currentQuestionNo(page);
