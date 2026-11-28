@@ -17,6 +17,7 @@ export const AUTHORING_GUIDE = `# mcquiz 출제 형식 안내
   "hint": null | "<한 줄 힌트>",
   "source_quote": null | "<근거 원문 문장>",
   "source_page": null | 123,
+  "needs_review": false | true,              // 선택. 정답이 공식 정답이 아닐 수 있으면 true (풀이 화면에 "검토 필요" 표시). 기본 false
   "choices": [ { "ord": 1, "text": "..." }, { "ord": 2, "text": "..." }, { "ord": 3, "text": "..." }, { "ord": 4, "text": "..." } ]
 }
 
@@ -26,4 +27,5 @@ export const AUTHORING_GUIDE = `# mcquiz 출제 형식 안내
 - 같은 과목에 이미 있는 문항(search_questions 로 확인)과 질문문이 같거나 거의 같으면 내지 않는다. 같은 개념은 다른 각도(정의·비교·적용·계산)로.
 - 난이도 분포는 요청이 없으면 하 1/3, 중 1/3, 상 1/3.
 - 넣기 전 import_questions 를 mode="check" 로 먼저 불러 형식·중복을 확인하고, 문제 없으면 mode="commit".
+- import_questions 는 한 번에 100문항까지. 더 많으면 100문항 이하로 나눠 check → commit 을 반복한다.
 `;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choicesAreSequential, sortChoices, validateQuestion, validateQuestions } from "./question";
+import { choicesAreSequential, needsReviewOf, sortChoices, validateQuestion, validateQuestions } from "./question";
 
 const four = ["가", "나", "다", "라"].map((t) => ({ text: t, explanation: null }));
 
@@ -47,5 +47,15 @@ describe("C1 선지 4~5개 · ord 연속 · 정답 범위", () => {
     const sorted = sortChoices(shuffled);
     expect(choicesAreSequential(sorted)).toBe(true);
     expect(sorted[2]).toEqual({ ord: 3, text: "다", explanation: "다 해설" });
+  });
+});
+
+describe("M6 검토 필요(needs_review) 저장값", () => {
+  it("정답이 없으면 항상 true, 정답이 있으면 파일의 needs_review: true 일 때만 true", () => {
+    expect(needsReviewOf({ correct: null })).toBe(true);
+    expect(needsReviewOf({ correct: null, needsReview: false })).toBe(true);
+    expect(needsReviewOf({ correct: 2, needsReview: true })).toBe(true);
+    expect(needsReviewOf({ correct: 2, needsReview: false })).toBe(false);
+    expect(needsReviewOf({ correct: 2 })).toBe(false);
   });
 });

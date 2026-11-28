@@ -8,7 +8,7 @@ import { parseJsonQuestions } from "../domain/import/parse-json";
 import { mergeAnswerKey, unitNoFromFilename } from "../domain/import/parse-text";
 import { normalizeTarget, targetFromFilename, unitNoFromTitle, walkUnitPath, normalizeSubjectName } from "../domain/import/targets";
 import { LOW_CONFIDENCE, type ParsedQuestion, type ParseResult, type PreviewQuestion } from "../domain/import/types";
-import { validateQuestions, type FailedQuestion } from "../domain/question";
+import { needsReviewOf, validateQuestions, type FailedQuestion } from "../domain/question";
 import { descendantIds, findUnitByNo, leafUnits, unitPathOf } from "../domain/unit";
 import { attempt, requireAdmin } from "./guards";
 import type { CatalogDeps, QuestionInsert } from "./ports";
@@ -276,6 +276,7 @@ const toInsert = (sid: string, q: PreviewQuestion): QuestionInsert => ({
   trapTypes: q.trapTypes,
   sourceQuote: q.sourceQuote,
   sourcePage: q.sourcePage,
+  needsReview: needsReviewOf(q),
 });
 
 export type SaveResult = { setId: string; count: number; inserted: number; updated: number };
@@ -300,22 +301,16 @@ export async function saveQuestionSet(
   for (let i = 0; i < prompts.length; i += 100) byPrompt.push(...(await deps.questions.findByPrompts(input.subjectId, prompts.slice(i, i + 100))));
 
   const plan = planImport(input.questions, { byFilePos, byPrompt });
-  for (const { id, q } of plan.toUpdate) await deps.questions.overwrite(id, toInsert(input.subjectId, q));
-
-  let setId: string | null = null;
-  if (plan.toInsert.length) {
-    // created_by 는 profiles FK. UUID 가 아닌 가짜 사용자(CLI 의 "service") 면 null
-    const createdBy = input.createdBy && /^[0-9a-f-]{36}$/i.test(input.createdBy) ? input.createdBy : null;
-    setId = await deps.sets.create({ subjectId: input.subjectId, title: input.title, sourceFilename: input.sourceFilename, createdBy });
-    await deps.questions.insertIntoSet(
-      setId,
-      plan.toInsert.map((q, i) => ({ ...toInsert(input.subjectId, q), ord: q.no ?? i + 1 })),
-    );
-  } else if (plan.toUpdate.length) {
-    // 전부 덮어쓰기였으면 첫 문항의 세트로 안내
-    setId = await deps.questions.setIdOf(plan.toUpdate[0].id);
-  }
-  return { setId: setId ?? "", count: plan.toInsert.length + plan.toUpdate.length, inserted: plan.toInsert.length, updated: plan.toUpdate.length };
+  // created_by 는 profiles FK. UUID 가 아닌 가짜 사용자(CLI 의 "service") 면 null
+  const createdBy = input.createdBy && /^[0-9a-f-]{36}$/i.test(input.createdBy) ? input.createdBy : null;
+  // 세트 생성·새 문항·덮어쓰기를 한 번에(원자적으로) 적용한다. 새 문항이 없으면 세트는 만들지 않고, 첫 덮어쓴 문항의 세트로 안내한다
+  const r = await deps.questions.applyImport({
+    subjectId: input.subjectId,
+    set: { id: null, title: input.title, sourceFilename: input.sourceFilename, createdBy },
+    inserts: plan.toInsert.map((q, i) => ({ ...toInsert(input.subjectId, q), ord: q.no ?? i + 1 })),
+    updates: plan.toUpdate.map(({ id, q }) => ({ id, q: toInsert(input.subjectId, q) })),
+  });
+  return { setId: r.setId ?? "", count: r.inserted + r.updated, inserted: r.inserted, updated: r.updated };
 }
 
 /** 반입 2단계: 검증 → 통과한 문항 저장(같은 단원·질문은 덮어쓰기) → 실패 목록 (관리자) */

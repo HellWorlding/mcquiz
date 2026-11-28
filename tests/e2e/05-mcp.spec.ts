@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import { SERVER_VERSION, TOOL_NAMES } from "@/contexts/integration";
 import { USER_EMAIL } from "./env";
 import { accessToken, EVIDENCE_WORD, seed } from "./seed";
 
@@ -41,22 +42,24 @@ test.describe("5. MCP 2.0", () => {
     expect(res.status()).toBe(401);
   });
 
-  test("initialize → tools/list 11개 → list_subjects → search_sources(keyword)", async ({ request }) => {
+  test("initialize → tools/list 13개 → list_subjects(서버 정보) → search_sources(keyword)", async ({ request }) => {
     const s = seed();
     const token = await accessToken(USER_EMAIL);
 
     const init = await rpc(request, token, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "e2e", version: "0" } });
     expect(init.body.error).toBeUndefined();
-    expect((init.body.result?.serverInfo as { version?: string })?.version).toBe("2.0.0");
+    expect((init.body.result?.serverInfo as { version?: string })?.version).toBe(SERVER_VERSION);
     const session = init.session;
 
     const list = await rpc(request, token, "tools/list", {}, session);
     const tools = (list.body.result?.tools ?? []) as { name: string }[];
-    expect(tools).toHaveLength(11);
+    expect(tools.map((t) => t.name)).toEqual(TOOL_NAMES);
     expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(["list_subjects", "search_sources", "get_source", "import_questions"]));
 
-    const subjects = toolJson((await rpc(request, token, "tools/call", { name: "list_subjects", arguments: {} }, session)).body);
-    const text = JSON.stringify(subjects);
+    const subjects = toolJson((await rpc(request, token, "tools/call", { name: "list_subjects", arguments: {} }, session)).body) as { server_version: string; tool_count: number; tool_names: string[]; subjects: { id: string }[] };
+    // M7: 서버 정보의 도구 수·이름 = 실제 tools/list
+    expect(subjects).toMatchObject({ server_version: SERVER_VERSION, tool_count: tools.length, tool_names: tools.map((t) => t.name) });
+    const text = JSON.stringify(subjects.subjects);
     expect(text).toContain(s.publicSubject.id);
     expect(text).not.toContain(s.restrictedSubject.id);
 

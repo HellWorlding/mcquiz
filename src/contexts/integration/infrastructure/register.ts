@@ -23,11 +23,18 @@ async function timed(name: string, fn: () => Promise<ToolResult>): Promise<ToolR
   }
 }
 
+let loggedRegistration = false;
+
 /**
- * MCP 서버에 도구 11개를 등록한다. 도구 이름은 v1 과 같고 응답 형식만 v2.
+ * MCP 서버에 도구 13개(TOOL_LIST)를 등록한다. v1 의 11개 + create_subject, grant_member. 응답 형식은 v2.
  * 모든 조회는 사용자 토큰 클라이언트로 하므로 RLS 가 그대로 적용된다 (볼 수 없는 과목은 애초에 안 나온다).
+ * 프로세스(서버 인스턴스)마다 처음 한 번 `[mcp] tools registered: 13` 을 남긴다 — 런타임 로그에서 배포된 도구 수를 확인하려고 (F7).
  */
 export function registerTools(server: McpServer, makeContext: ToolContextFactory = toolContextFromAuth): void {
+  if (!loggedRegistration) {
+    loggedRegistration = true;
+    console.log(`[mcp] tools registered: ${TOOL_LIST.length}`);
+  }
   for (const tool of TOOL_LIST) {
     server.registerTool(tool.name, { title: tool.title, description: tool.description, inputSchema: tool.inputSchema }, async (args, ctx) =>
       timed(tool.name, async () => {

@@ -33,6 +33,9 @@ export const HELP = `mcquiz CLI  (service role · .env.local 을 읽는다 · �
 
 점검
   doctor                                           .env.local 키, Supabase 연결·스키마 노출, 관리자 프로필, OpenAI 키, 임베딩 상태 (읽기만)
+  mcp smoke [--url <MCP 주소>] [--import <subject_id>]
+                                                   배포 뒤 MCP 스모크: 테스트 계정(MCP_SMOKE_EMAIL/PASSWORD)으로 initialize → tools/list(13개)
+                                                   → list_subjects(server_version·tool_count) → (--import) SQL 본문 2문항 import_questions check. 쓰기 없음
   help
 
 새 과목을 세우는 순서

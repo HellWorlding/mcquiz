@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/contexts/access";
 import type { CatalogApi, Question, Unit } from "@/contexts/catalog";
 import type { LearningApi, QuestionStat } from "@/contexts/learning";
 import type { KnowledgeApi, SearchHit } from "@/contexts/knowledge";
-import { tools, TOOL_LIST, TOOL_NAMES, type ToolContext } from "./tools";
+import { IMPORT_BATCH_LIMIT, SERVER_INSTRUCTIONS, SERVER_VERSION, serverInfo, tools, TOOL_LIST, TOOL_NAMES, type ToolContext } from "./tools";
 
 /**
  * MCP 도구는 규칙 없이 세 컨텍스트 공개 API 를 부르고 JSON 으로 바꾼다.
@@ -85,6 +85,18 @@ describe("도구 목록", () => {
     expect(TOOL_NAMES).toEqual(["list_subjects", "list_units", "list_questions", "get_question", "search_questions", "get_learning_summary", "get_authoring_guide", "import_questions", "create_subject", "grant_member", "list_sources", "search_sources", "get_source"]);
     expect(TOOL_LIST.map((t) => t.name)).toEqual(TOOL_NAMES);
     for (const t of TOOL_LIST) expect(t.description).toContain("v2");
+  });
+  it("M8 도구 집합 스냅숏: 이름 목록이 바뀌면 이 테스트가 깨진다 → SERVER_VERSION 을 올리고 여기 둘 다 고친다", () => {
+    expect({ version: SERVER_VERSION, names: TOOL_NAMES.join(",") }).toEqual({
+      version: "2.1.0",
+      names: "list_subjects,list_units,list_questions,get_question,search_questions,get_learning_summary,get_authoring_guide,import_questions,create_subject,grant_member,list_sources,search_sources,get_source",
+    });
+  });
+  it("M7 서버 정보는 등록 목록(TOOL_LIST)에서 만든다", () => {
+    expect(serverInfo()).toEqual({ server_version: SERVER_VERSION, tool_count: TOOL_LIST.length, tool_names: TOOL_LIST.map((t) => t.name) });
+    expect(serverInfo().tool_count).toBe(13);
+    expect(SERVER_INSTRUCTIONS).toContain("tool_count");
+    expect(SERVER_INSTRUCTIONS).toContain(`${IMPORT_BATCH_LIMIT}문항`);
   });
 });
 
@@ -257,6 +269,22 @@ describe("import_questions", () => {
     expect(r).toEqual({ content: [{ type: "text", text: "넣을 수 있는 문항이 없습니다." }], isError: true });
   });
 
+  it(`M9 한 번에 ${IMPORT_BATCH_LIMIT}문항까지: 100 은 넘기고, 101 은 check·commit 모두 catalog 를 부르지 않고 나눠 보내라는 오류`, async () => {
+    const many = (n: number) => Array.from({ length: n }, (_, i) => ({ ...q, prompt: `문제 ${i}` }));
+    const importQuestions = vi.fn(async () => ({ ok: true as const, data: report }));
+    const c = ctx({ user: admin, catalog: { importQuestions } });
+    expect((await tools.import_questions.run(c, { questions: many(99), mode: "check" })).isError).toBeFalsy();
+    expect((await tools.import_questions.run(c, { questions: many(100), mode: "commit" })).isError).toBeFalsy();
+    expect(importQuestions).toHaveBeenCalledTimes(2);
+    for (const mode of ["check", "commit"] as const) {
+      const r = await tools.import_questions.run(c, { questions: { questions: many(101) }, mode });
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toContain("101문항은 한 번에 100개까지. 나눠 보내세요");
+    }
+    expect(importQuestions).toHaveBeenCalledTimes(2);
+    expect(tools.import_questions.description).toContain(`${IMPORT_BATCH_LIMIT}문항까지`);
+  });
+
   it("잘못된 format 값·빈 배열은 입력 단계에서 거부", () => {
     expect(() => tools.import_questions.inputSchema.parse({ questions: { format: "other", questions: [q] } })).toThrow();
     expect(() => tools.import_questions.inputSchema.parse({ questions: [] })).toThrow();
@@ -264,7 +292,7 @@ describe("import_questions", () => {
 });
 
 describe("list_subjects / get_source", () => {
-  it("list_subjects: 과목마다 questionCountsByUnit 합계를 question_count 로, 이름순", async () => {
+  it("list_subjects: 서버 정보(server_version·tool_count·tool_names) + 과목마다 questionCountsByUnit 합계를 question_count 로, 이름순", async () => {
     const counts = new Map<string, Map<string, number>>([
       ["s1", new Map([[UNIT_A1, 3], ["__none__", 2]])],
       ["s2", new Map()],
@@ -278,10 +306,15 @@ describe("list_subjects / get_source", () => {
         questionCountsByUnit: async (id) => counts.get(id)!,
       },
     });
-    expect(parse(await tools.list_subjects.run(c, {}))).toEqual([
-      { id: "s1", name: "가", visibility: "public", question_count: 5 },
-      { id: "s2", name: "나", visibility: "restricted", question_count: 0 },
-    ]);
+    expect(parse(await tools.list_subjects.run(c, {}))).toEqual({
+      server_version: SERVER_VERSION,
+      tool_count: 13,
+      tool_names: TOOL_NAMES,
+      subjects: [
+        { id: "s1", name: "가", visibility: "public", question_count: 5 },
+        { id: "s2", name: "나", visibility: "restricted", question_count: 0 },
+      ],
+    });
   });
 
   it("get_source: knowledge.getSource + readChunks(from_ord, count) → source/from_ord/next_ord/chunks", async () => {

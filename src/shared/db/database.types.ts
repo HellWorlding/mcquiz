@@ -233,7 +233,10 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "can_edit_collection":
+            "apply_import":
+{ Args: { "p_payload": string }; Returns: Json
+                           },
+"can_edit_collection":
 { Args: { "cid": string }; Returns: boolean
                            },
 "can_read_collection":

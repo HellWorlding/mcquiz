@@ -30,6 +30,8 @@ export type ParsedQuestion = {
   /** 원문에 표시된 단원 번호 (예: [26강] → 26) */
   unitHint: number | null;
   points: number | null;
+  /** 파일(JSON)의 needs_review. 저장 때 정답이 없으면 이 값과 상관없이 검토 필요 (M6) */
+  needsReview?: boolean;
   warnings: string[];
 };
 

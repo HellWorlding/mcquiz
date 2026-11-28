@@ -13,7 +13,7 @@ export { normalizeTarget, normalizeSubjectName, normalizeUnitTitle, unitNoFromTi
 export { normalizePrompt } from "./domain/import/dedupe";
 export { AUTHORING_GUIDE } from "./domain/import/authoring-guide";
 
-export type { CatalogDeps, SubjectRepo, UnitRepo, QuestionRepo, SetRepo, CollectionRepo, AiParser, TextExtractor } from "./application/ports";
+export type { CatalogDeps, SubjectRepo, UnitRepo, QuestionRepo, SetRepo, CollectionRepo, AiParser, TextExtractor, QuestionInsert, ImportWrite, ImportWriteResult } from "./application/ports";
 export type { CatalogApi } from "./application/api";
 export { makeApi as makeCatalogApiFromDeps } from "./application/api";
 export type { ImportPreview, SaveSummary, PreviewImportInput, ImportReport, SaveResult } from "./application/import";

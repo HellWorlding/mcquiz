@@ -49,7 +49,25 @@ export type QuestionInsert = {
   trapTypes: string[];
   sourceQuote: string | null;
   sourcePage: number | null;
+  /** 저장할 검토 필요 값 (needsReviewOf 로 정한다 — 정답 없음이면 true) */
+  needsReview: boolean;
 };
+
+/**
+ * 반입 계획(planImport 결과)을 한 번에 적용하는 쓰기. 판정(검증·중복)은 application 에서 끝난 뒤다.
+ * 구현은 원자적이어야 한다: 하나라도 실패하면 세트·문항·선지·덮어쓰기가 하나도 남지 않는다 (M4).
+ */
+export type ImportWrite = {
+  subjectId: string;
+  /** 새 문항이 들어갈 세트. id 가 null 이면 새 문항이 있을 때만 새로 만든다 */
+  set: { id: string | null; title: string; sourceFilename: string | null; createdBy: string | null };
+  inserts: (QuestionInsert & { ord: number })[];
+  /** 기존 문항 덮어쓰기 (선지 포함). 세트·번호는 바꾸지 않는다 */
+  updates: { id: string; q: QuestionInsert }[];
+};
+
+/** setId: 새 세트(또는 지정한 세트), 새 문항이 없으면 첫 덮어쓴 문항의 세트, 둘 다 없으면 null */
+export type ImportWriteResult = { setId: string | null; inserted: number; updated: number };
 
 export type QuestionRepo = {
   /** 선지 포함, ord 순 정렬. 순서는 호출자가 맞춘다 */
@@ -68,11 +86,8 @@ export type QuestionRepo = {
   update(id: string, patch: QuestionPatch): Promise<void>;
   updateChoice(questionId: string, ord: number, patch: ChoicePatch): Promise<void>;
   delete(id: string): Promise<void>;
-  /** 기존 문항을 덮어쓴다 (선지 포함). 세트는 바꾸지 않는다 */
-  overwrite(id: string, q: QuestionInsert): Promise<void>;
-  /** 새 세트의 문항들을 선지와 함께 넣는다. 실패하면 세트를 지우고 throw */
-  insertIntoSet(setId: string, rows: (QuestionInsert & { ord: number })[]): Promise<void>;
-  setIdOf(questionId: string): Promise<string | null>;
+  /** 반입 계획 적용 (세트 생성 + 새 문항 + 덮어쓰기, 한 트랜잭션). 실패하면 throw */
+  applyImport(write: ImportWrite): Promise<ImportWriteResult>;
 };
 
 export type SetRepo = {
@@ -81,7 +96,6 @@ export type SetRepo = {
   listAll(): Promise<QuestionSet[]>;
   byId(id: string): Promise<QuestionSet | null>;
   idsBySourceFilename(subjectId: string, filename: string): Promise<string[]>;
-  create(row: { subjectId: string; title: string; sourceFilename: string | null; createdBy: string | null }): Promise<string>;
   delete(id: string): Promise<void>;
 };
 

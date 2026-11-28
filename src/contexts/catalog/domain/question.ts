@@ -48,3 +48,11 @@ export function choicesAreSequential(choices: Pick<Choice, "ord">[]): boolean {
 export function sortChoices<T extends Pick<Choice, "ord">>(choices: T[]): T[] {
   return [...choices].sort((a, b) => a.ord - b.ord);
 }
+
+/**
+ * M6. 저장할 검토 필요(needs_review) 값. 정답이 없으면 항상 true(정답 없음이 우선),
+ * 정답이 있으면 파일이 needs_review: true 라고 적었을 때만 true.
+ */
+export function needsReviewOf(q: { correct: number | null; needsReview?: boolean | null }): boolean {
+  return q.correct === null || q.needsReview === true;
+}
