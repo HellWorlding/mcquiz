@@ -20,7 +20,7 @@
 
 ### 외부 AI 연결 (MCP)
 - `https://<배포 주소>/api/mcp` 를 Claude·ChatGPT 등의 커넥터로 등록하면, 그 AI 가 내 과목·단원·문항과 풀이 기록을 읽고(관리자는 문항을 넣기도) 합니다.
-- 자료를 올린 과목은 `search_sources` 로 원자료 조각을 찾아 근거로 쓸 수 있습니다 (아래 RAG).
+- 자료를 올린 과목은 `search_sources` 로 원자료 조각을 찾아 근거로 쓸 수 있습니다 (아래 RAG). 관리자는 `create_subject`(1시간 5개)·`grant_member`·`import_questions` 로 과목을 세우고 문항을 넣습니다.
 
 ### 자료 검색 (RAG)
 - 올린 자료(`.md/.txt/.html/.pdf`)는 조각으로 나뉘어 저장되고, OpenAI 임베딩(`text-embedding-3-large`)과 pgvector(HNSW) 로 색인됩니다. 검색은 벡터 유사도와 키워드 점수를 합친 하이브리드입니다.

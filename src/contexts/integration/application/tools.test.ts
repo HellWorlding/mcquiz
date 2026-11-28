@@ -65,10 +65,13 @@ const stat = (n: number, patch: Partial<QuestionStat> = {}): QuestionStat => ({
   ...patch,
 });
 
-type Fakes = { catalog?: Partial<CatalogApi>; learning?: Partial<LearningApi>; knowledge?: Partial<KnowledgeApi>; user?: CurrentUser };
+type Fakes = { catalog?: Partial<CatalogApi>; learning?: Partial<LearningApi>; knowledge?: Partial<KnowledgeApi>; user?: CurrentUser
+  access?: Partial<ToolContext["access"]>;
+};
 function ctx(f: Fakes = {}): ToolContext {
   return {
     user: f.user ?? user,
+    access: (f.access ?? {}) as ToolContext["access"],
     catalog: (f.catalog ?? {}) as CatalogApi,
     learning: (f.learning ?? {}) as LearningApi,
     knowledge: (f.knowledge ?? {}) as KnowledgeApi,
@@ -78,8 +81,8 @@ function ctx(f: Fakes = {}): ToolContext {
 const parse = (r: { content: { text: string }[] }) => JSON.parse(r.content[0].text);
 
 describe("도구 목록", () => {
-  it("v1 과 같은 이름 11개", () => {
-    expect(TOOL_NAMES).toEqual(["list_subjects", "list_units", "list_questions", "get_question", "search_questions", "get_learning_summary", "get_authoring_guide", "import_questions", "list_sources", "search_sources", "get_source"]);
+  it("도구 이름 13개 (v1 11개 + create_subject, grant_member)", () => {
+    expect(TOOL_NAMES).toEqual(["list_subjects", "list_units", "list_questions", "get_question", "search_questions", "get_learning_summary", "get_authoring_guide", "import_questions", "create_subject", "grant_member", "list_sources", "search_sources", "get_source"]);
     expect(TOOL_LIST.map((t) => t.name)).toEqual(TOOL_NAMES);
     for (const t of TOOL_LIST) expect(t.description).toContain("v2");
   });
@@ -294,6 +297,37 @@ describe("list_subjects / get_source", () => {
       from_ord: 21,
       next_ord: 22,
       chunks: [{ ord: 21, page: null, heading: "2장", content: "내용" }],
+    });
+  });
+
+  describe("create_subject / grant_member (D-019)", () => {
+    const subj = (name: string, minutesAgo: number) => ({ id: `s-${name}`, name, visibility: "restricted" as const, createdAt: new Date(Date.now() - minutesAgo * 60_000).toISOString() });
+    it("비관리자는 거부", async () => {
+      const c = ctx({ user: { ...user, isAdmin: false } });
+      expect((await tools.create_subject.run(c, { name: "새 과목", visibility: "restricted" })).isError).toBe(true);
+      expect((await tools.grant_member.run(c, { subject_id: SUBJECT, email: "a@x.com" })).isError).toBe(true);
+    });
+    it("같은 이름이면 만들지 않고 돌려주고, 1시간 5개를 넘기면 거부, 아니면 만든다", async () => {
+      const created: string[] = [];
+      const base = {
+        createSubject: async (name: string, visibility: "public" | "restricted") => { created.push(name); return { ok: true as const, data: { id: "new", name, visibility, createdAt: new Date().toISOString() } }; },
+      };
+      const c1 = ctx({ user: { ...user, isAdmin: true }, catalog: { ...base, listSubjects: async () => [subj("기존", 500)] } });
+      const dup = JSON.parse((await tools.create_subject.run(c1, { name: "기존", visibility: "restricted" })).content[0].text);
+      expect(dup.created).toBe(false);
+      const c2 = ctx({ user: { ...user, isAdmin: true }, catalog: { ...base, listSubjects: async () => [1, 2, 3, 4, 5].map((i) => subj(`s${i}`, 10)) } });
+      expect((await tools.create_subject.run(c2, { name: "여섯째", visibility: "restricted" })).isError).toBe(true);
+      const c3 = ctx({ user: { ...user, isAdmin: true }, catalog: { ...base, listSubjects: async () => [subj("s1", 10), subj("s2", 90)] } });
+      const made = JSON.parse((await tools.create_subject.run(c3, { name: "새 과목", visibility: "restricted" })).content[0].text);
+      expect(made.created).toBe(true);
+      expect(created).toEqual(["새 과목"]);
+    });
+    it("grant_member 는 access 공개 API 를 호출", async () => {
+      const calls: string[] = [];
+      const c = ctx({ user: { ...user, isAdmin: true }, access: { grantMember: async (s, e) => { calls.push(`${s}:${e}`); return { ok: true as const, data: { userId: "u1" } }; } } });
+      const r = JSON.parse((await tools.grant_member.run(c, { subject_id: SUBJECT, email: "b@x.com" })).content[0].text);
+      expect(r.user_id).toBe("u1");
+      expect(calls).toEqual([`${SUBJECT}:b@x.com`]);
     });
   });
 });

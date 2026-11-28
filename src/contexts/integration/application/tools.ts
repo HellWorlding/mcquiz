@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Result } from "@/shared/result";
 import type { CurrentUser } from "@/contexts/access";
 import { unitPathOf, type CatalogApi, type Question, type Unit } from "@/contexts/catalog";
 import { buildSavedExport, exportQuestionJson, recordFromStat, LEARNING_FILTERS, type ExportQuestion, type ExportRow, type ExportUnit, type LearningApi, type QuestionStat } from "@/contexts/learning";
@@ -13,11 +14,15 @@ import type { KnowledgeApi } from "@/contexts/knowledge";
 export const SERVER_VERSION = "2.0.0";
 
 export const SERVER_INSTRUCTIONS =
-  "mcquiz 는 객관식 퀴즈 앱입니다. 먼저 list_subjects 로 과목 id 를 얻고, list_units / list_questions / get_learning_summary 로 문항과 학습 기록을 읽으세요. 자료가 올라온 과목은 list_sources / search_sources(하이브리드 검색) / get_source 로 원자료 조각을 읽고 근거로 삼으세요. 새 문항을 만들 때는 get_authoring_guide 를 읽고 import_questions(mode=check) 로 검사한 뒤 commit 하세요. 응답 형식은 v2 (저장함 내보내기 mcquiz-saved-export v2 와 같은 문항 모양) 입니다.";
+  "mcquiz 는 객관식 퀴즈 앱입니다. 먼저 list_subjects 로 과목 id 를 얻고, list_units / list_questions / get_learning_summary 로 문항과 학습 기록을 읽으세요. 자료가 올라온 과목은 list_sources / search_sources(하이브리드 검색) / get_source 로 원자료 조각을 읽고 근거로 삼으세요. 새 과목이 필요하면 create_subject(관리자, 1시간 5개) 로 만들고 제한 과목은 grant_member 로 사용자를 추가하세요. 새 문항을 만들 때는 get_authoring_guide 를 읽고 import_questions(mode=check) 로 검사한 뒤 commit 하세요. 응답 형식은 v2 (저장함 내보내기 mcquiz-saved-export v2 와 같은 문항 모양) 입니다.";
 
 /** 도구가 받는 것: 토큰 사용자와 세 컨텍스트의 공개 API. appHost 는 app_link 를 만들 때 쓴다 */
+/** Access 공개 API 중 도구가 쓰는 부분 */
+export type AccessTools = { grantMember(subjectId: string, email: string): Promise<Result<{ userId: string }>> };
+
 export type ToolContext = {
   user: CurrentUser;
+  access: AccessTools;
   catalog: CatalogApi;
   learning: LearningApi;
   knowledge: KnowledgeApi;
@@ -300,6 +305,43 @@ const getSource = defineTool({
 });
 
 /** 이름으로 찾는 도구 (테스트·문서용) */
+/** create_subject 제한: 최근 1시간에 만들어진 과목 수 (AI 가 폭주해 과목을 양산하지 못하게 — D-019) */
+export const SUBJECT_CREATE_LIMIT_PER_HOUR = 5;
+
+const createSubjectTool = defineTool({
+  name: "create_subject",
+  title: "과목 만들기",
+  description: `새 과목을 만든다 (관리자만). 같은 이름이 이미 있으면 그 과목을 돌려준다. 1시간에 ${SUBJECT_CREATE_LIMIT_PER_HOUR}개까지. visibility: public(로그인 사용자 모두) / restricted(멤버만 — grant_member 로 추가). (응답 형식 v2)`,
+  inputSchema: z.object({
+    name: z.string().min(1).max(80).describe("과목 이름 (docs/glossary 의 과목 이름 규칙: 영어 과정은 영어 표기)"),
+    visibility: z.enum(["public", "restricted"]).default("restricted"),
+  }),
+  async run(ctx, { name, visibility }) {
+    if (!ctx.user.isAdmin) return fail("과목 만들기는 관리자 계정만 할 수 있습니다.");
+    const existing = await ctx.catalog.listSubjects();
+    const same = existing.find((s) => s.name.trim() === name.trim());
+    if (same) return json({ id: same.id, name: same.name, visibility: same.visibility, created: false, note: "같은 이름의 과목이 이미 있어 그것을 돌려줍니다." });
+    const hourAgo = Date.now() - 60 * 60 * 1000;
+    const recent = existing.filter((s) => new Date(s.createdAt).getTime() > hourAgo).length;
+    if (recent >= SUBJECT_CREATE_LIMIT_PER_HOUR) return fail(`최근 1시간에 과목을 ${recent}개 만들었습니다. 한 시간에 ${SUBJECT_CREATE_LIMIT_PER_HOUR}개까지만 만들 수 있습니다.`);
+    const r = await ctx.catalog.createSubject(name.trim(), visibility);
+    if (!r.ok) return fail(r.error);
+    return json({ id: r.data.id, name: r.data.name, visibility: r.data.visibility, created: true, next: visibility === "restricted" ? "grant_member 로 볼 수 있는 사용자를 추가하세요." : "로그인한 모든 사용자가 볼 수 있습니다." });
+  },
+});
+
+const grantMemberTool = defineTool({
+  name: "grant_member",
+  title: "과목 멤버 추가",
+  description: "제한(restricted) 과목을 볼 수 있는 사용자를 이메일로 추가한다 (관리자만). 그 이메일로 먼저 가입돼 있어야 한다. (응답 형식 v2)",
+  inputSchema: z.object({ subject_id: z.string().uuid(), email: z.string().email() }),
+  async run(ctx, { subject_id, email }) {
+    if (!ctx.user.isAdmin) return fail("멤버 추가는 관리자 계정만 할 수 있습니다.");
+    const r = await ctx.access.grantMember(subject_id, email);
+    return r.ok ? json({ subject_id, user_id: r.data.userId, email }) : fail(r.error);
+  },
+});
+
 export const tools = {
   list_subjects: listSubjects,
   list_units: listUnits,
@@ -309,6 +351,8 @@ export const tools = {
   get_learning_summary: getLearningSummary,
   get_authoring_guide: getAuthoringGuide,
   import_questions: importQuestions,
+  create_subject: createSubjectTool,
+  grant_member: grantMemberTool,
   list_sources: listSources,
   search_sources: searchSources,
   get_source: getSource,
