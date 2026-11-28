@@ -27,6 +27,8 @@ export default async function QuizPage({ searchParams }: { searchParams: Promise
       notes={quiz.notes}
       savedIds={quiz.savedIds}
       unitLabels={quiz.unitLabels}
+      confusedIds={quiz.confusedIds}
+      questionNumbers={quiz.questionNumbers}
     />
   );
 }

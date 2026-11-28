@@ -21,6 +21,7 @@ export type AttemptRepo = {
   /** 자기 풀이에 한해 confused 만 바꾼다 (L1) */
   setConfused(attemptId: string, userId: string, confused: boolean): Promise<void>;
   /** 내 풀이 (내보내기용). created_at 순 */
+  /** created_at 오름차순, 동률은 id 오름차순 (question_stats 의 created_at desc, id desc 와 같은 기준) */
   listForQuestions(userId: string, questionIds: string[]): Promise<Attempt[]>;
 };
 

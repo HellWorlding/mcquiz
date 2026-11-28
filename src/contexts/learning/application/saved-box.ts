@@ -46,6 +46,20 @@ export async function undismiss(deps: LearningDeps, questionIds: string[]): Prom
 }
 
 /** 주어진 문항 중 내가 직접 저장한 것 (풀이 화면 저장 버튼 초기 상태) */
+/** 퀴즈를 열 때 보이는 "저장됨": 저장 표시가 빼기보다 나중인 문항만 (question_stats.saved). 게스트·과목 없음이면 빈 목록 */
+export async function visibleSavedIds(deps: LearningDeps, subjectId: string | null, questionIds: string[]): Promise<string[]> {
+  if (!deps.user || !subjectId || questionIds.length === 0) return [];
+  try {
+    const ids = new Set(questionIds);
+    const stats = await deps.stats.questionStats(subjectId);
+    return stats.filter((s) => s.saved && ids.has(s.questionId)).map((s) => s.questionId);
+  } catch (e) {
+    // 조회 실패는 화면을 깨뜨리지 않고 빈 목록 (저장 배지만 빠짐). 원인은 로그로
+    console.error("[learning] visibleSavedIds 실패:", e instanceof Error ? e.message : e);
+    return [];
+  }
+}
+
 export async function savedIdsFor(deps: LearningDeps, questionIds: string[]): Promise<string[]> {
   if (!deps.user || questionIds.length === 0) return [];
   return deps.marks.listMarked(deps.user.id, questionIds, "saved");

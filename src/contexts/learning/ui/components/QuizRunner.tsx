@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { usePathname, useSearchParams } from "next/navigation";
 import type { QuizChoice as Choice, QuizQuestion as QuestionWithChoices, ResumeState, SessionAnswer } from "../../domain/types";
 import { hashString, shuffled } from "../../domain/shuffle";
+import { firstUnansweredIndex, unansweredCount, visibleMarks } from "../../domain/runner";
 import { dismissQuestionsAction, recordAttemptAction, saveProgressAction, saveQuestionAction, setConfusedAction, undismissQuestionsAction, markGuestTrialAction } from "../actions";
 import { QuestionBadges, SourceQuote } from "@/shared/ui/QuestionMeta";
 import { EvidencePanel, ChatDock, type ChatDockQuestion } from "@/contexts/knowledge/ui";
@@ -50,6 +51,10 @@ type Props = {
   savedIds?: string[];
   /** unit_id → "3강 - 학교 경영" 같은 단원 라벨 */
   unitLabels?: Record<string, string>;
+  /** 헷갈림을 켠 채로 시작할 문항 (다시 끄기 전까지 유지) */
+  confusedIds?: string[];
+  /** question_id → 원래 문항 번호 "단원번호.문항번호" */
+  questionNumbers?: Record<string, string>;
 };
 
 // 문항별 스톱워치(0초부터 올라간다). 모의고사(제한 시간) 모드는 나중에 이 값 위에 얹는다
@@ -108,13 +113,15 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
   return shuffled(q.choices, hashString(q.id) ^ salt);
 }
 
-export function QuizRunner({ questions: initial, title, subjectId, isGuest, guestLimit = null, guestLocked = false, guestQuizKey = "", isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [], unitLabels = {} }: Props) {
+export function QuizRunner({ questions: initial, title, subjectId, isGuest, guestLimit = null, guestLocked = false, guestQuizKey = "", isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [], unitLabels = {}, confusedIds = [], questionNumbers = {} }: Props) {
   const t = useT();
   const [questions, setQuestions] = useState(initial);
   const [idx, setIdx] = useState(resume?.position ?? 0);
   const [answers, setAnswers] = useState<Record<string, Answer>>(() => {
     const out: Record<string, Answer> = {};
     for (const [qid, a] of Object.entries(resume?.answers ?? {})) out[qid] = { ...a, attemptId: null };
+    // 헷갈림은 다시 끄기 전까지 유지: 지난 풀이에서 켜 둔 문항은 켠 채로 시작한다 (답을 고르면 새 풀이에 이어진다)
+    for (const qid of confusedIds) out[qid] = out[qid] ? { ...out[qid], confused: true } : { selectedOrd: null, isCorrect: null, confused: true, attemptId: null };
     return out;
   });
   const [sessionId, setSessionId] = useState<string | null>(resume?.id ?? null);
@@ -158,21 +165,32 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
     setChatTarget(x);
     setChatOpen(true);
   };
+  /** 화면에 보이는 저장·헷갈림: 빼기 상태면 둘 다 꺼진 것으로 (밑의 값은 두므로 되돌리면 돌아온다) */
+  const marksOf = (id: string) => visibleMarks(savedIds.has(id), !!answers[id]?.confused, dismissed.has(id));
+  /** 빼기 상태에서 저장·헷갈림을 켜면 빼기를 되돌린다 (DB 의 dismissed 표시도 지운다) */
+  const autoUndismiss = (id: string) => {
+    if (!dismissed.has(id)) return;
+    setDismissed((s) => {
+      const n = new Set(s);
+      n.delete(id);
+      return n;
+    });
+    undismissQuestionsAction([id])
+      .then((r) => {
+        if (!r.ok) setSyncError(true);
+      })
+      .catch(() => setSyncError(true));
+  };
   /** 저장함 토글 (풀이 화면·결과 화면 공용) */
   const toggleSave = (id: string) => {
-    const next = !savedIds.has(id);
+    const next = !marksOf(id).saved;
     setSavedIds((s) => {
       const n = new Set(s);
       if (next) n.add(id);
       else n.delete(id);
       return n;
     });
-    if (next && dismissed.has(id))
-      setDismissed((s) => {
-        const n = new Set(s);
-        n.delete(id);
-        return n;
-      });
+    if (next) autoUndismiss(id);
     saveQuestionAction(id, next).catch(() => setSyncError(true));
   };
   /** 결과 화면: 저장함에서 빼기 (틀림·헷갈림·저장 표시를 지금 시점 이전 것으로 묻는다) */
@@ -335,16 +353,17 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
     [q, answered, answers, isGuest, persist, questions, idx, elapsed, markTrial],
   );
 
-  const toggleConfused = useCallback(async () => {
+  const toggleConfused = async () => {
     if (!q) return;
     const cur = answers[q.id];
-    const next = !(cur?.confused ?? false);
+    const next = !marksOf(q.id).confused;
     const nextAnswers = {
       ...answers,
       [q.id]: { selectedOrd: cur?.selectedOrd ?? null, isCorrect: cur?.isCorrect ?? null, confused: next, attemptId: cur?.attemptId ?? null },
     };
     setAnswers(nextAnswers);
     if (isGuest) return;
+    if (next) autoUndismiss(q.id);
     persist(questions, idx, nextAnswers, false);
     try {
       if (cur?.attemptId) {
@@ -356,19 +375,27 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
     } catch {
       setSyncError(true);
     }
-  }, [q, answers, isGuest, persist, questions, idx]);
+  };
 
   const goNext = () => {
     if (idx + 1 >= questions.length) {
+      // 덜 풀고 제출: 미응답이 남으면 끝내지 않은 퀴즈로 두고(이어서 풀기 목록) 첫 미응답 위치를 기억한다
+      const first = firstUnansweredIndex(
+        questions.map((x) => x.id),
+        answers,
+      );
       setFinished(true);
-      persist(questions, idx, answers, true);
+      persist(questions, first >= 0 ? first : idx, answers, first < 0);
     } else {
       goTo(idx + 1);
       persist(questions, idx + 1, answers, false);
     }
   };
 
-  /** 단축키: 1~9 선지 고르기, ←/→ 문항 이동, Ctrl/⌘+Enter 는 마지막 문항에서 결과 보기 */
+  /** 풀이 화면: 저장함에서 빼기 / 되돌리기 (답을 고른 뒤에만) */
+  const toggleDismiss = (id: string) => (dismissed.has(id) ? undoDismiss([id]) : dismissMany([id]));
+
+  /** 단축키: 1~9 선지 고르기, ←/→ 문항 이동, q 헷갈림 · w 저장 · x 빼기 토글, Ctrl/⌘+Enter 는 마지막 문항에서 결과 보기 */
   useEffect(() => {
     if (finished || !q) return;
     const onKey = (e: KeyboardEvent) => {
@@ -392,6 +419,26 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
         if (idx > 0) {
           e.preventDefault();
           goTo(idx - 1);
+        }
+        return;
+      }
+      // 글자 단축키는 자판 배치(한글 입력 상태 포함)와 상관없이 물리 키로 본다
+      if (e.code === "KeyQ") {
+        e.preventDefault();
+        void toggleConfused();
+        return;
+      }
+      if (e.code === "KeyW") {
+        if (!isGuest) {
+          e.preventDefault();
+          toggleSave(q.id);
+        }
+        return;
+      }
+      if (e.code === "KeyX") {
+        if (!isGuest && answered && !dismissBusy) {
+          e.preventDefault();
+          toggleDismiss(q.id);
         }
         return;
       }
@@ -438,13 +485,29 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
     );
   }
 
+  /** 결과 화면 → 안 푼 문항부터 이어서 풀기 (같은 진행 상태, 주소는 이미 /quiz?session=…) */
+  const resumeUnanswered = () => {
+    const first = firstUnansweredIndex(
+      questions.map((x) => x.id),
+      answers,
+    );
+    if (first < 0) return;
+    setFinished(false);
+    goTo(first);
+    persist(questions, first, answers, false);
+  };
+
   if (finished) {
+    const unanswered = unansweredCount(
+      questions.map((x) => x.id),
+      answers,
+    );
     const graded = questions.filter((x) => answers[x.id]?.selectedOrd !== null && answers[x.id]?.selectedOrd !== undefined);
     const correct = graded.filter((x) => answers[x.id]?.isCorrect === true);
     const wrong = questions.filter((x) => answers[x.id]?.isCorrect === false);
-    const confused = questions.filter((x) => answers[x.id]?.confused);
-    // 다시 볼 문항: 틀림·헷갈림·저장 중 하나라도 해당하면 한 번만 나온다 (이유는 배지로)
-    const review = questions.filter((x) => !dismissed.has(x.id) && (answers[x.id]?.isCorrect === false || answers[x.id]?.confused || savedIds.has(x.id)));
+    const confused = questions.filter((x) => marksOf(x.id).confused);
+    // 다시 볼 문항: 틀림·헷갈림·저장 중 하나라도 해당하면 한 번만 나온다 (이유는 배지로). 뺀 문항은 저장·헷갈림이 꺼진 것으로 본다
+    const review = questions.filter((x) => !dismissed.has(x.id) && (answers[x.id]?.isCorrect === false || marksOf(x.id).confused || marksOf(x.id).saved));
     const totalPts = graded.reduce((s, x) => s + pts(x), 0);
     const gotPts = correct.reduce((s, x) => s + pts(x), 0);
     const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -453,6 +516,13 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
     return (
       <section className="flex flex-col gap-4 pb-20">
         <div className="card text-center">
+          {!isGuest && unanswered > 0 && (
+            <div className="mb-3 flex justify-center">
+              <button type="button" className="btn-primary" onClick={resumeUnanswered}>
+                {t("quiz.resume_unanswered", { n: unanswered })}
+              </button>
+            </div>
+          )}
           <div className="text-sm text-muted">{title}</div>
           <div className="mt-1 text-4xl font-bold">{t("quiz.score_pts", { got: fmt(gotPts), total: fmt(totalPts) })}</div>
           <div className="mt-1 text-muted">
@@ -490,14 +560,15 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
             all: review.length,
             wrong: wrong.filter((x) => !dismissed.has(x.id)).length,
             confused: confused.filter((x) => !dismissed.has(x.id)).length,
-            saved: review.filter((x) => savedIds.has(x.id)).length,
+            saved: review.filter((x) => marksOf(x.id).saved).length,
           }}
           filter={reviewFilter}
           onFilter={setReviewFilter}
           answers={answers}
           subjectId={subjectId}
           isGuest={isGuest}
-          savedIds={savedIds}
+          marksOf={marksOf}
+          numbers={questionNumbers}
           onToggleSave={toggleSave}
           onAsk={askAbout}
           elapsed={timerOn ? elapsed : null}
@@ -584,8 +655,9 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
           >
             ‹
           </button>
-          <span className="tabular-nums">
+          <span className="whitespace-nowrap tabular-nums">
             {idx + 1} / {questions.length}
+            {questionNumbers[q.id] ? ` · ${questionNumbers[q.id]}` : ""}
             {sessionId && <span className="ml-1 text-xs text-muted">{t("quiz.saved_badge")}</span>}
           </span>
           <button
@@ -719,17 +791,19 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
           </button>
         )}
         <button
-          className={`btn-sm rounded-xl border px-3 py-2 font-semibold ${a?.confused ? "border-warn bg-warn-soft text-warn" : "border-border"}`}
+          className={`btn-sm rounded-xl border px-3 py-2 font-semibold ${marksOf(q.id).confused ? "border-warn bg-warn-soft text-warn" : "border-border"}`}
+          aria-keyshortcuts="Q"
           onClick={toggleConfused}
         >
-          {a?.confused ? t("quiz.confused_on") : t("quiz.confused")}
+          {marksOf(q.id).confused ? t("quiz.confused_on") : t("quiz.confused")}
         </button>
         {!isGuest && (
           <button
-            className={`btn-sm rounded-xl border px-3 py-2 font-semibold ${savedIds.has(q.id) ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+            className={`btn-sm rounded-xl border px-3 py-2 font-semibold ${marksOf(q.id).saved ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+            aria-keyshortcuts="W"
             onClick={() => toggleSave(q.id)}
           >
-            {savedIds.has(q.id) ? t("quiz.saved") : t("quiz.save")}
+            {marksOf(q.id).saved ? t("quiz.saved") : t("quiz.save")}
           </button>
         )}
         {!isGuest && answered && (
@@ -739,7 +813,8 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
             title={t("quiz.dismiss_title")}
             disabled={dismissBusy}
             className={`btn-sm rounded-xl border px-3 py-2 font-semibold disabled:opacity-60 ${dismissed.has(q.id) ? "border-border bg-background text-muted" : "border-border"}`}
-            onClick={() => (dismissed.has(q.id) ? undoDismiss([q.id]) : dismissMany([q.id]))}
+            aria-keyshortcuts="X"
+            onClick={() => toggleDismiss(q.id)}
           >
             {dismissed.has(q.id) ? t("quiz.dismissed_on") : t("quiz.dismiss")}
           </button>
@@ -803,7 +878,8 @@ function ReviewList({
   answers,
   subjectId,
   isGuest,
-  savedIds,
+  marksOf,
+  numbers,
   onToggleSave,
   onAsk,
   elapsed,
@@ -819,7 +895,10 @@ function ReviewList({
   answers: Record<string, Answer>;
   subjectId: string | null;
   isGuest: boolean;
-  savedIds: Set<string>;
+  /** 화면에 보이는 저장·헷갈림 (빼기가 덮는다) */
+  marksOf: (id: string) => { saved: boolean; confused: boolean };
+  /** question_id → 원래 문항 번호 */
+  numbers: Record<string, string>;
   onToggleSave: (id: string) => void;
   onAsk: (q: QuestionWithChoices) => void;
   /** 문항별 소요 시간(초). 스톱워치를 숨겼으면 null */
@@ -845,8 +924,8 @@ function ReviewList({
   if (items.length === 0) return undoLine ? <div className="card">{undoLine}</div> : null;
   const shown = items.filter((q) => {
     if (filter === "wrong") return answers[q.id]?.isCorrect === false;
-    if (filter === "confused") return !!answers[q.id]?.confused;
-    if (filter === "saved") return savedIds.has(q.id);
+    if (filter === "confused") return marksOf(q.id).confused;
+    if (filter === "saved") return marksOf(q.id).saved;
     return true;
   });
   const shownIds = shown.map((q) => q.id);
@@ -944,13 +1023,13 @@ function ReviewList({
               )}
               <div className="min-w-0 flex-1">
               <p className="font-semibold">
-                {i + 1}. {q.prompt}
+                {numbers[q.id] ?? i + 1}. {q.prompt}
               </p>
               <p className="mt-1 flex flex-wrap gap-1 text-xs">
                 {ans?.isCorrect === false && <span className="badge bg-bad-soft text-bad">{t("quiz.wrong")}</span>}
                 {ans?.isCorrect === true && <span className="badge bg-ok-soft text-ok">{t("quiz.review_correct")}</span>}
-                {ans?.confused && <span className="badge bg-warn-soft text-warn">{t("saved.f_confused")}</span>}
-                {savedIds.has(q.id) && <span className="badge bg-accent-soft text-accent">{t("saved.f_saved")}</span>}
+                {marksOf(q.id).confused && <span className="badge bg-warn-soft text-warn">{t("saved.f_confused")}</span>}
+                {marksOf(q.id).saved && <span className="badge bg-accent-soft text-accent">{t("saved.f_saved")}</span>}
                 {elapsed && (elapsed[q.id] ?? 0) > 0 && (
                   <span className="badge bg-background font-mono tabular-nums text-muted">⏱ {formatElapsed(elapsed[q.id] ?? 0, t("quiz.timer_cap"))}</span>
                 )}
@@ -965,10 +1044,10 @@ function ReviewList({
                 {!isGuest && (
                   <span className="ml-auto flex items-center gap-1">
                     <button
-                      className={`btn-sm rounded-xl border px-3 py-1.5 text-sm font-semibold ${savedIds.has(q.id) ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
+                      className={`btn-sm rounded-xl border px-3 py-1.5 text-sm font-semibold ${marksOf(q.id).saved ? "border-accent bg-accent-soft text-accent" : "border-border"}`}
                       onClick={() => onToggleSave(q.id)}
                     >
-                      {savedIds.has(q.id) ? t("quiz.saved") : t("quiz.save")}
+                      {marksOf(q.id).saved ? t("quiz.saved") : t("quiz.save")}
                     </button>
                     {subjectId && (
                       <button type="button" className="btn-ghost btn-sm" onClick={() => onAsk(q)}>

@@ -6,10 +6,11 @@ import { pickWeakMix } from "../domain/weak-mix";
 import { capForGuest, GUEST_TRIAL_COOKIE, GUEST_TRIAL_LIMIT, isTrialUsed, quizKeyOf } from "../domain/guest";
 import type { Subject } from "@/contexts/catalog";
 import { parseQuizParams, type QuizSearchParams } from "../domain/quiz";
+import { questionNumbers as numberLabels } from "../domain/runner";
 import type { LearningUnit, NoteItem, QuizQuestion, ResumeState, SavedBoxSummary, SubjectActivity, UnfinishedSession, UnitAttemptCounts, UnitProgressRow, UnitRoundScores } from "../domain/types";
 import { sessionCatalogApi, sessionLearningDeps } from "../infrastructure/session-deps";
-import { getSession, listUnfinishedSessions as listUnfinished, resolveQuizIds, scopeTitle } from "../application/quiz";
-import { savedBoxIds, savedBoxSummary as summary, savedIdsFor } from "../application/saved-box";
+import { confusedCarryIds, getSession, listUnfinishedSessions as listUnfinished, resolveQuizIds, scopeTitle } from "../application/quiz";
+import { savedBoxIds, savedBoxSummary as summary, savedIdsFor, visibleSavedIds } from "../application/saved-box";
 import { listNotes, notesFor } from "../application/notes";
 import { attemptCounts, subjectActivity as activity, unitAttemptCountMap, unitProgress as progress, unitRoundScoreMap } from "../application/stats";
 
@@ -37,6 +38,10 @@ export type ResolvedQuiz = {
   savedIds: string[];
   /** unit_id → "3강 - 학교 경영" 같은 단원 라벨 */
   unitLabels: Record<string, string>;
+  /** 헷갈림을 켠 채로 시작할 문항 (다시 끄기 전까지 유지, D-013). 게스트는 빈 목록 */
+  confusedIds: string[];
+  /** question_id → 원래 문항 번호 "단원번호.문항번호" (예: 1.12) */
+  questionNumbers: Record<string, string>;
 };
 
 const TITLE: Record<ReturnType<typeof parseQuizParams>["titleKind"], string> = {
@@ -61,7 +66,7 @@ export async function loadQuiz(params: QuizSearchParams): Promise<ResolvedQuiz> 
   const guestQuizKey = quizKeyOf(params as Record<string, string | string[] | undefined>);
   // 게스트는 하루 한 번만 체험 (쿠키 "날짜:퀴즈키"). 같은 퀴즈는 이어서, 다른 퀴즈를 새로 열면 잠김 카드
   if (isGuest && isTrialUsed((await cookies()).get(GUEST_TRIAL_COOKIE)?.value, new Date(deps.clock.now()), guestQuizKey)) {
-    return { questions: [], total: 0, title: TITLE.quiz, subjectId: p.subjectId ?? null, seed, resume: null, notes: {}, savedIds: [], unitLabels: {}, guestLocked: true, guestLimit: GUEST_TRIAL_LIMIT, guestQuizKey };
+    return { questions: [], total: 0, title: TITLE.quiz, subjectId: p.subjectId ?? null, seed, resume: null, notes: {}, savedIds: [], unitLabels: {}, confusedIds: [], questionNumbers: {}, guestLocked: true, guestLimit: GUEST_TRIAL_LIMIT, guestQuizKey };
   }
   let questions: QuizQuestion[] = [];
   let total = 0;
@@ -88,10 +93,16 @@ export async function loadQuiz(params: QuizSearchParams): Promise<ResolvedQuiz> 
 
   const ids = questions.map((q) => q.id);
   const subjectId = p.subjectId ?? questions[0]?.subject_id ?? null;
-  const [notes, savedIds, units] = await Promise.all([notesFor(deps, ids), savedIdsFor(deps, ids), subjectId ? deps.catalog.listUnits(subjectId) : Promise.resolve([] as LearningUnit[])]);
+  const [notes, savedIds, units, confusedIds] = await Promise.all([
+    notesFor(deps, ids),
+    visibleSavedIds(deps, subjectId, ids), // 빼기 이후면 저장됨으로 보이지 않게 (D-013)
+    subjectId ? deps.catalog.listUnits(subjectId) : Promise.resolve([] as LearningUnit[]),
+    confusedCarryIds(deps, subjectId, ids),
+  ]);
   const unitLabels: Record<string, string> = {};
   for (const q of questions) if (q.unit_id && !(q.unit_id in unitLabels)) unitLabels[q.unit_id] = unitPathLabel(units, q.unit_id) ?? "";
-  return { questions, total, title, subjectId, seed: resolvedSeed, resume, notes: Object.fromEntries(notes), savedIds, unitLabels, guestLocked: false, guestLimit: isGuest ? GUEST_TRIAL_LIMIT : null, guestQuizKey };
+  const questionNumbers = numberLabels(questions, new Map(units.map((u) => [u.id, u.no])));
+  return { questions, total, title, subjectId, seed: resolvedSeed, resume, notes: Object.fromEntries(notes), savedIds, unitLabels, confusedIds, questionNumbers, guestLocked: false, guestLimit: isGuest ? GUEST_TRIAL_LIMIT : null, guestQuizKey };
 }
 
 /** 과목 목록을 활동순(저장함 많음 → 최근 풀이 → 만든 순)으로. 홈·저장함·메모·AI 질문 페이지가 같이 쓴다 */
