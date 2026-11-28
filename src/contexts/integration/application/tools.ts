@@ -325,7 +325,12 @@ const createSubjectTool = defineTool({
     const recent = existing.filter((s) => new Date(s.createdAt).getTime() > hourAgo).length;
     if (recent >= SUBJECT_CREATE_LIMIT_PER_HOUR) return fail(`최근 1시간에 과목을 ${recent}개 만들었습니다. 한 시간에 ${SUBJECT_CREATE_LIMIT_PER_HOUR}개까지만 만들 수 있습니다.`);
     const r = await ctx.catalog.createSubject(name.trim(), visibility);
-    if (!r.ok) return fail(r.error);
+    if (!r.ok) {
+      // 같은 이름이 동시에 만들어졌으면(unique 위반) 기존 과목을 돌려준다 — "같은 이름이면 기존 반환" 계약 유지
+      const again = (await ctx.catalog.listSubjects()).find((s) => s.name.trim() === name.trim());
+      if (again) return json({ id: again.id, name: again.name, visibility: again.visibility, created: false, note: "같은 이름의 과목이 이미 있어 그것을 돌려줍니다." });
+      return fail(r.error);
+    }
     return json({ id: r.data.id, name: r.data.name, visibility: r.data.visibility, created: true, next: visibility === "restricted" ? "grant_member 로 볼 수 있는 사용자를 추가하세요." : "로그인한 모든 사용자가 볼 수 있습니다." });
   },
 });
