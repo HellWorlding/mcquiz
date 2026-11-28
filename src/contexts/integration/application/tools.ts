@@ -11,10 +11,14 @@ import type { KnowledgeApi } from "@/contexts/knowledge";
  * 인증·DB·시간 제한은 infrastructure(register.ts, mcp-auth.ts)가 맡고, 여기는 ToolContext 만 받는다 (가짜 Api 로 단위 테스트).
  */
 
-export const SERVER_VERSION = "2.0.0";
+/** 도구 집합(이름)이나 응답 모양이 바뀌면 반드시 올린다 (M8 — tools.test.ts 의 스냅숏이 이름 목록과 함께 고정한다) */
+export const SERVER_VERSION = "2.1.0";
+
+/** MCP import_questions 한 번에 받는 문항 수 상한 (D-020). 넘으면 저장하지 않고 나눠 보내라고 안내한다 */
+export const IMPORT_BATCH_LIMIT = 100;
 
 export const SERVER_INSTRUCTIONS =
-  "mcquiz 는 객관식 퀴즈 앱입니다. 먼저 list_subjects 로 과목 id 를 얻고, list_units / list_questions / get_learning_summary 로 문항과 학습 기록을 읽으세요. 자료가 올라온 과목은 list_sources / search_sources(하이브리드 검색) / get_source 로 원자료 조각을 읽고 근거로 삼으세요. 새 과목이 필요하면 create_subject(관리자, 1시간 5개) 로 만들고 제한 과목은 grant_member 로 사용자를 추가하세요. 새 문항을 만들 때는 get_authoring_guide 를 읽고 import_questions(mode=check) 로 검사한 뒤 commit 하세요. 응답 형식은 v2 (저장함 내보내기 mcquiz-saved-export v2 와 같은 문항 모양) 입니다.";
+  `mcquiz 는 객관식 퀴즈 앱입니다. 먼저 list_subjects 로 과목 id 를 얻고, list_units / list_questions / get_learning_summary 로 문항과 학습 기록을 읽으세요. 자료가 올라온 과목은 list_sources / search_sources(하이브리드 검색) / get_source 로 원자료 조각을 읽고 근거로 삼으세요. 새 과목이 필요하면 create_subject(관리자, 1시간 5개) 로 만들고 제한 과목은 grant_member 로 사용자를 추가하세요. 새 문항을 만들 때는 get_authoring_guide 를 읽고 import_questions(mode=check) 로 검사한 뒤 commit 하세요. import_questions 는 한 번에 ${IMPORT_BATCH_LIMIT}문항까지이니 더 많으면 나눠서 check→commit 을 반복하세요. list_subjects 응답의 tool_count·tool_names 가 지금 보이는 도구 목록과 다르면 도구 목록이 낡은 것이니, 사용자에게 커넥터를 제거한 뒤 다시 추가하라고 알리세요. 응답 형식은 v2 (저장함 내보내기 mcquiz-saved-export v2 와 같은 문항 모양) 입니다.`;
 
 /** 도구가 받는 것: 토큰 사용자와 세 컨텍스트의 공개 API. appHost 는 app_link 를 만들 때 쓴다 */
 /** Access 공개 API 중 도구가 쓰는 부분 */
@@ -79,7 +83,8 @@ const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 
 const listSubjects = defineTool({
   name: "list_subjects",
   title: "과목 목록",
-  description: "내가 볼 수 있는 과목과 문항 수. 다른 도구의 subject_id 는 여기서 얻는다. (응답 형식 v2)",
+  description:
+    "내가 볼 수 있는 과목과 문항 수(subjects). 다른 도구의 subject_id 는 여기서 얻는다. 서버 정보(server_version, tool_count, tool_names)도 함께 돌려준다 — 지금 보이는 도구 수와 tool_count 가 다르면 커넥터를 다시 연결해야 한다. (응답 형식 v2)",
   inputSchema: z.object({}),
   async run(ctx) {
     const subjects = await ctx.catalog.listSubjects();
@@ -87,7 +92,7 @@ const listSubjects = defineTool({
     const rows = subjects
       .map((s, i) => ({ id: s.id, name: s.name, visibility: s.visibility, question_count: sum(counts[i]) }))
       .sort((a, b) => a.name.localeCompare(b.name, "ko"));
-    return json(rows);
+    return json({ ...serverInfo(), subjects: rows });
   },
 });
 
@@ -198,6 +203,7 @@ const getAuthoringGuide = defineTool({
   },
 });
 
+// zod 상한(500)은 터무니없는 입력을 막는 안전장치. 실제 상한(IMPORT_BATCH_LIMIT)은 run 에서 한국어 안내와 함께 거부한다
 const questionList = z.array(z.record(z.string(), z.unknown())).min(1).max(500);
 /** 반입 JSON v2 `{ format: "mcquiz-questions", version: 2, questions: [...] }` 또는 v1 (문항 배열 그대로) */
 const importInput = z.union([
@@ -209,7 +215,7 @@ const importQuestions = defineTool({
   name: "import_questions",
   title: "문항 넣기",
   description:
-    "문항 JSON 을 과목에 넣는다 (관리자만). questions 는 문항 배열(v1) 또는 { format: \"mcquiz-questions\", version: 2, questions: [...] } (v2). mode=check 는 형식 검사·중복 확인 결과만 돌려주고 아무것도 바꾸지 않는다. mode=commit 은 실제로 넣는다. 항상 check 를 먼저 하라. 각 문항의 subject 와 unit_path 로 과목·단원이 정해지고, 없는 소단원은 만들어진다.",
+    `문항 JSON 을 과목에 넣는다 (관리자만). questions 는 문항 배열(v1) 또는 { format: \"mcquiz-questions\", version: 2, questions: [...] } (v2). mode=check 는 형식 검사·중복 확인 결과만 돌려주고 아무것도 바꾸지 않는다. mode=commit 은 실제로 넣는다. 항상 check 를 먼저 하라. 한 번에 ${IMPORT_BATCH_LIMIT}문항까지 — 더 많으면 나눠서 여러 번 check→commit 한다 (넘으면 check·commit 모두 아무것도 하지 않고 오류). 각 문항의 subject 와 unit_path 로 과목·단원이 정해지고, 없는 소단원은 만들어진다.`,
   inputSchema: z.object({
     questions: importInput,
     mode: z.enum(["check", "commit"]).default("check"),
@@ -218,6 +224,7 @@ const importQuestions = defineTool({
   async run(ctx, { questions, mode, set_title }) {
     if (!ctx.user.isAdmin) return fail("문항 넣기는 관리자 계정만 할 수 있습니다.");
     const list = Array.isArray(questions) ? questions : questions.questions;
+    if (list.length > IMPORT_BATCH_LIMIT) return fail(`${list.length}문항은 한 번에 ${IMPORT_BATCH_LIMIT}개까지. 나눠 보내세요 (예: ${IMPORT_BATCH_LIMIT}문항씩 ${Math.ceil(list.length / IMPORT_BATCH_LIMIT)}번 check → commit). 아무것도 저장하지 않았습니다.`);
     const r = await ctx.catalog.importQuestions({ questions: list, mode, setTitle: set_title });
     return r.ok ? json(r.data) : fail(r.error);
   },
@@ -365,5 +372,10 @@ export const tools = {
 
 export type ToolName = keyof typeof tools;
 export const TOOL_NAMES = Object.keys(tools) as ToolName[];
-/** 등록 순서대로 (v1 과 같은 이름 11개) */
+/** 등록 순서대로 13개 (v1 의 11개 + create_subject, grant_member) */
 export const TOOL_LIST: AnyToolDef[] = Object.values(tools);
+
+/** 서버 정보 (M7): 도구 수·이름은 등록하는 목록(TOOL_LIST) 그대로에서 만든다 */
+export function serverInfo(): { server_version: string; tool_count: number; tool_names: string[] } {
+  return { server_version: SERVER_VERSION, tool_count: TOOL_LIST.length, tool_names: TOOL_LIST.map((t) => t.name) };
+}

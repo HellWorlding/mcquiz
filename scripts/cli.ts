@@ -12,6 +12,7 @@ const GROUPS: Record<string, () => Promise<Command>> = {
   questions: () => import("./cli/questions"),
   units: () => import("./cli/units"),
   learning: () => import("./cli/learning"),
+  mcp: () => import("./cli/mcp"),
   doctor: () => import("./cli/doctor"),
   help: () => import("./cli/help"),
 };

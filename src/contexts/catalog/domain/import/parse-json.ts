@@ -38,6 +38,8 @@ const questionSchema = z.object({
   source_page: z.union([z.number(), z.string()]).nullable().optional(),
   subject: z.string().nullable().optional(),
   unit_path: z.array(z.string()).nullable().optional(),
+  // 불리언이 아니면 파일 전체를 거부하지 않고 경고만 (예전처럼 무시 + 경고)
+  needs_review: z.unknown().optional(),
 });
 
 const DIFFICULTIES = new Set(["easy", "medium", "hard", "very_hard"]);
@@ -113,6 +115,8 @@ export function parseJsonQuestions(text: string): ParseResult {
     q.hint = item.hint?.trim() || q.hint;
     q.tags = item.tags ?? [];
     q.points = item.points ?? null;
+    if (typeof item.needs_review === "boolean") q.needsReview = item.needs_review;
+    else if (item.needs_review !== undefined && item.needs_review !== null) q.warnings.push(`needs_review 는 true/false 여야 합니다 (${JSON.stringify(item.needs_review)} 는 무시).`);
     q.topic = item.topic?.trim() || null;
     const d = item.difficulty?.trim().toLowerCase();
     q.difficulty = d ? (DIFFICULTIES.has(d) ? (d as typeof q.difficulty) : (DIFFICULTY_ALIASES[d] ?? null)) : null;

@@ -190,6 +190,28 @@ describe("JSON", () => {
   });
 });
 
+describe("JSON: needs_review (M6)", () => {
+  it("needs_review 를 읽어 넘기고, 없으면 비워 둔다 (정답 없음 규칙은 저장 때 needsReviewOf)", () => {
+    const four = ["가", "나", "다", "라"];
+    const r = parseJsonQuestions(
+      JSON.stringify([
+        { prompt: "검토 필요 표시", correct_choice: 1, choices: four, needs_review: true },
+        { prompt: "명시적 false", correct_choice: 2, choices: four, needs_review: false },
+        { prompt: "필드 없음", correct_choice: 3, choices: four },
+        { prompt: "null", correct_choice: 3, choices: four, needs_review: null },
+      ]),
+    );
+    expect(r.format).toBe("json");
+    expect(r.questions.map((q) => q.needsReview)).toEqual([true, false, undefined, undefined]);
+  });
+  it("needs_review 가 불리언이 아니면 무시하고 경고 (파일은 그대로 읽는다)", () => {
+    const r = parseJsonQuestions(JSON.stringify([{ prompt: "q", correct_choice: 1, choices: ["a", "b", "c", "d"], needs_review: "yes" }]));
+    expect(r.questions).toHaveLength(1);
+    expect(r.questions[0].needsReview).toBeUndefined();
+    expect(r.questions[0].warnings.join(" ")).toContain("needs_review");
+  });
+});
+
 describe("JSON: 주제·단원 경로·Claude 퀴즈 형식", () => {
   it("subject / unit_path 를 문항에 싣는다 (파일 수준 + 문항 수준)", () => {
     const r = parseJsonQuestions(

@@ -33,7 +33,7 @@ export function fakeDeps(current: CurrentUser | null, seed: { subjects?: Subject
     trapTypes: q.trapTypes,
     tags: q.tags,
     points: q.points,
-    needsReview: q.correct === null,
+    needsReview: q.needsReview,
     unitConfidence: q.unitConfidence,
     sourceQuote: q.sourceQuote,
     sourcePage: q.sourcePage,
@@ -109,25 +109,31 @@ export function fakeDeps(current: CurrentUser | null, seed: { subjects?: Subject
       update: async (qid, patch) => void Object.assign(questions.find((q) => q.id === qid)!, patch),
       updateChoice: async (qid, ord, patch) => void Object.assign(questions.find((q) => q.id === qid)!.choices.find((c) => c.ord === ord)!, patch),
       delete: async (qid) => void questions.splice(questions.findIndex((q) => q.id === qid), 1),
-      overwrite: async (qid, q) => {
-        const i = questions.findIndex((x) => x.id === qid);
-        questions[i] = fromInsert(qid, questions[i].setId, questions[i].ord, q);
+      applyImport: async (w) => {
+        // 원자적: 먼저 모두 확인하고, 하나라도 안 되면 아무것도 바꾸지 않는다 (DB 함수 catalog.apply_import 처럼)
+        if (current?.isAdmin !== true) throw new Error("관리자만 문항을 넣을 수 있습니다");
+        for (const u of w.updates) if (!questions.some((x) => x.id === u.id)) throw new Error(`덮어쓸 문항 ${u.id} 이(가) 없습니다`);
+        for (const q of [...w.inserts, ...w.updates.map((u) => u.q)]) if (q.choices.length < 4 || q.choices.length > 5) throw new Error("선지는 4개 또는 5개");
+        let setId = w.set.id;
+        if (!setId && w.inserts.length) {
+          const s: QuestionSet = { id: id("set"), subjectId: w.subjectId, title: w.set.title, sourceFilename: w.set.sourceFilename, createdBy: w.set.createdBy, createdAt: "" };
+          sets.push(s);
+          setId = s.id;
+        }
+        for (const r of w.inserts) questions.push(fromInsert(id("q"), setId, r.ord, r));
+        for (const u of w.updates) {
+          const i = questions.findIndex((x) => x.id === u.id);
+          questions[i] = fromInsert(u.id, questions[i].setId, questions[i].ord, u.q);
+        }
+        if (!setId && w.updates.length) setId = questions.find((x) => x.id === w.updates[0].id)?.setId ?? null;
+        return { setId, inserted: w.inserts.length, updated: w.updates.length };
       },
-      insertIntoSet: async (setId, rows) => {
-        for (const r of rows) questions.push(fromInsert(id("q"), setId, r.ord, r));
-      },
-      setIdOf: async (qid) => questions.find((q) => q.id === qid)?.setId ?? null,
     },
     sets: {
       list: async (sid) => sets.filter((s) => s.subjectId === sid).map((s) => ({ ...s, questionCount: questions.filter((q) => q.setId === s.id).length })),
       listAll: async () => sets,
       byId: async (sid) => sets.find((s) => s.id === sid) ?? null,
       idsBySourceFilename: async (sid, f) => sets.filter((s) => s.subjectId === sid && s.sourceFilename === f).map((s) => s.id),
-      create: async (r) => {
-        const s: QuestionSet = { id: id("set"), subjectId: r.subjectId, title: r.title, sourceFilename: r.sourceFilename, createdBy: r.createdBy, createdAt: "" };
-        sets.push(s);
-        return s.id;
-      },
       delete: async (sid) => {
         sets.splice(sets.findIndex((s) => s.id === sid), 1);
         for (let i = questions.length - 1; i >= 0; i--) if (questions[i].setId === sid) questions.splice(i, 1); // C5

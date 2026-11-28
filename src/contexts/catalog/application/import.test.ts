@@ -180,6 +180,50 @@ describe("import use cases", () => {
     expect(d.ok && d.data).toMatchObject({ duplicates: ["새 질문?"], duplicates_with_existing: 1 });
     expect(d.ok && d.data.next).toContain("고친 뒤");
   });
+  it("M6 importQuestions(MCP) commit: JSON 의 needs_review: true 는 정답이 있어도 검토 필요로 저장, 없으면 false", async () => {
+    const f = fakeDeps(admin, { subjects: [subjectA], units });
+    const base = { subject: "교직실무", unit_path: ["학교 경영"], correct_choice: 1, choices: ["a", "b", "c", "d"] };
+    const c = await importQuestions(f.deps, { mode: "commit", questions: [{ ...base, prompt: "표시", needs_review: true }, { ...base, prompt: "표시 없음" }, { ...base, prompt: "false", needs_review: false }] });
+    expect(c.ok).toBe(true);
+    expect(f.questions.map((q) => [q.prompt, q.needsReview])).toEqual([["표시", true], ["표시 없음", false], ["false", false]]);
+  });
+  it("M6 commitImport(화면·CLI): 정답 없음은 needs_review 가 false 여도 검토 필요", async () => {
+    const f = fakeDeps(admin, { subjects: [subjectA], units });
+    const p = await previewImport(f.deps, { subjectId: "s", text: TEXT });
+    if (!p.ok) throw new Error(p.error);
+    const qs = p.data.questions.map((q) => ({ ...q, needsReview: false }));
+    const r = await commitImport(f.deps, { subjectId: "s", title: "t", sourceFilename: null, questions: qs });
+    expect(r.ok).toBe(true);
+    expect(f.questions.map((q) => [q.correctChoice, q.needsReview])).toEqual([[2, false], [null, true]]);
+  });
+  it("M4 saveQuestionSet: 세트 생성·새 문항·덮어쓰기를 applyImport 한 번으로 보낸다 (원자적 쓰기)", async () => {
+    const f = fakeDeps(admin, { subjects: [subjectA], units });
+    const mk = (prompt: string) => ({ ...emptyQuestion(null), prompt, key: prompt, unitId: "u1", unitConfidence: 1, unitCandidates: [], correct: 1, choices: [1, 2, 3, 4].map((n) => ({ text: `${prompt}${n}`, explanation: n === 1 ? "정답 해설" : null })) });
+    await saveQuestionSet(f.deps, { subjectId: "s", title: "t", sourceFilename: null, createdBy: "service", questions: [mk("A")] });
+    const calls: unknown[] = [];
+    const real = f.deps.questions.applyImport;
+    f.deps.questions.applyImport = async (w) => {
+      calls.push(w);
+      return real(w);
+    };
+    const r = await saveQuestionSet(f.deps, { subjectId: "s", title: "t2", sourceFilename: "x.json", createdBy: "service", questions: [mk("A"), mk("B")] });
+    expect(r).toMatchObject({ inserted: 1, updated: 1, count: 2 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      subjectId: "s",
+      // UUID 가 아닌 created_by(CLI 의 "service")는 null
+      set: { id: null, title: "t2", sourceFilename: "x.json", createdBy: null },
+      inserts: [{ prompt: "B", ord: 2, needsReview: false, choices: [{ ord: 1, text: "B1", explanation: "정답 해설" }, { ord: 2 }, { ord: 3 }, { ord: 4 }] }],
+      updates: [{ id: f.questions[0].id, q: { prompt: "A" } }],
+    });
+    // 쓰기가 실패하면 아무것도 바뀌지 않고 throw 한다 (가짜도 DB 함수처럼 원자적)
+    const before = JSON.stringify(f.questions);
+    f.deps.questions.applyImport = async () => {
+      throw new Error("boom");
+    };
+    await expect(saveQuestionSet(f.deps, { subjectId: "s", title: "t3", sourceFilename: null, createdBy: null, questions: [mk("C")] })).rejects.toThrow("boom");
+    expect(JSON.stringify(f.questions)).toBe(before);
+  });
   it("authoringGuide: 과목을 주면 단원 경로와 예시를 덧붙인다", async () => {
     const f = fakeDeps(admin, { subjects: [subjectA], units });
     expect(await authoringGuide(f.deps)).toContain("# mcquiz 출제 형식 안내");
