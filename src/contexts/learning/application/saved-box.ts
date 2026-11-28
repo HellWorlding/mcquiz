@@ -53,7 +53,9 @@ export async function visibleSavedIds(deps: LearningDeps, subjectId: string | nu
     const ids = new Set(questionIds);
     const stats = await deps.stats.questionStats(subjectId);
     return stats.filter((s) => s.saved && ids.has(s.questionId)).map((s) => s.questionId);
-  } catch {
+  } catch (e) {
+    // 조회 실패는 화면을 깨뜨리지 않고 빈 목록 (저장 배지만 빠짐). 원인은 로그로
+    console.error("[learning] visibleSavedIds 실패:", e instanceof Error ? e.message : e);
     return [];
   }
 }

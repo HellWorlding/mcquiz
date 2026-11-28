@@ -207,7 +207,9 @@ export async function confusedCarryIds(deps: LearningDeps, subjectId: string | n
       stats.map((s) => s.questionId),
     );
     return carriedConfusedIds(stats, attempts);
-  } catch {
+  } catch (e) {
+    // 조회 실패는 화면을 깨뜨리지 않고 빈 목록 (헷갈림 미리 켜기만 빠짐). 원인은 로그로
+    console.error("[learning] confusedCarryIds 실패:", e instanceof Error ? e.message : e);
     return [];
   }
 }

@@ -21,7 +21,7 @@ export function attemptRepo(db: Db): AttemptRepo {
       const out: Awaited<ReturnType<AttemptRepo["listForQuestions"]>> = [];
       for (let i = 0; i < questionIds.length; i += 100) {
         const chunk = questionIds.slice(i, i + 100);
-        const rows = await allRows((f, to) => t().select("id, question_id, selected_ord, is_correct, confused, elapsed_sec, created_at").eq("user_id", userId).in("question_id", chunk).order("created_at").range(f, to));
+        const rows = await allRows((f, to) => t().select("id, question_id, selected_ord, is_correct, confused, elapsed_sec, created_at").eq("user_id", userId).in("question_id", chunk).order("created_at").order("id").range(f, to));
         for (const r of rows) out.push({ id: r.id, questionId: r.question_id, selectedOrd: r.selected_ord, isCorrect: r.is_correct, confused: r.confused, elapsedSec: r.elapsed_sec, createdAt: r.created_at });
       }
       return out;
