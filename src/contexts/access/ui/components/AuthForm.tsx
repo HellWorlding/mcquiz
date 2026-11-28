@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useActionState } from "react";
-import { loginAction, magicLinkAction, signupAction, type AuthState } from "@/contexts/access/ui/actions";
+import { useActionState, useState } from "react";
+import { loginAction, magicLinkAction, resetPasswordAction, signupAction, type AuthState } from "@/contexts/access/ui/actions";
 import { useT } from "@/shared/i18n/client";
 
 export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: string }) {
@@ -10,6 +10,8 @@ export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: stri
     {},
   );
   const [linkState, linkAction, linkPending] = useActionState<AuthState, FormData>(magicLinkAction, {});
+  const [resetState, resetAction, resetPending] = useActionState<AuthState, FormData>(resetPasswordAction, {});
+  const [showReset, setShowReset] = useState(false);
   const t = useT();
   return (
     <div className="mx-auto mt-8 max-w-sm">
@@ -50,6 +52,26 @@ export function AuthForm({ mode, next }: { mode: "login" | "signup"; next?: stri
           {pending ? t("auth.processing") : mode === "login" ? t("auth.login") : t("auth.signup_btn")}
         </button>
       </form>
+      {mode === "login" && (
+        <div className="mt-3 flex flex-col gap-2 text-sm">
+          <button type="button" className="self-start text-accent underline" onClick={() => setShowReset((v) => !v)} aria-expanded={showReset}>
+            {t("auth.forgot")}
+          </button>
+          {showReset && (
+            <form action={resetAction} className="card flex flex-col gap-3">
+              <div className="font-semibold">{t("auth.reset_title")}</div>
+              <p className="text-sm text-muted">{t("auth.reset_desc")}</p>
+              <input name="email" type="email" required className="input" placeholder={t("auth.email")} autoComplete="email" inputMode="email" />
+              {resetState.error && <p className="rounded-lg bg-bad-soft px-3 py-2 text-sm text-bad">{resetState.error}</p>}
+              {resetState.message && <p className="rounded-lg bg-ok-soft px-3 py-2 text-sm text-ok">{resetState.message}</p>}
+              <button type="submit" className="btn-secondary" disabled={resetPending}>
+                {resetPending ? t("auth.sending") : t("auth.reset_btn")}
+              </button>
+            </form>
+          )}
+          <p className="text-muted">{t("auth.id_hint")}</p>
+        </div>
+      )}
       {mode === "login" && (
         <form action={linkAction} className="card mt-4 flex flex-col gap-3">
           {next && <input type="hidden" name="next" value={next} />}

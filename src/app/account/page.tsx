@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 
 export const metadata = { title: "내 계정" };
 
-export default async function AccountPage() {
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ reset?: string }> }) {
   const user = await requireUser("/account");
   const t = await getT();
   const h = await headers();
@@ -15,6 +15,7 @@ export default async function AccountPage() {
   return (
     <section className="mx-auto mt-6 flex max-w-sm flex-col gap-4">
       <h1 className="text-2xl font-bold">{t("account.title")}</h1>
+      {(await searchParams).reset === "1" && <p className="card text-sm text-accent">{t("account.reset_notice")}</p>}
       <PasswordForm email={user.email} />
       <McpConnectCard url={`${proto}://${host}/api/mcp`} />
     </section>
