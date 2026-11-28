@@ -5,6 +5,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 import type { QuizChoice as Choice, QuizQuestion as QuestionWithChoices, ResumeState, SessionAnswer } from "../../domain/types";
 import { hashString, shuffled } from "../../domain/shuffle";
 import { firstUnansweredIndex, unansweredCount, visibleMarks } from "../../domain/runner";
+import { listHashOf, snapshotKey, type QuizSnapshot } from "../../domain/snapshot";
+import { readSnapshot, removeSnapshot, tabStore, writeSnapshot } from "../snapshot-store";
 import { dismissQuestionsAction, recordAttemptAction, saveProgressAction, saveQuestionAction, setConfusedAction, undismissQuestionsAction, markGuestTrialAction } from "../actions";
 import { QuestionBadges, SourceQuote } from "@/shared/ui/QuestionMeta";
 import { EvidencePanel, ChatDock, type ChatDockQuestion } from "@/contexts/knowledge/ui";
@@ -39,6 +41,8 @@ type Props = {
   guestLocked?: boolean;
   /** 게스트 체험 쿠키용 퀴즈 키 */
   guestQuizKey?: string;
+  /** 퀴즈 주소 키 (모든 사용자). 탭 스냅샷 키에 쓴다. 없으면 guestQuizKey */
+  quizKey?: string;
   isAdmin?: boolean;
   backHref: string;
   /** 선지 셔플 seed. 서버에서 만들어 넘겨야 hydration 이 어긋나지 않는다 */
@@ -113,26 +117,50 @@ function shuffleChoices(q: QuestionWithChoices, salt: number): Choice[] {
   return shuffled(q.choices, hashString(q.id) ^ salt);
 }
 
-export function QuizRunner({ questions: initial, title, subjectId, isGuest, guestLimit = null, guestLocked = false, guestQuizKey = "", isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [], unitLabels = {}, confusedIds = [], questionNumbers = {} }: Props) {
+const subscribeNone = () => () => {};
+
+/**
+ * 풀이 화면. 뒤로가기·새로고침으로 다시 조립돼도 이어 풀도록 진행 상태를 탭 저장소에 스냅샷으로 남긴다 (D-021).
+ * 스냅샷은 브라우저에서만 읽을 수 있어 hydration 이 끝난 뒤 한 번 다시 그린다 (key 로 새로 마운트 → 초기값이 스냅샷).
+ * 클라이언트 이동(뒤로가기 포함)으로 열리면 처음부터 스냅샷으로 시작한다.
+ */
+export function QuizRunner(props: Props) {
+  const hydrated = useSyncExternalStore(subscribeNone, () => true, () => false);
+  const search = useSearchParams();
+  const urlSession = search?.get("session") ?? null;
+  return <QuizRunnerInner key={hydrated ? "client" : "server"} {...props} hydrated={hydrated} urlSession={urlSession} />;
+}
+
+function QuizRunnerInner({ questions: initial, title, subjectId, isGuest, guestLimit = null, guestLocked = false, guestQuizKey = "", quizKey: quizKeyProp, isAdmin = false, backHref, seed, resume, notes = {}, savedIds: initialSaved = [], unitLabels = {}, confusedIds = [], questionNumbers = {}, hydrated, urlSession }: Props & { hydrated: boolean; urlSession: string | null }) {
   const t = useT();
+  const quizKey = quizKeyProp ?? guestQuizKey;
+  // 탭 스냅샷: 서버 세션(resume)보다 우선한다 (이 탭에서 가장 최근 상태). 문항 목록이 다르면 키가 달라 쓰지 않는다
+  const [restored] = useState<QuizSnapshot | null>(() => {
+    if (!hydrated || initial.length === 0) return null;
+    const store = tabStore();
+    if (!store) return null;
+    const ids = initial.map((x) => x.id);
+    return readSnapshot(store, snapshotKey({ sessionId: resume?.id ?? urlSession, quizKey }, ids), listHashOf(ids), ids.length);
+  });
   const [questions, setQuestions] = useState(initial);
-  const [idx, setIdx] = useState(resume?.position ?? 0);
+  const [idx, setIdx] = useState(restored?.idx ?? resume?.position ?? 0);
   const [answers, setAnswers] = useState<Record<string, Answer>>(() => {
+    if (restored) return restored.answers;
     const out: Record<string, Answer> = {};
     for (const [qid, a] of Object.entries(resume?.answers ?? {})) out[qid] = { ...a, attemptId: null };
     // 헷갈림은 다시 끄기 전까지 유지: 지난 풀이에서 켜 둔 문항은 켠 채로 시작한다 (답을 고르면 새 풀이에 이어진다)
     for (const qid of confusedIds) out[qid] = out[qid] ? { ...out[qid], confused: true } : { selectedOrd: null, isCorrect: null, confused: true, attemptId: null };
     return out;
   });
-  const [sessionId, setSessionId] = useState<string | null>(resume?.id ?? null);
+  const [sessionId, setSessionId] = useState<string | null>(restored?.sessionId ?? resume?.id ?? null);
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(initialSaved));
   // 결과 화면 "다시 볼 문항" 필터
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   // 결과 화면에서 저장함에서 뺀 문항. 목록에서 사라지고, 되돌리기로 복구할 수 있다
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set(restored?.dismissed ?? []));
   const [dismissBusy, setDismissBusy] = useState(false);
-  // 선지 지우기(소거법): "문항id:선지ord" 집합. 화면 상태만, 저장하지 않는다
-  const [struck, setStruck] = useState<Set<string>>(new Set());
+  // 선지 지우기(소거법): "문항id:선지ord" 집합. 서버엔 저장하지 않고 탭 스냅샷으로만 복원된다
+  const [struck, setStruck] = useState<Set<string>>(() => new Set(restored?.struck ?? []));
   const toggleStrike = (qid: string, ord: number) => {
     const k = `${qid}:${ord}`;
     setStruck((s) => {
@@ -144,6 +172,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
   };
   // 문항별 타이머(초). 답을 고르면 멈추고, 5분이 넘으면 "5분+" 로 멈춘다. 숨기기는 기기에 기억
   const [elapsed, setElapsed] = useState<Record<string, number>>(() => {
+    if (restored) return restored.elapsed;
     // 이어서 풀기: 세션에 저장해 둔 문항별 시간을 되살린다
     const out: Record<string, number> = {};
     for (const [qid, a] of Object.entries(resume?.answers ?? {})) if (a.elapsedSec) out[qid] = Math.min(TIMER_CAP, a.elapsedSec);
@@ -222,7 +251,7 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
       .catch(() => setSyncError(true))
       .finally(() => setDismissBusy(false));
   };
-  const sessionRef = useRef<string | null>(resume?.id ?? null);
+  const sessionRef = useRef<string | null>(restored?.sessionId ?? resume?.id ?? null);
   const saving = useRef<Promise<void> | null>(null);
   // 서버 저장 실패(대개 새 버전 배포 직후 옛 화면이 서버를 부른 경우). 화면은 깨뜨리지 않고 안내만 띄운다
   const [syncError, setSyncError] = useState(false);
@@ -256,6 +285,9 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
         if (r.ok && r.data && !sessionRef.current) {
           sessionRef.current = r.data;
           setSessionId(r.data);
+          // 세션이 생기면 주소 키 스냅샷은 지운다 (같은 주소로 새로 시작할 때 옛 상태가 끼어들지 않게). 이후는 세션 키로 저장된다
+          const store = tabStore();
+          if (store) removeSnapshot(store, snapshotKey({ sessionId: null, quizKey }, qs.map((x) => x.id)));
           try {
             window.history.replaceState(window.history.state, "", `/quiz?session=${r.data}`);
           } catch {
@@ -265,13 +297,13 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
       };
       saving.current = (saving.current ?? Promise.resolve()).then(run, run);
     },
-    [isGuest, subjectId, title],
+    [isGuest, subjectId, title, quizKey],
   );
   const [showHint, setShowHint] = useState(false);
   const [showAll, setShowAll] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [finished, setFinished] = useState(restored?.finished ?? false);
   // 게스트 체험은 첫 답을 고른 순간 쿠키에 기록한다 (결과 화면까지 안 가고 다른 세트를 열어 상한을 넘기지 못하게 — 검토 N4)
-  const trialMarked = useRef(false);
+  const trialMarked = useRef(!!restored && Object.values(restored.answers).some((x) => x.selectedOrd !== null));
   const markTrial = useCallback(() => {
     if (!isGuest || trialMarked.current) return;
     trialMarked.current = true;
@@ -280,7 +312,21 @@ export function QuizRunner({ questions: initial, title, subjectId, isGuest, gues
   const pathname = usePathname();
   const search = useSearchParams();
   const loginHref = `/login?next=${encodeURIComponent(pathname + (search?.size ? `?${search.toString()}` : ""))}`;
-  const [salt, setSalt] = useState(seed);
+  const [salt, setSalt] = useState(restored?.salt ?? seed);
+
+  // 상태가 바뀔 때마다 탭 스냅샷을 쓴다. 키가 바뀌면(세션 생김·틀린 문제 다시 풀기) 옛 키는 지운다.
+  // hydration 전 첫 그림은 쓰지 않는다 (그 초기값이 남아 있던 스냅샷을 덮지 않게)
+  const snapKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!hydrated || questions.length === 0) return;
+    const store = tabStore();
+    if (!store) return;
+    const ids = questions.map((x) => x.id);
+    const key = snapshotKey({ sessionId, quizKey }, ids);
+    if (snapKeyRef.current && snapKeyRef.current !== key) removeSnapshot(store, snapKeyRef.current);
+    snapKeyRef.current = key;
+    writeSnapshot(store, key, { v: 1, savedAt: Date.now(), listHash: listHashOf(ids), sessionId, idx, answers, elapsed, dismissed: [...dismissed], finished, salt, struck: [...struck] });
+  }, [hydrated, questions, sessionId, quizKey, idx, answers, elapsed, dismissed, finished, salt, struck]);
 
   const q = questions[idx];
   const order = useMemo(() => (q ? shuffleChoices(q, salt) : []), [q, salt]);

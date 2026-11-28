@@ -24,6 +24,8 @@ export type ResolvedQuiz = {
   guestLimit: number | null;
   /** 게스트 체험 쿠키에 쓰는 이 퀴즈의 키 */
   guestQuizKey: string;
+  /** 퀴즈 주소 키 (모든 사용자, guestQuizKey 와 같은 값). 풀이 화면 탭 스냅샷 키에 쓴다 (D-021) */
+  quizKey: string;
   /** 순서·개수 적용 전 문항 수 */
   total: number;
   title: string;
@@ -66,7 +68,7 @@ export async function loadQuiz(params: QuizSearchParams): Promise<ResolvedQuiz> 
   const guestQuizKey = quizKeyOf(params as Record<string, string | string[] | undefined>);
   // 게스트는 하루 한 번만 체험 (쿠키 "날짜:퀴즈키"). 같은 퀴즈는 이어서, 다른 퀴즈를 새로 열면 잠김 카드
   if (isGuest && isTrialUsed((await cookies()).get(GUEST_TRIAL_COOKIE)?.value, new Date(deps.clock.now()), guestQuizKey)) {
-    return { questions: [], total: 0, title: TITLE.quiz, subjectId: p.subjectId ?? null, seed, resume: null, notes: {}, savedIds: [], unitLabels: {}, confusedIds: [], questionNumbers: {}, guestLocked: true, guestLimit: GUEST_TRIAL_LIMIT, guestQuizKey };
+    return { questions: [], total: 0, title: TITLE.quiz, subjectId: p.subjectId ?? null, seed, resume: null, notes: {}, savedIds: [], unitLabels: {}, confusedIds: [], questionNumbers: {}, guestLocked: true, guestLimit: GUEST_TRIAL_LIMIT, guestQuizKey, quizKey: guestQuizKey };
   }
   let questions: QuizQuestion[] = [];
   let total = 0;
@@ -102,7 +104,7 @@ export async function loadQuiz(params: QuizSearchParams): Promise<ResolvedQuiz> 
   const unitLabels: Record<string, string> = {};
   for (const q of questions) if (q.unit_id && !(q.unit_id in unitLabels)) unitLabels[q.unit_id] = unitPathLabel(units, q.unit_id) ?? "";
   const questionNumbers = numberLabels(questions, new Map(units.map((u) => [u.id, u.no])));
-  return { questions, total, title, subjectId, seed: resolvedSeed, resume, notes: Object.fromEntries(notes), savedIds, unitLabels, confusedIds, questionNumbers, guestLocked: false, guestLimit: isGuest ? GUEST_TRIAL_LIMIT : null, guestQuizKey };
+  return { questions, total, title, subjectId, seed: resolvedSeed, resume, notes: Object.fromEntries(notes), savedIds, unitLabels, confusedIds, questionNumbers, guestLocked: false, guestLimit: isGuest ? GUEST_TRIAL_LIMIT : null, guestQuizKey, quizKey: guestQuizKey };
 }
 
 /** 과목 목록을 활동순(저장함 많음 → 최근 풀이 → 만든 순)으로. 홈·저장함·메모·AI 질문 페이지가 같이 쓴다 */
