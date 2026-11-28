@@ -70,12 +70,17 @@ export function questionRepo(db: Db): QuestionRepo {
       // 조회 실패를 "기존 문항 없음" 으로 보면 전부 새 문항으로 저장돼 중복이 생긴다 → throw 해 반입을 멈춘다 (allRows 는 오류를 삼키므로 쓰지 않는다)
       const wanted = new Set(prompts);
       const out: { id: string; unitId: string | null; prompt: string }[] = [];
+      // id 키셋 페이지: OFFSET 방식은 읽는 중 삭제가 일어나면 행을 건너뛸 수 있다 (CodeRabbit)
       const page = 1000;
-      for (let from = 0; ; from += page) {
-        const { data, error } = await t().select("id, unit_id, prompt").eq("subject_id", subjectId).order("id").range(from, from + page - 1);
+      let lastId: string | null = null;
+      for (;;) {
+        let q = t().select("id, unit_id, prompt").eq("subject_id", subjectId).order("id").limit(page);
+        if (lastId) q = q.gt("id", lastId);
+        const { data, error } = await q;
         if (error) throw new Error(error.message);
         for (const r of data ?? []) if (wanted.has(r.prompt)) out.push({ id: r.id, unitId: r.unit_id, prompt: r.prompt });
         if (!data || data.length < page) break;
+        lastId = data[data.length - 1].id;
       }
       return out;
     },

@@ -82,6 +82,12 @@ export async function run(argv: string[]): Promise<void> {
   if (signIn.error || !token) fail(`로그인 실패: ${signIn.error?.message ?? "세션 없음"}`);
   ok("로그인", new URL(env.supabaseUrl).host);
 
+  // 토큰이 평문으로 나가지 않게: 로컬 주소가 아니면 https 만 허용 (CodeRabbit CWE-319)
+  {
+    const u = new URL(url);
+    const local = u.hostname === "127.0.0.1" || u.hostname === "localhost" || u.hostname === "[::1]";
+    if (u.protocol !== "https:" && !local) throw new Error(`MCP 주소는 https 여야 합니다 (로컬 127.0.0.1/localhost 만 http 허용): ${url}`);
+  }
   let id = 0;
   let session: string | undefined;
   const call = async (method: string, params: Record<string, unknown> = {}, notify = false): Promise<RpcResponse | null> => {
@@ -99,8 +105,8 @@ export async function run(argv: string[]): Promise<void> {
     });
     session = res.headers.get("mcp-session-id") ?? session;
     const text = await res.text();
-    if (notify) return null;
     if (!res.ok) throw new Error(`${method}: HTTP ${res.status} ${text.replace(/\s+/g, " ").slice(0, 200)}`);
+    if (notify) return null;
     const body = parseRpcBody(text);
     if (!body) throw new Error(`${method}: 응답을 읽지 못함 ${text.replace(/\s+/g, " ").slice(0, 200)}`);
     if (body.error) throw new Error(`${method}: ${body.error.message}`);
@@ -116,7 +122,7 @@ export async function run(argv: string[]): Promise<void> {
     const init = await call("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "mcquiz-smoke", version: SERVER_VERSION } });
     const info = (init?.result?.serverInfo ?? {}) as { name?: string; version?: string };
     ok("initialize", `serverInfo ${info.name ?? "?"} ${info.version ?? "?"}`);
-    await call("notifications/initialized", {}, true).catch(() => null);
+    await call("notifications/initialized", {}, true);
 
     const list = await call("tools/list");
     const names = ((list?.result?.tools ?? []) as { name: string }[]).map((t) => t.name);
